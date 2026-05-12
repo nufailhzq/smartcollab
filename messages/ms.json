@@ -1,0 +1,56 @@
+{
+  "App": {
+    "name": "UKMFolio",
+    "subtitle": "SMARTCOLLAB Module"
+  },
+  "Login": {
+    "title": "Log Masuk",
+    "matric": "No. Matrik",
+    "matricPlaceholder": "Cth: A201762",
+    "password": "Kata laluan",
+    "passwordPlaceholder": "Masukkan kata laluan anda",
+    "remember": "Ingatan saya",
+    "forgot": "Lupa kata laluan?",
+    "submit": "Log Masuk",
+    "submitting": "Sedang log masuk...",
+    "quickLogin": "Log masuk pantas (untuk demo):",
+    "asStudent": "Pelajar",
+    "asLecturer": "Pensyarah",
+    "asLecturer2": "Pensyarah 2",
+    "asAdmin": "Admin",
+    "errors": {
+      "invalid": "No. matrik atau kata laluan salah.",
+      "unknown": "Ralat tidak dijangka. Sila cuba lagi."
+    }
+  },
+  "Common": {
+    "loading": "Sedang memuat...",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "delete": "Padam",
+    "edit": "Sunting",
+    "submit": "Hantar",
+    "logout": "Log Keluar",
+    "back": "Kembali",
+    "yes": "Ya",
+    "no": "Tidak",
+    "empty": "Tiada data buat masa ini."
+  },
+  "Nav": {
+    "dashboard": "Papan Pemuka",
+    "courses": "Kursus",
+    "groups": "Kumpulan",
+    "calendar": "Kalendar",
+    "submissions": "Tugasan",
+    "profile": "Profil",
+    "monitoring": "Pemantauan",
+    "groupManagement": "Pengurusan Kumpulan",
+    "users": "Pengguna",
+    "system": "Sistem"
+  },
+  "Roles": {
+    "STUDENT": "Pelajar",
+    "LECTURER": "Pensyarah",
+    "ADMIN": "Pentadbir"
+  }
+}

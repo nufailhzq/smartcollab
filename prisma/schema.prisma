@@ -1,0 +1,389 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  LECTURER
+  ADMIN
+}
+
+enum AssignmentType {
+  INDIVIDUAL
+  GROUP
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  GRADED
+  LATE
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+enum GroupRole {
+  LEADER
+  MEMBER
+}
+
+enum ContentType {
+  GENERAL
+  NOTES
+  ANNOUNCEMENT
+  FORUM
+  FILE
+}
+
+enum GroupAccessRequestType {
+  JOIN
+  LEAVE
+}
+
+enum GroupAccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           Int      @id @default(autoincrement()) @map("fld_user_id")
+  name         String   @map("fld_name")
+  email        String?  @unique @map("fld_email")
+  passwordHash String   @map("fld_password")
+  role         Role     @map("fld_role")
+  matricNum    String?  @unique @map("fld_matric_num")
+  faculty      String?  @default("FTSM") @map("fld_faculty")
+  isActive     Boolean  @default(true) @map("fld_is_active")
+  createdAt    DateTime @default(now())
+
+  enrollments        ClassEnrollment[]
+  taughtCourses      Course[]             @relation("LecturerCourses")
+  groupMemberships   GroupMember[]
+  submissions        Submission[]
+  postedContent      CourseContent[]      @relation("PostedBy")
+  notifications      Notification[]
+  sentMessages       Message[]            @relation("Sender")
+  receivedMessages   Message[]            @relation("Receiver")
+  sentFriendReqs     Friendship[]         @relation("Sender")
+  receivedFriendReqs Friendship[]         @relation("Receiver")
+  createdEvents      CalendarEvent[]
+  gradedSubmissions  SubmissionFeedback[]
+  createdChatGroups       ChatGroup[]            @relation("ChatGroupCreator")
+  chatGroupMemberships    ChatGroupMember[]
+  accessRequestsAsStudent GroupAccessRequest[]   @relation("AccessRequestStudent")
+  accessRequestsHandled   GroupAccessRequest[]   @relation("AccessRequestResponder")
+
+  // NextAuth (database session strategy) tables
+  accounts Account[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Course {
+  id            Int      @id @default(autoincrement()) @map("fld_course_id")
+  code          String   @unique @map("fld_course_code")
+  title         String   @map("fld_title")
+  description   String?  @db.Text
+  lecturer      User?    @relation("LecturerCourses", fields: [lecturerId], references: [id])
+  lecturerId    Int?     @map("fld_lecturer_id")
+  semester      String?  @map("fld_semester")
+  creditHours   Int?     @map("fld_credit_hour")
+  /// When true, students must request lecturer approval to join or leave a group.
+  groupsLocked  Boolean  @default(false) @map("fld_groups_locked")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  enrollments    ClassEnrollment[]
+  assignments    Assignment[]
+  groups         ProjectGroup[]
+  content        CourseContent[]
+  events         CalendarEvent[]
+  accessRequests GroupAccessRequest[]
+
+  @@index([lecturerId])
+  @@map("courses")
+}
+
+model ClassEnrollment {
+  id         Int      @id @default(autoincrement()) @map("fld_enrollment_id")
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   Int      @map("fld_course_id")
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  Int      @map("fld_student_id")
+  enrolledAt DateTime @default(now()) @map("fld_enrolled_at")
+
+  @@unique([courseId, studentId], map: "uniq_course_student")
+  @@index([studentId])
+  @@map("class_enrollments")
+}
+
+model Assignment {
+  id          Int            @id @default(autoincrement()) @map("fld_assignment_id")
+  course      Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    Int            @map("fld_course_id")
+  title       String         @map("fld_title")
+  description String?        @db.Text @map("fld_description")
+  type        AssignmentType @default(INDIVIDUAL) @map("fld_type")
+  dueDate     DateTime?      @map("fld_due_date")
+  maxGrade    Int?           @map("fld_max_grade")
+  createdAt   DateTime       @default(now())
+
+  submissions Submission[]
+  attachments AssignmentAttachment[]
+
+  @@index([courseId])
+  @@map("assignments")
+}
+
+model AssignmentAttachment {
+  id           Int        @id @default(autoincrement())
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId Int
+  filePath     String
+  fileSize     String?
+  uploadedBy   Int
+  createdAt    DateTime   @default(now())
+
+  @@map("assignment_attachments")
+}
+
+model Submission {
+  id           Int                  @id @default(autoincrement()) @map("fld_submission_id")
+  assignment   Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId Int                  @map("fld_assignment_id")
+  student      User                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    Int                  @map("fld_student_id")
+  filePath     String?              @map("fld_file_path")
+  grade        Int?                 @map("fld_grade")
+  status       SubmissionStatus     @default(PENDING) @map("fld_status")
+  submittedAt  DateTime             @default(now()) @map("fld_submitted_at")
+  feedback     SubmissionFeedback[]
+
+  @@unique([assignmentId, studentId], map: "uniq_assignment_student")
+  @@map("submissions")
+}
+
+model SubmissionFeedback {
+  id           Int        @id @default(autoincrement())
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId Int
+  lecturer     User       @relation(fields: [lecturerId], references: [id])
+  lecturerId   Int
+  comment      String     @db.Text
+  createdAt    DateTime   @default(now())
+
+  @@map("submission_feedback")
+}
+
+model ProjectGroup {
+  id         Int      @id @default(autoincrement()) @map("fld_group_id")
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   Int      @map("fld_course_id")
+  name       String   @map("fld_name_id")
+  maxMembers Int      @default(5) @map("fld_max_members")
+  createdAt  DateTime @default(now())
+
+  members        GroupMember[]
+  events         CalendarEvent[]
+  accessRequests GroupAccessRequest[]
+
+  @@index([courseId])
+  @@map("project_groups")
+}
+
+model GroupAccessRequest {
+  id          Int                      @id @default(autoincrement()) @map("fld_access_req_id")
+  type        GroupAccessRequestType   @map("fld_type")
+  status      GroupAccessRequestStatus @default(PENDING) @map("fld_status")
+  course      Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    Int                      @map("fld_course_id")
+  group       ProjectGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId     Int                      @map("fld_group_id")
+  student     User                     @relation("AccessRequestStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   Int                      @map("fld_student_id")
+  reason      String?                  @db.Text @map("fld_reason")
+  respondedBy User?                    @relation("AccessRequestResponder", fields: [respondedById], references: [id])
+  respondedById Int?                   @map("fld_responded_by")
+  respondedAt DateTime?                @map("fld_responded_at")
+  createdAt   DateTime                 @default(now()) @map("fld_created_at")
+
+  @@index([courseId, status])
+  @@index([studentId])
+  @@map("group_access_requests")
+}
+
+model GroupMember {
+  id        Int          @id @default(autoincrement()) @map("fld_member_id")
+  group     ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId   Int          @map("fld_group_id")
+  student   User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId Int          @map("fld_student_id")
+  role      GroupRole    @default(MEMBER) @map("fld_role")
+
+  @@unique([groupId, studentId], map: "uniq_group_student")
+  @@map("group_members")
+}
+
+model CourseContent {
+  id         Int         @id @default(autoincrement()) @map("fld_content_id")
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   Int         @map("fld_course_id")
+  type       ContentType @default(GENERAL) @map("fld_type")
+  title      String      @map("fld_title")
+  content    String?     @db.Text @map("fld_content")
+  fileName   String?     @map("fld_file_name")
+  fileSize   String?     @map("fld_file_size")
+  postedBy   User?       @relation("PostedBy", fields: [postedById], references: [id])
+  postedById Int?        @map("fld_posted_by")
+  postedAt   DateTime    @default(now()) @map("fld_posted_at")
+
+  @@index([courseId])
+  @@index([type])
+  @@map("course_content")
+}
+
+model Message {
+  id          Int        @id @default(autoincrement()) @map("fld_message_id")
+  sender      User       @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId    Int        @map("fld_sender_id")
+  receiver    User?      @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId  Int?       @map("fld_receiver_id")
+  chatGroup   ChatGroup? @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  chatGroupId Int?       @map("fld_chat_group_id")
+  content     String     @db.Text @map("fld_content")
+  isRead      Boolean    @default(false) @map("fld_read")
+  timestamp   DateTime   @default(now()) @map("fld_timestamp")
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([chatGroupId])
+  @@map("private_messages")
+}
+
+model ChatGroup {
+  id        Int      @id @default(autoincrement()) @map("fld_chat_group_id")
+  name      String   @map("fld_name")
+  createdBy User     @relation("ChatGroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdById Int    @map("fld_created_by")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  members  ChatGroupMember[]
+  messages Message[]
+
+  @@map("chat_groups")
+}
+
+model ChatGroupMember {
+  id          Int       @id @default(autoincrement()) @map("fld_chat_member_id")
+  chatGroup   ChatGroup @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  chatGroupId Int       @map("fld_chat_group_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int       @map("fld_user_id")
+  isAdmin     Boolean   @default(false) @map("fld_is_admin")
+  /// Last time this member opened the group; used to compute unread message count.
+  lastReadAt  DateTime  @default(now()) @map("fld_last_read_at")
+  joinedAt    DateTime  @default(now()) @map("fld_joined_at")
+
+  @@unique([chatGroupId, userId], map: "uniq_chat_group_member")
+  @@index([userId])
+  @@map("chat_group_members")
+}
+
+model Friendship {
+  id         Int              @id @default(autoincrement()) @map("fld_friendship_id")
+  sender     User             @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId   Int              @map("fld_student_id1")
+  receiver   User             @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId Int              @map("fld_student_id2")
+  status     FriendshipStatus @default(PENDING) @map("fld_status")
+  createdAt  DateTime         @default(now()) @map("fld_created_at")
+
+  @@unique([senderId, receiverId], map: "unique_friendship")
+  @@map("friendships")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement()) @map("fld_notification_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int      @map("fld_user_id")
+  title     String   @map("fld_title")
+  message   String   @db.Text @map("fld_message")
+  link      String?  @default("") @map("fld_link")
+  isRead    Boolean  @default(false) @map("fld_read")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model CalendarEvent {
+  id          Int           @id @default(autoincrement()) @map("fld_event_id")
+  title       String        @map("fld_title")
+  description String?       @db.Text @map("fld_description")
+  date        DateTime      @map("fld_date") @db.Date
+  time        String        @default("00:00:00") @map("fld_time")
+  group       ProjectGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  groupId     Int?          @map("fld_group_id")
+  course      Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  courseId    Int?          @map("fld_course_id")
+  createdBy   User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdById Int           @map("fld_created_by")
+  reminder    Boolean       @default(false) @map("fld_reminder")
+  createdAt   DateTime      @default(now()) @map("fld_created_at")
+
+  @@map("calendar_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NextAuth v5 / @auth/prisma-adapter tables (database session strategy)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("auth_accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("auth_verification_tokens")
+}

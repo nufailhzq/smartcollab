@@ -1,0 +1,56 @@
+{
+  "App": {
+    "name": "UKMFolio",
+    "subtitle": "SMARTCOLLAB Module"
+  },
+  "Login": {
+    "title": "Sign in",
+    "matric": "Matric No.",
+    "matricPlaceholder": "e.g. A201762",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "remember": "Remember me",
+    "forgot": "Forgot password?",
+    "submit": "Sign in",
+    "submitting": "Signing in...",
+    "quickLogin": "Quick sign-in (demo):",
+    "asStudent": "Student",
+    "asLecturer": "Lecturer",
+    "asLecturer2": "Lecturer 2",
+    "asAdmin": "Admin",
+    "errors": {
+      "invalid": "Incorrect matric number or password.",
+      "unknown": "Unexpected error. Please try again."
+    }
+  },
+  "Common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "submit": "Submit",
+    "logout": "Sign out",
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No",
+    "empty": "No data yet."
+  },
+  "Nav": {
+    "dashboard": "Dashboard",
+    "courses": "Courses",
+    "groups": "Groups",
+    "calendar": "Calendar",
+    "submissions": "Submissions",
+    "profile": "Profile",
+    "monitoring": "Monitoring",
+    "groupManagement": "Group Management",
+    "users": "Users",
+    "system": "System"
+  },
+  "Roles": {
+    "STUDENT": "Student",
+    "LECTURER": "Lecturer",
+    "ADMIN": "Administrator"
+  }
+}

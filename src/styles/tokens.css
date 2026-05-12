@@ -1,0 +1,18 @@
+:root {
+  /* testfyp2-aligned palette: light theme, navy + orange accents */
+  --ukm-navy: #1e3a5f;
+  --ukm-dark: #0f2744;
+  --ukm-orange: #f97316;
+  --ukm-orange-soft: #fff7ed;
+  --ukm-red: #dc2626;
+  --ukm-teal: #0ea5e9;
+  --ukm-cyan: #22d3ee;
+
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-muted: #f1f5f9;
+  --border-soft: #e2e8f0;
+  --text: #334155;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+}
