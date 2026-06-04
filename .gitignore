@@ -17,3 +17,7 @@ test-results
 .turbo
 .vercel
 prisma/dev.db*
+
+# Local DB dumps used for one-off imports
+backup.sql
+*.sql.gz
