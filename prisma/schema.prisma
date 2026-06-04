@@ -120,6 +120,7 @@ model User {
   blocksReceived          UserBlock[]            @relation("Blocked")
   mutesMade               UserMute[]             @relation("Muter")
   mutesReceived           UserMute[]             @relation("Muted")
+  folioReports            FolioPostReport[]      @relation("ReportReporter")
 
   // NextAuth (database session strategy) tables
   accounts Account[]
@@ -534,11 +535,36 @@ model FolioPost {
   reposts   FolioPost[]        @relation("PostRepost")
   comments  FolioComment[]
   reactions FolioReaction[]
+  reports   FolioPostReport[]
 
   @@index([authorId])
   @@index([parentId])
   @@index([createdAt])
   @@map("folio_posts")
+}
+
+enum FolioPostReportStatus {
+  PENDING
+  RESOLVED
+}
+
+/// User-submitted moderation report against a Folio post. Admins see a queue
+/// at /admin/laporan and either delete the post (with a reason that's sent
+/// to the author as a notification) or dismiss the report.
+model FolioPostReport {
+  id         Int                   @id @default(autoincrement()) @map("fld_report_id")
+  post       FolioPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId     Int                   @map("fld_post_id")
+  reporter   User                  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId Int                   @map("fld_reporter_id")
+  reason     String                @db.Text @map("fld_reason")
+  status     FolioPostReportStatus @default(PENDING) @map("fld_status")
+  createdAt  DateTime              @default(now()) @map("fld_created_at")
+
+  @@index([postId])
+  @@index([reporterId])
+  @@index([status])
+  @@map("folio_post_reports")
 }
 
 model FolioPostImage {

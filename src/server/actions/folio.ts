@@ -6,7 +6,8 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { notifyMany } from "@/lib/notifications";
+import { notifyMany, notifyUser } from "@/lib/notifications";
+import { z } from "zod";
 import {
   ALLOWED_POST_IMAGE_TYPES,
   MAX_POST_IMAGE_BYTES,
@@ -160,14 +161,10 @@ export async function deleteFolioPost(raw: unknown): Promise<ActionResult> {
   });
   if (!post) return { ok: false, error: "Pos tidak wujud." };
 
-  // Folio Connect is a moderated-by-community space — any authenticated
-  // student or lecturer may remove any post (admins always allowed).
-  if (
-    session.user.role !== "STUDENT" &&
-    session.user.role !== "LECTURER" &&
-    session.user.role !== "ADMIN"
-  ) {
-    return { ok: false, error: "Tidak dibenarkan." };
+  // Only the post's author may delete it via this path. Admin removals go
+  // through `adminDeleteFolioPost` so the author gets a reason notification.
+  if (post.authorId !== session.user.id) {
+    return { ok: false, error: "Anda hanya boleh padam pos anda sendiri." };
   }
 
   await prisma.folioPost.delete({ where: { id: post.id } });
@@ -366,4 +363,168 @@ export async function toggleFolioReaction(
   bumpCaches();
   revalidatePath(`/folio/pos/${targetPostId}`);
   return { ok: true, data: { added: true } };
+}
+
+// ---------------------------------------------------------------------------
+// Moderation: report a post (anyone) → admin can delete or dismiss
+// ---------------------------------------------------------------------------
+
+const reportSchema = z.object({
+  postId: z.number().int().positive(),
+  reason: z
+    .string()
+    .trim()
+    .min(5, "Sila berikan sebab laporan (sekurang-kurangnya 5 aksara).")
+    .max(800, "Sebab terlalu panjang."),
+});
+
+const adminDeleteSchema = z.object({
+  postId: z.number().int().positive(),
+  reason: z
+    .string()
+    .trim()
+    .min(5, "Sila berikan sebab pemadaman (sekurang-kurangnya 5 aksara).")
+    .max(800, "Sebab terlalu panjang."),
+});
+
+const dismissReportSchema = z.object({
+  reportId: z.number().int().positive(),
+});
+
+/**
+ * Anyone authenticated can report a post. Creates a PENDING report row and
+ * notifies every active admin so they see the new entry in their queue.
+ */
+export async function reportFolioPost(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const parsed = reportSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const post = await prisma.folioPost.findUnique({
+    where: { id: parsed.data.postId },
+    select: { id: true, authorId: true, content: true },
+  });
+  if (!post) return { ok: false, error: "Pos tidak wujud." };
+  if (post.authorId === session.user.id) {
+    return { ok: false, error: "Anda tidak boleh melaporkan pos anda sendiri." };
+  }
+
+  // Block duplicate pending reports from the same user for the same post.
+  const existing = await prisma.folioPostReport.findFirst({
+    where: {
+      postId: post.id,
+      reporterId: session.user.id,
+      status: "PENDING",
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return { ok: false, error: "Anda sudah melaporkan pos ini." };
+  }
+
+  await prisma.folioPostReport.create({
+    data: {
+      postId: post.id,
+      reporterId: session.user.id,
+      reason: parsed.data.reason,
+    },
+  });
+
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", isActive: true },
+    select: { id: true },
+  });
+  if (admins.length > 0) {
+    const snippet = post.content
+      ? post.content.length > 60
+        ? `${post.content.slice(0, 57)}…`
+        : post.content
+      : "(tanpa teks)";
+    await notifyMany(
+      admins.map((a) => a.id),
+      {
+        title: "Laporan Pos Baharu",
+        message: `${session.user.name} melaporkan: "${snippet}"`,
+        link: "/admin/laporan",
+      },
+    );
+  }
+
+  revalidatePath("/admin/laporan");
+  return { ok: true };
+}
+
+/**
+ * Admin removes a reported post and notifies the author with the stated
+ * reason. Cascades delete every related report row.
+ */
+export async function adminDeleteFolioPost(
+  raw: unknown,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "ADMIN") {
+    return { ok: false, error: "Hanya admin dibenarkan." };
+  }
+
+  const parsed = adminDeleteSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const post = await prisma.folioPost.findUnique({
+    where: { id: parsed.data.postId },
+    include: { images: true, author: { select: { id: true, name: true } } },
+  });
+  if (!post) return { ok: false, error: "Pos tidak wujud." };
+
+  const snippet = post.content
+    ? post.content.length > 80
+      ? `${post.content.slice(0, 77)}…`
+      : post.content
+    : "(tanpa teks)";
+
+  await prisma.folioPost.delete({ where: { id: post.id } });
+  for (const img of post.images) {
+    await deleteImageFile(img.imagePath);
+  }
+
+  await notifyUser(post.authorId, {
+    title: "⚠️ Pos Anda Dipadam Oleh Admin",
+    message: `Pos: "${snippet}"\n\nSebab: ${parsed.data.reason}`,
+    link: "/admin-delete",
+  });
+
+  bumpCaches();
+  revalidatePath("/admin/laporan");
+  return { ok: true };
+}
+
+/**
+ * Admin dismisses a single report — flips status to RESOLVED without
+ * touching the post. Use when the report is invalid.
+ */
+export async function dismissFolioReport(
+  raw: unknown,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "ADMIN") {
+    return { ok: false, error: "Hanya admin dibenarkan." };
+  }
+
+  const parsed = dismissReportSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  await prisma.folioPostReport.update({
+    where: { id: parsed.data.reportId },
+    data: { status: "RESOLVED" },
+  });
+
+  revalidatePath("/admin/laporan");
+  return { ok: true };
 }

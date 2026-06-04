@@ -8,6 +8,7 @@ import {
   BookOpen,
   Calendar,
   FileCheck,
+  Flag,
   Hash,
   Layers,
   LayoutDashboard,
@@ -49,6 +50,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/admin/pengguna", label: "Pengguna", Icon: Users },
   { href: "/admin/kursus", label: "Kursus", Icon: BookOpen },
   { href: "/admin/buletin", label: "Buletin", Icon: Megaphone },
+  { href: "/admin/laporan", label: "Laporan", Icon: Flag },
   { href: "/admin/sistem", label: "Sistem", Icon: Layers },
 ];
 

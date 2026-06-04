@@ -3,19 +3,26 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
+  Flag,
   Globe2,
   MessageCircle,
   MoreHorizontal,
   Repeat2,
+  Send,
   Trash2,
   Users,
   UsersRound,
+  X,
 } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { MentionText } from "./MentionText";
 import { ReactionsBar } from "./ReactionsBar";
 import { CommentSection, type CommentRow } from "./CommentSection";
-import { deleteFolioPost, toggleRepost } from "@/server/actions/folio";
+import {
+  deleteFolioPost,
+  reportFolioPost,
+  toggleRepost,
+} from "@/server/actions/folio";
 
 type Author = {
   id: number;
@@ -151,6 +158,32 @@ export function PostCard({
     });
   }
 
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportSent, setReportSent] = useState(false);
+
+  function onSubmitReport(e: React.FormEvent) {
+    e.preventDefault();
+    const reason = reportReason.trim();
+    if (reason.length < 5) {
+      alert("Sila berikan sebab laporan (sekurang-kurangnya 5 aksara).");
+      return;
+    }
+    startTransition(async () => {
+      const res = await reportFolioPost({ postId: display.id, reason });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setReportSent(true);
+      setReportReason("");
+      setTimeout(() => {
+        setReportOpen(false);
+        setReportSent(false);
+      }, 1400);
+    });
+  }
+
   return (
     <article className="card group relative animate-fade-in p-4 sm:p-5">
       {reposter && (
@@ -220,21 +253,34 @@ export function PostCard({
                 <MoreHorizontal size={16} />
               </button>
               {openMenu && (
-                <div className="absolute right-0 z-10 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lift">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenMenu(false);
-                      onDelete();
-                    }}
-                    disabled={isPending}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ukm-red hover:bg-red-50"
-                  >
-                    <Trash2 size={14} />
-                    {isOwn || (reposter && reposter.id === currentUserId)
-                      ? "Padam pos"
-                      : "Padam pos ini"}
-                  </button>
+                <div className="absolute right-0 z-10 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lift">
+                  {isOwn || (reposter && reposter.id === currentUserId) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(false);
+                        onDelete();
+                      }}
+                      disabled={isPending}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ukm-red hover:bg-red-50"
+                    >
+                      <Trash2 size={14} />
+                      Padam pos
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(false);
+                        setReportOpen(true);
+                      }}
+                      disabled={isPending}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
+                    >
+                      <Flag size={14} />
+                      Laporkan pos
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -325,6 +371,78 @@ export function PostCard({
           </div>
         </div>
       </div>
+
+      {reportOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => !isPending && setReportOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-lift-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="flex items-center gap-2 text-base font-bold text-ukm-navy">
+                  <Flag size={16} className="text-amber-600" />
+                  Laporkan Pos
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Beritahu kami mengapa pos ini melanggar dasar. Admin akan
+                  menyemak dan mengambil tindakan.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isPending && setReportOpen(false)}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-ukm-navy"
+                aria-label="Tutup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {reportSent ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-6 text-center text-sm font-semibold text-emerald-700">
+                ✓ Laporan dihantar. Terima kasih.
+              </div>
+            ) : (
+              <form onSubmit={onSubmitReport} className="space-y-3">
+                <textarea
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="Contoh: Mengandungi ujaran kebencian / spam / kandungan tidak sesuai…"
+                  rows={4}
+                  maxLength={800}
+                  className="input-base resize-none"
+                  autoFocus
+                />
+                <p className="text-[10px] text-slate-400">
+                  {reportReason.trim().length}/800 aksara · minimum 5
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportOpen(false)}
+                    disabled={isPending}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPending || reportReason.trim().length < 5}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 px-3 py-2 text-sm font-bold text-white shadow-soft hover:-translate-y-0.5 hover:shadow-glow-orange disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Send size={13} />
+                    {isPending ? "Menghantar…" : "Hantar Laporan"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </article>
   );
 }
