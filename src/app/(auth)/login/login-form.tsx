@@ -4,24 +4,9 @@ import { useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import {
-  Eye,
-  EyeOff,
-  GraduationCap,
-  BookOpen,
-  ShieldCheck,
-  UserCog,
-  Sparkles,
-} from "lucide-react";
+import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { loginAction } from "./actions";
 import { SmartCollabLoader } from "@/components/common/SmartCollabLoader";
-
-const QUICK_LOGINS = [
-  { matric: "A201762", password: "Student123", labelKey: "asStudent", Icon: GraduationCap },
-  { matric: "K012345", password: "Lecturer123", labelKey: "asLecturer", Icon: BookOpen },
-  { matric: "K234567", password: "Lecturer123", labelKey: "asLecturer2", Icon: UserCog },
-  { matric: "admin", password: "admin", labelKey: "asAdmin", Icon: ShieldCheck },
-] as const;
 
 export function LoginForm() {
   const t = useTranslations("Login");
@@ -190,33 +175,6 @@ export function LoginForm() {
               <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
             </button>
           </form>
-
-          {/* Demo / quick login section — preserved */}
-          <div className="mt-6 border-t border-slate-200 pt-4">
-            <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              <span className="h-px flex-1 bg-slate-200" />
-              {t("quickLogin")}
-              <span className="h-px flex-1 bg-slate-200" />
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {QUICK_LOGINS.map(({ matric: m, password: p, labelKey, Icon }) => (
-                <button
-                  key={m}
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    setMatric(m);
-                    setPassword(p);
-                    submit({ matric: m, password: p });
-                  }}
-                  className="btn-secondary text-xs"
-                >
-                  <Icon size={14} />
-                  {t(labelKey)}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
