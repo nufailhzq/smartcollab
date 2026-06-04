@@ -2,6 +2,11 @@ import { RoleGuard } from "@/components/layout/RoleGuard";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 
+// Admin pages all hit the database from the server. Marking the segment
+// dynamic stops `next build` from trying to prerender them — which fails
+// inside the Docker builder because the build container has no DB access.
+export const dynamic = "force-dynamic";
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <RoleGuard allowed={["ADMIN"]}>

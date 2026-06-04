@@ -2,6 +2,10 @@ import { RoleGuard } from "@/components/layout/RoleGuard";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 
+// Server-rendered per request — every student page hits Prisma, so we can't
+// let `next build` try to prerender them inside the DB-less build container.
+export const dynamic = "force-dynamic";
+
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   return (
     <RoleGuard allowed={["STUDENT"]}>

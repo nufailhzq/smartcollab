@@ -2,6 +2,10 @@ import { RoleGuard } from "@/components/layout/RoleGuard";
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
 
+// Folio feed hits the database on every request, so we mark the segment
+// dynamic to skip static prerender (which crashes in the Docker builder).
+export const dynamic = "force-dynamic";
+
 /**
  * Shared layout for the cross-role Folio Connect routes. Students and
  * lecturers both share the same feed — the Sidebar component already picks
