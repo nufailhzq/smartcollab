@@ -49,7 +49,8 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat openssl
+# libvips backs `sharp` for next/image optimization on production.
+RUN apk add --no-cache libc6-compat openssl vips-dev
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -71,6 +72,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+
+# Install sharp directly in the runner so next/image works in standalone mode.
+RUN npm install --omit=dev --no-save sharp@0.33.5 && \
+    chown -R nextjs:nodejs /app/node_modules
 
 # Tiny entrypoint that waits for MySQL, applies pending migrations, then
 # launches the Next.js server.

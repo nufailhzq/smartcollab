@@ -39,6 +39,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  // Required in production behind a public IP / reverse proxy. Without it,
+  // NextAuth v5 rejects every host except localhost with `UntrustedHost`.
+  // Auth.js automatically validates against NEXTAUTH_URL when set.
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
