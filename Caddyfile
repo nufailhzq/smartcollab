@@ -1,0 +1,20 @@
+# Caddy reverse proxy for SmartCollab.
+# Auto-provisions Let's Encrypt certificates the first time the domain
+# resolves to this droplet (HTTP-01 challenge on port 80). Subsequent
+# renewals happen silently every ~60 days.
+
+smartcollab.me, www.smartcollab.me {
+    encode gzip zstd
+
+    # Forward the real client IP + scheme to Next.js so server-side code
+    # sees the public origin instead of the internal container hop.
+    reverse_proxy app:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Bigger upload limit than Caddy's default for chat/folio attachments.
+    request_body {
+        max_size 12MB
+    }
+}
