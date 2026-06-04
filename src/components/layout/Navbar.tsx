@@ -21,6 +21,7 @@ import { MobileNavToggle } from "./MobileNavToggle";
 import { LogoutButton } from "./LogoutButton";
 import { MessageStream } from "./MessageStream";
 import { ThemeToggle } from "./ThemeToggle";
+import { dispatchDueEventReminders } from "@/server/actions/calendar";
 
 const ROLE_BADGE: Record<"STUDENT" | "LECTURER" | "ADMIN", string> = {
   STUDENT: "badge-student",
@@ -86,6 +87,14 @@ export async function Navbar() {
     mutedIds = mutes.map((m) => m.mutedId);
   } catch (error) {
     console.error("Navbar database query failed:", error);
+  }
+
+  // Fire any due calendar reminders for this viewer. Throttled inside the
+  // action to one batch per 60s per user, so it's safe to call on every load.
+  try {
+    await dispatchDueEventReminders(userId);
+  } catch (err) {
+    console.error("Reminder dispatch failed:", err);
   }
 
   return (

@@ -45,6 +45,7 @@ export default async function LecturerCalendarPage({
           createdByName: e.createdBy.name,
           isMine: e.createdById === lecturerId,
           reminder: e.reminder,
+          notifyBeforeMinutes: e.notifyBeforeMinutes,
         }))}
         assignments={assignments
           .filter((a) => a.dueDate)
@@ -55,6 +56,7 @@ export default async function LecturerCalendarPage({
             courseCode: a.course.code,
           }))}
         courses={courses.map((c) => ({ id: c.id, code: c.code, title: c.title }))}
+        timetable={[]}
       />
     </div>
   );

@@ -29,7 +29,13 @@ export async function getCalendarForStudent(studentId: number) {
     orderBy: { dueDate: "asc" },
   });
 
-  return { events, assignments };
+  // 3. Private weekly timetable — only the student themselves
+  const timetable = await prisma.timetableEntry.findMany({
+    where: { userId: studentId },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+
+  return { events, assignments, timetable };
 }
 
 export async function getCalendarForLecturer(lecturerId: number) {

@@ -17,7 +17,7 @@ export default async function StudentCalendarPage({
   const monthIndex =
     Number.isInteger(month) && month >= 0 && month <= 11 ? month : now.getMonth();
 
-  const [{ events, assignments }, courses] = await Promise.all([
+  const [{ events, assignments, timetable }, courses] = await Promise.all([
     getCalendarForStudent(studentId),
     getEnrolledCourses(studentId),
   ]);
@@ -45,6 +45,7 @@ export default async function StudentCalendarPage({
           createdByName: e.createdBy.name,
           isMine: e.createdById === studentId,
           reminder: e.reminder,
+          notifyBeforeMinutes: e.notifyBeforeMinutes,
         }))}
         assignments={assignments
           .filter((a) => a.dueDate)
@@ -55,6 +56,16 @@ export default async function StudentCalendarPage({
             courseCode: a.course.code,
           }))}
         courses={courses.map((c) => ({ id: c.id, code: c.code, title: c.title }))}
+        timetable={timetable.map((t) => ({
+          id: t.id,
+          title: t.title,
+          dayOfWeek: t.dayOfWeek,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          location: t.location,
+          color: t.color,
+        }))}
+        showTimetable
       />
     </div>
   );

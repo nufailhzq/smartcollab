@@ -103,7 +103,7 @@ export function LeftSidebar({ role, courses }: Props) {
 
   const body = (
     <>
-      <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+      <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider sidebar-section">
         Papan Pemuka
       </p>
       <nav className="mb-6 space-y-1">
@@ -117,8 +117,8 @@ export function LeftSidebar({ role, courses }: Props) {
               className={cn(
                 "group flex items-center gap-3 rounded-xl px-3.5 py-3 text-[15px] font-medium transition-all duration-200 ease-spring",
                 active
-                  ? "border-l-4 border-ukm-orange bg-gradient-to-r from-orange-50 via-orange-50/60 to-transparent font-bold text-ukm-orange shadow-sm"
-                  : "text-slate-600 hover:translate-x-1 hover:bg-slate-100 hover:text-ukm-navy",
+                  ? "sidebar-link-active border-l-4 border-ukm-orange font-bold shadow-sm"
+                  : "sidebar-link hover:translate-x-1",
               )}
             >
               <Icon
@@ -136,7 +136,7 @@ export function LeftSidebar({ role, courses }: Props) {
 
       {courses.length > 0 && (
         <>
-          <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider sidebar-section">
             Kursus Saya
           </p>
           <ul className="space-y-1">
@@ -150,27 +150,27 @@ export function LeftSidebar({ role, courses }: Props) {
                     className={cn(
                       "flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-sm transition-all duration-200 ease-spring",
                       active
-                        ? "border-l-4 border-ukm-orange bg-gradient-to-r from-orange-50 via-orange-50/60 to-transparent font-bold text-ukm-orange"
-                        : "text-slate-600 hover:translate-x-1 hover:bg-slate-100",
+                        ? "sidebar-link-active border-l-4 border-ukm-orange font-bold"
+                        : "sidebar-link hover:translate-x-1",
                     )}
                   >
                     <BookOpen
                       size={15}
                       className={cn(
                         "mt-0.5 shrink-0",
-                        active ? "text-ukm-orange" : "text-slate-400",
+                        active ? "text-ukm-orange" : "sidebar-icon-faint",
                       )}
                     />
                     <div className="min-w-0">
                       <p
                         className={cn(
                           "truncate font-bold",
-                          active ? "text-ukm-orange" : "text-ukm-navy",
+                          active ? "text-ukm-orange" : "sidebar-course-code",
                         )}
                       >
                         {c.code}
                       </p>
-                      <p className="truncate text-xs text-slate-500">{c.title}</p>
+                      <p className="truncate text-xs sidebar-course-title">{c.title}</p>
                     </div>
                   </Link>
                 </li>
@@ -184,10 +184,10 @@ export function LeftSidebar({ role, courses }: Props) {
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur-sm md:block">
+      {/* Desktop sidebar — uses .glass so it follows the active theme */}
+      <aside className="glass hidden w-72 shrink-0 border-r border-l-0 border-t-0 border-b-0 md:block">
         <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto p-4">
-          <div className="mb-6 flex items-center gap-2 text-ukm-navy">
+          <div className="mb-6 flex items-center gap-2 sidebar-header">
             <Menu size={18} />
             <span className="text-sm font-bold">Navigasi</span>
           </div>
@@ -211,14 +211,14 @@ export function LeftSidebar({ role, courses }: Props) {
             mobileOpen ? "opacity-100" : "opacity-0",
           )}
         />
-        {/* Panel */}
+        {/* Panel — glass surface to match theme */}
         <aside
           className={cn(
-            "absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-white p-4 shadow-2xl transition-transform duration-300 ease-spring",
+            "glass absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto p-4 shadow-2xl transition-transform duration-300 ease-spring",
             mobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          <div className="mb-6 flex items-center justify-between text-ukm-navy">
+          <div className="mb-6 flex items-center justify-between sidebar-header">
             <div className="flex items-center gap-2">
               <Menu size={18} />
               <span className="text-sm font-semibold">Navigasi</span>
@@ -227,7 +227,7 @@ export function LeftSidebar({ role, courses }: Props) {
               type="button"
               onClick={() => setMobileOpen(false)}
               aria-label="Tutup menu"
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ukm-navy"
+              className="rounded-lg p-1.5 sidebar-icon hover:bg-[color-mix(in_oklab,var(--text)_8%,transparent)]"
             >
               <X size={18} />
             </button>

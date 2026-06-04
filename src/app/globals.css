@@ -204,6 +204,33 @@
   animation: gradient-shift 8s ease infinite;
 }
 
+/* ============================================================
+   Sidebar — driven by theme tokens so light/dark both look right
+   ============================================================ */
+.sidebar-header { color: var(--text); }
+.sidebar-section { color: var(--text-faint); }
+.sidebar-icon { color: var(--text-muted); }
+.sidebar-icon-faint { color: var(--text-faint); }
+.sidebar-course-code { color: var(--text); }
+.sidebar-course-title { color: var(--text-muted); }
+
+.sidebar-link {
+  color: var(--text-muted);
+}
+.sidebar-link:hover {
+  background: color-mix(in oklab, var(--text) 8%, transparent);
+  color: var(--text);
+}
+.sidebar-link-active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--ukm-orange) 18%, transparent),
+    color-mix(in oklab, var(--ukm-orange) 6%, transparent) 60%,
+    transparent
+  );
+  color: var(--ukm-orange);
+}
+
 /* Glassy surface — slightly violet-tinted in both themes */
 .glass {
   background: rgba(255, 252, 255, 0.78);

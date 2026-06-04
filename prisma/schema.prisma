@@ -121,6 +121,7 @@ model User {
   mutesMade               UserMute[]             @relation("Muter")
   mutesReceived           UserMute[]             @relation("Muted")
   folioReports            FolioPostReport[]      @relation("ReportReporter")
+  timetable               TimetableEntry[]
 
   // NextAuth (database session strategy) tables
   accounts Account[]
@@ -453,9 +454,36 @@ model CalendarEvent {
   createdBy   User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
   createdById Int           @map("fld_created_by")
   reminder    Boolean       @default(false) @map("fld_reminder")
+  /// How many minutes before the event a reminder notification should fire.
+  /// Common presets: 60 (1h), 1440 (1d), 10080 (1w). Null = no advance ping.
+  notifyBeforeMinutes Int? @map("fld_notify_before_minutes")
+  /// Set the first time the reminder notification fires for this event so
+  /// the dashboard doesn't keep pinging on every page load.
+  notifiedAt          DateTime? @map("fld_notified_at")
   createdAt   DateTime      @default(now()) @map("fld_created_at")
 
   @@map("calendar_events")
+}
+
+/// Per-student weekly timetable. Recurring classes the student manually adds —
+/// not synced across users since every student attends different sections.
+model TimetableEntry {
+  id        Int      @id @default(autoincrement()) @map("fld_timetable_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int      @map("fld_user_id")
+  title     String   @map("fld_title")
+  /// 0 = Sunday, 1 = Monday … 6 = Saturday — matches JS Date.getDay().
+  dayOfWeek Int      @map("fld_day_of_week")
+  /// "HH:MM" 24-hour time
+  startTime String   @map("fld_start_time")
+  endTime   String   @map("fld_end_time")
+  location  String?  @map("fld_location")
+  /// Optional hex like "#a855f7" to colour the entry in the calendar grid.
+  color     String?  @map("fld_color")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  @@index([userId])
+  @@map("timetable_entries")
 }
 
 model RecentAccess {
