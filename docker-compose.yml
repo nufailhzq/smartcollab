@@ -23,8 +23,9 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-ukm_lms_new}
       MYSQL_USER: ${MYSQL_USER:-ukm}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ukmpass}
+    # MySQL 8.4 made caching_sha2_password the default and removed the
+    # `--default-authentication-plugin` flag, so we only override charsets.
     command:
-      - --default-authentication-plugin=caching_sha2_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     volumes:
