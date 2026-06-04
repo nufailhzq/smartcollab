@@ -65,14 +65,14 @@ export function LoginForm() {
           </div>
         </div>
         <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-sm">
-          <span className="text-white">UKM</span>
+          <span className="text-white">Smart</span>
           <span className="bg-gradient-to-r from-ukm-orange to-orange-400 bg-clip-text text-transparent">
-            FOLIO
+            Collab
           </span>
         </h1>
         <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/70">
           <Sparkles size={11} className="text-ukm-cyan" />
-          {tApp("subtitle")}
+          UKMFolio Enhancement
         </p>
       </div>
 
@@ -179,7 +179,7 @@ export function LoginForm() {
       </div>
 
       <p className="mt-5 text-center text-[11px] text-white/60">
-        © UKMFolio · Fakulti Sains Maklumat dan Teknologi
+        © Nufail Haziq · SmartCollab Enhancement of UKMFolio
       </p>
     </div>
   );
