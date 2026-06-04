@@ -11,9 +11,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <RoleGuard allowed={["ADMIN"]}>
       <div className="relative min-h-screen overflow-hidden aurora-bg">
-        <div className="pointer-events-none absolute left-1/4 -top-32 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-pink-300/12 blur-3xl" />
+        <div className="pointer-events-none absolute left-1/4 -top-32 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-pink-400/25 blur-3xl" />
         <div
-          className="pointer-events-none absolute -right-40 bottom-10 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-slate-400/12 blur-3xl"
+          className="pointer-events-none absolute -right-40 bottom-10 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-violet-400/20 blur-3xl"
           style={{ animationDelay: "5s" }}
         />
         <Navbar />

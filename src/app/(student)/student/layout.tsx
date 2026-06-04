@@ -10,9 +10,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   return (
     <RoleGuard allowed={["STUDENT"]}>
       <div className="relative min-h-screen overflow-hidden aurora-bg">
-        <div className="pointer-events-none absolute -left-32 top-32 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-sky-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-32 top-32 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-violet-400/25 blur-3xl" />
         <div
-          className="pointer-events-none absolute -right-40 bottom-20 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-orange-300/15 blur-3xl"
+          className="pointer-events-none absolute -right-40 bottom-20 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-orange-300/25 blur-3xl"
           style={{ animationDelay: "5s" }}
         />
         <Navbar />

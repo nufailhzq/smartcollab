@@ -170,32 +170,32 @@
   background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 50%, #34d399 100%);
 }
 
-/* Custom scrollbar (testfyp2 vibe) */
+/* Custom scrollbar — violet-tinted for the aurora palette */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-track { background: #f4ecff; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+  background: linear-gradient(180deg, #c4b5fd, #a78bfa);
   border-radius: 999px;
-  border: 2px solid #f1f5f9;
+  border: 2px solid #f4ecff;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #0ea5e9, #1e3a5f);
+  background: linear-gradient(180deg, #a855f7, #7c3aed);
 }
 
 /* Selection */
 ::selection {
-  background: rgba(249, 115, 22, 0.25);
-  color: var(--ukm-dark);
+  background: rgba(168, 85, 247, 0.30);
+  color: var(--text);
 }
 
-/* Animated brand gradient text utility */
+/* Animated brand gradient text utility — violet → magenta → orange swirl */
 .brand-gradient-text {
   background-image: linear-gradient(
     90deg,
-    var(--ukm-navy) 0%,
-    var(--ukm-teal) 35%,
-    var(--ukm-orange) 70%,
-    var(--ukm-navy) 100%
+    #a855f7 0%,
+    #d946ef 30%,
+    #f97316 60%,
+    #a855f7 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -204,26 +204,26 @@
   animation: gradient-shift 8s ease infinite;
 }
 
-/* Glassy surface */
+/* Glassy surface — slightly violet-tinted in both themes */
 .glass {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(255, 252, 255, 0.78);
+  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  border: 1px solid rgba(236, 225, 255, 0.75);
 }
 :root[data-sb-theme="midnight"] .glass {
-  background: rgba(20, 26, 48, 0.72);
-  border-color: rgba(31, 42, 72, 0.7);
+  background: rgba(22, 16, 45, 0.72);
+  border-color: rgba(75, 50, 130, 0.55);
 }
 :root[data-sb-theme="midnight"] ::-webkit-scrollbar-track {
-  background: #0b1020;
+  background: #0a061a;
 }
 :root[data-sb-theme="midnight"] ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #1f2a48, #334966);
-  border-color: #0b1020;
+  background: linear-gradient(180deg, #6d28d9, #a855f7);
+  border-color: #0a061a;
 }
 :root[data-sb-theme="midnight"] ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #38bdf8, #1e3a5f);
+  background: linear-gradient(180deg, #a855f7, #f472b6);
 }
 
 /* Skeleton shimmer (use w/ a sized div) */
@@ -280,20 +280,38 @@
    SmartBiz-style polish
    ============================================================ */
 
-/* Aurora background — soft multi-blob gradient wash, sticky to viewport. */
+/* ============================================================
+   Aurora background — radiant violet/cream wash for light,
+   deep-violet glow for dark. Sticky to viewport so blobs feel
+   like ambient ceiling lights as the page scrolls.
+   ============================================================ */
 .aurora-bg {
   background:
-    radial-gradient(900px circle at 12% 8%,  rgba(59, 130, 246, 0.18), transparent 45%),
-    radial-gradient(900px circle at 88% 12%, rgba(249, 115, 22, 0.14), transparent 45%),
-    radial-gradient(1000px circle at 50% 110%, rgba(34, 211, 238, 0.16), transparent 50%),
-    linear-gradient(135deg, #eaf2ff 0%, #eef0ff 45%, #fdf3ec 100%);
+    /* Big magenta sweep top-left */
+    radial-gradient(1000px circle at 12% 8%,  rgba(196, 132, 252, 0.45), transparent 55%),
+    /* Cool violet pool top-right */
+    radial-gradient(900px circle at 88% 14%, rgba(167, 139, 250, 0.38), transparent 55%),
+    /* Warm cream wash bottom */
+    radial-gradient(1100px circle at 50% 115%, rgba(255, 222, 173, 0.35), transparent 60%),
+    /* Pink kiss mid-right for depth */
+    radial-gradient(700px circle at 78% 60%, rgba(244, 114, 182, 0.22), transparent 60%),
+    /* Cream-to-lilac base */
+    linear-gradient(135deg, #faf3ff 0%, #efe5ff 40%, #fff4dd 100%);
   background-attachment: fixed;
 }
+
 :root[data-sb-theme="midnight"] .aurora-bg {
   background:
-    radial-gradient(900px circle at 20% 8%, rgba(139, 92, 246, 0.28), transparent 50%),
-    radial-gradient(700px circle at 85% 80%, rgba(59, 130, 246, 0.22), transparent 50%),
-    linear-gradient(135deg, #0b1020 0%, #1e1b4b 55%, #050208 100%);
+    /* Vibrant purple beacon top-left */
+    radial-gradient(950px circle at 18% 10%, rgba(192, 132, 252, 0.55), transparent 55%),
+    /* Magenta glow bottom-right */
+    radial-gradient(900px circle at 85% 85%, rgba(244, 114, 182, 0.45), transparent 55%),
+    /* Electric indigo middle for that synth-wave dip */
+    radial-gradient(700px circle at 50% 50%, rgba(129, 140, 248, 0.32), transparent 60%),
+    /* Soft violet wash bottom-left */
+    radial-gradient(800px circle at 5% 90%, rgba(139, 92, 246, 0.45), transparent 60%),
+    /* Deep base — never fully black, always tinted violet */
+    linear-gradient(135deg, #110826 0%, #1b0e44 50%, #06030e 100%);
   background-attachment: fixed;
 }
 

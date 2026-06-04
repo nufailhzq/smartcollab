@@ -10,9 +10,9 @@ export default function LecturerLayout({ children }: { children: React.ReactNode
   return (
     <RoleGuard allowed={["LECTURER"]}>
       <div className="relative min-h-screen overflow-hidden aurora-bg">
-        <div className="pointer-events-none absolute -right-32 top-20 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-violet-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -right-32 top-20 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-fuchsia-400/25 blur-3xl" />
         <div
-          className="pointer-events-none absolute -left-40 bottom-10 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-sky-300/15 blur-3xl"
+          className="pointer-events-none absolute -left-40 bottom-10 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-violet-400/25 blur-3xl"
           style={{ animationDelay: "5s" }}
         />
         <Navbar />
