@@ -55,21 +55,33 @@ export async function askAi(history: AiChatMessage[]): Promise<AskAiResult> {
     parts: [{ text: m.content }],
   }));
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  // Latency-tuned defaults. gemini-2.0-flash is ~2-3× faster than 2.5-flash
+  // for chat-length prompts. For 2.5-flash we also disable the thinking phase
+  // (thinkingBudget: 0) which otherwise adds 1-2s of pre-response latency.
+  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const generationConfig: Record<string, unknown> = {
+    temperature: 0.7,
+    maxOutputTokens: 600,
+    topP: 0.9,
+  };
+  if (model.startsWith("gemini-2.5")) {
+    generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
 
   try {
+    // 12s upper bound — we'd rather show "AI sibuk" than hang the chat.
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 12_000);
+
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-          topP: 0.95,
-        },
+        generationConfig,
         safetySettings: [
           { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
           { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
@@ -78,6 +90,7 @@ export async function askAi(history: AiChatMessage[]): Promise<AskAiResult> {
         ],
       }),
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -117,6 +130,12 @@ export async function askAi(history: AiChatMessage[]): Promise<AskAiResult> {
 
     return { ok: true, reply };
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return {
+        ok: false,
+        error: "AI mengambil masa terlalu lama. Sila cuba semula.",
+      };
+    }
     console.error("askAi failed:", err);
     return { ok: false, error: "Sambungan AI gagal. Semak rangkaian anda." };
   }

@@ -171,6 +171,29 @@ export function MessengerBubble({
   type ListTab = "all" | "friends" | "lecturers" | "groups" | "ai";
   const [listTab, setListTab] = useState<ListTab>("all");
 
+  // Panel size — small by default; persisted across reloads.
+  type PanelSize = "sm" | "md" | "lg";
+  const [panelSize, setPanelSize] = useState<PanelSize>("sm");
+  useEffect(() => {
+    const saved = localStorage.getItem("ukmfolio-chat-size");
+    if (saved === "sm" || saved === "md" || saved === "lg") {
+      setPanelSize(saved);
+    }
+  }, []);
+  function changeSize(next: PanelSize) {
+    setPanelSize(next);
+    try {
+      localStorage.setItem("ukmfolio-chat-size", next);
+    } catch {
+      /* ignore */
+    }
+  }
+  const SIZE_CLASS: Record<PanelSize, string> = {
+    sm: "sm:h-[480px] sm:w-[340px]",
+    md: "sm:h-[580px] sm:w-[400px]",
+    lg: "sm:h-[680px] sm:w-[460px]",
+  };
+
   // Create-group dialog state
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupMembers, setNewGroupMembers] = useState<SearchHit[]>([]);
@@ -842,7 +865,12 @@ export function MessengerBubble({
       </button>
 
       {open && (
-        <div className="fixed inset-x-2 bottom-20 top-2 z-40 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_15px_40px_rgba(15,39,68,0.22)] animate-fade-in sm:inset-auto sm:bottom-24 sm:right-6 sm:top-auto sm:h-[620px] sm:max-h-[calc(100vh-7rem)] sm:w-[420px] sm:max-w-[calc(100vw-2rem)]">
+        <div
+          className={cn(
+            "fixed inset-x-2 bottom-20 top-2 z-40 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_15px_40px_rgba(15,39,68,0.22)] animate-fade-in transition-all duration-200 sm:inset-auto sm:bottom-24 sm:right-6 sm:top-auto sm:max-h-[calc(100vh-7rem)] sm:max-w-[calc(100vw-2rem)]",
+            SIZE_CLASS[panelSize],
+          )}
+        >
           <header className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-sky-50/60 px-4 py-3">
             <div className="flex items-center gap-2">
               {view !== "list" ? (
@@ -990,6 +1018,25 @@ export function MessengerBubble({
                   )}
                 </div>
               )}
+              <div className="hidden items-center gap-0.5 rounded-md bg-slate-100 p-0.5 sm:flex">
+                {(["sm", "md", "lg"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => changeSize(s)}
+                    aria-label={`Saiz ${s.toUpperCase()}`}
+                    title={`Saiz ${s.toUpperCase()}`}
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase transition",
+                      panelSize === s
+                        ? "bg-white text-ukm-navy shadow-sm"
+                        : "text-slate-500 hover:text-ukm-navy",
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}

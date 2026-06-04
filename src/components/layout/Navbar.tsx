@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/common/Avatar";
@@ -19,6 +20,7 @@ import { TranslateToggle } from "./TranslateToggle";
 import { MobileNavToggle } from "./MobileNavToggle";
 import { LogoutButton } from "./LogoutButton";
 import { MessageStream } from "./MessageStream";
+import { ThemeToggle } from "./ThemeToggle";
 
 const ROLE_BADGE: Record<"STUDENT" | "LECTURER" | "ADMIN", string> = {
   STUDENT: "badge-student",
@@ -38,6 +40,18 @@ export async function Navbar() {
 
   const userId = session.user.id;
   const userRole = session.user.role;
+  const dashboardHref =
+    userRole === "ADMIN"
+      ? "/admin"
+      : userRole === "LECTURER"
+        ? "/lecturer"
+        : "/student";
+  const profileHref =
+    userRole === "ADMIN"
+      ? "/admin"
+      : userRole === "LECTURER"
+        ? "/lecturer/profil"
+        : "/student/profil";
 
   let notifications: Awaited<ReturnType<typeof getNotificationsForUser>> = [];
   let unreadNotifications = 0;
@@ -81,7 +95,11 @@ export async function Navbar() {
         <div className="flex h-16 items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2">
             <MobileNavToggle />
-            <div className="group flex items-center gap-2 sm:gap-3">
+            <Link
+              href={dashboardHref}
+              aria-label="Ke Dashboard"
+              className="group flex items-center gap-2 rounded-lg transition hover:opacity-90 sm:gap-3"
+            >
               <Image
                 src="/images/navbar/UKMOfficialLogo.png"
                 alt="UKM"
@@ -100,7 +118,7 @@ export async function Navbar() {
                   SMARTCOLLAB
                 </p>
               </div>
-            </div>
+            </Link>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
@@ -109,6 +127,8 @@ export async function Navbar() {
                 <StudentSearchBar />
               </div>
             )}
+
+            <ThemeToggle />
 
             <div className="hidden sm:block">
               <TranslateToggle />
@@ -138,12 +158,19 @@ export async function Navbar() {
               </p>
             </div>
 
-            <Avatar
-              name={session.user.name ?? "?"}
-              avatarPath={avatarPath}
-              size="md"
-              ring
-            />
+            <Link
+              href={profileHref}
+              aria-label="Ke profil"
+              title="Profil"
+              className="rounded-full transition hover:scale-105"
+            >
+              <Avatar
+                name={session.user.name ?? "?"}
+                avatarPath={avatarPath}
+                size="md"
+                ring
+              />
+            </Link>
 
             <LogoutButton />
           </div>

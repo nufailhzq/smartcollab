@@ -1,3 +1,8 @@
+/* ============================================================
+   SmartCollab theme tokens. Modeled after SmartBiz's
+   [data-sb-theme] system on <html>. Switch themes by toggling
+   that attribute; everything that reads var(--ukm-*) updates.
+   ============================================================ */
 :root {
   /* Brand anchors — navy + orange + teal stay the core identity */
   --ukm-navy: #1e3a5f;
@@ -8,13 +13,14 @@
   --ukm-teal: #0ea5e9;
   --ukm-cyan: #22d3ee;
 
-  /* Playful but on-palette accents (used sparingly for variety) */
+  /* Playful but on-palette accents */
   --ukm-pink: #ec4899;
   --ukm-purple: #a855f7;
   --ukm-green: #10b981;
   --ukm-amber: #f59e0b;
   --ukm-mint: #34d399;
 
+  /* Theme-driven surfaces (default = aurora) */
   --bg-app: #f8fafc;
   --bg-surface: #ffffff;
   --bg-muted: #f1f5f9;
@@ -24,3 +30,34 @@
   --text-faint: #94a3b8;
 }
 
+/* ---- Light: aurora (default) -- soft sky/orange wash --- */
+:root[data-sb-theme="aurora"] {
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-muted: #f1f5f9;
+  --border-soft: #e2e8f0;
+  --text: #1e293b;
+  --text-muted: #475569;
+  --text-faint: #94a3b8;
+  --ukm-navy: #1e3a5f;
+  --ukm-orange: #f97316;
+  --ukm-teal: #0ea5e9;
+}
+
+/* ---- Dark: midnight -- deep indigo/violet ---- */
+:root[data-sb-theme="midnight"] {
+  --bg-app: #0b1020;
+  --bg-surface: #141a30;
+  --bg-muted: #1a2240;
+  --border-soft: #1f2a48;
+  --text: #e5ecff;
+  --text-muted: #a3b3d4;
+  --text-faint: #6f7fa0;
+  /* Brand colors shifted brighter so they stay readable on dark surfaces */
+  --ukm-navy: #cfe1ff;
+  --ukm-dark: #e2ecff;
+  --ukm-orange: #fb923c;
+  --ukm-orange-soft: #2a1a0f;
+  --ukm-teal: #38bdf8;
+  --ukm-cyan: #67e8f9;
+}

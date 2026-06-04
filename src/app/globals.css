@@ -8,6 +8,10 @@
   html {
     /* Bumps the base sizing of the whole system — easier on the eyes. */
     font-size: 16px;
+    color-scheme: light;
+  }
+  html[data-sb-theme="midnight"] {
+    color-scheme: dark;
   }
   html,
   body {
@@ -16,6 +20,7 @@
     color: var(--text);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   body {
@@ -206,6 +211,20 @@
   -webkit-backdrop-filter: blur(12px) saturate(160%);
   border: 1px solid rgba(226, 232, 240, 0.7);
 }
+:root[data-sb-theme="midnight"] .glass {
+  background: rgba(20, 26, 48, 0.72);
+  border-color: rgba(31, 42, 72, 0.7);
+}
+:root[data-sb-theme="midnight"] ::-webkit-scrollbar-track {
+  background: #0b1020;
+}
+:root[data-sb-theme="midnight"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #1f2a48, #334966);
+  border-color: #0b1020;
+}
+:root[data-sb-theme="midnight"] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #38bdf8, #1e3a5f);
+}
 
 /* Skeleton shimmer (use w/ a sized div) */
 .skeleton {
@@ -268,6 +287,13 @@
     radial-gradient(900px circle at 88% 12%, rgba(249, 115, 22, 0.14), transparent 45%),
     radial-gradient(1000px circle at 50% 110%, rgba(34, 211, 238, 0.16), transparent 50%),
     linear-gradient(135deg, #eaf2ff 0%, #eef0ff 45%, #fdf3ec 100%);
+  background-attachment: fixed;
+}
+:root[data-sb-theme="midnight"] .aurora-bg {
+  background:
+    radial-gradient(900px circle at 20% 8%, rgba(139, 92, 246, 0.28), transparent 50%),
+    radial-gradient(700px circle at 85% 80%, rgba(59, 130, 246, 0.22), transparent 50%),
+    linear-gradient(135deg, #0b1020 0%, #1e1b4b 55%, #050208 100%);
   background-attachment: fixed;
 }
 
