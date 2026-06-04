@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, ClipboardCheck, FileText, MessageSquare } from "lucide-react";
+import { CheckCircle, ClipboardCheck, FileText, MessageSquare, UserCheck } from "lucide-react";
 import { useToast } from "@/components/common/Toast";
 import { gradeSubmission } from "@/server/actions/grading";
 import { formatDateTime } from "@/lib/utils";
@@ -16,8 +16,10 @@ type Feedback = {
 
 type Submission = {
   id: number;
+  studentId: number;
   studentName: string;
   studentMatric: string | null;
+  submittedBy: { id: number; name: string; matricNum: string | null } | null;
   assignmentTitle: string;
   assignmentType: "INDIVIDUAL" | "GROUP";
   courseCode: string;
@@ -110,6 +112,19 @@ export function GradingPanel({ submission }: Props) {
             {formatDateTime(submission.submittedAt)}
             {submission.dueDate && ` · Tarikh akhir ${formatDateTime(submission.dueDate)}`}
           </p>
+          {submission.assignmentType === "GROUP" &&
+            submission.submittedBy &&
+            submission.submittedBy.id !== submission.studentId && (
+              <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700">
+                <UserCheck size={11} />
+                Dihantar oleh {submission.submittedBy.name}
+                {submission.submittedBy.matricNum && (
+                  <span className="font-mono text-[10px] text-slate-500">
+                    ({submission.submittedBy.matricNum})
+                  </span>
+                )}
+              </p>
+            )}
         </div>
         <div className="flex items-center gap-3 text-right">
           {submission.status === "GRADED" && submission.grade !== null && (

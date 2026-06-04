@@ -5,6 +5,9 @@ const withNextIntl = createNextIntlPlugin("./src/lib/i18n.ts");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Slim production image — copies only the server + tracing-required modules
+  // instead of the full node_modules. Read by the Dockerfile's runner stage.
+  output: "standalone",
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

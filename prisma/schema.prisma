@@ -54,6 +54,20 @@ enum GroupAccessRequestStatus {
   REJECTED
 }
 
+enum RecentAccessType {
+  COURSE
+  ASSIGNMENT
+  GROUP
+  CONTENT
+  SUBMISSION
+}
+
+enum PostVisibility {
+  PUBLIC
+  FACULTY
+  FRIENDS
+}
+
 model User {
   id           Int      @id @default(autoincrement()) @map("fld_user_id")
   name         String   @map("fld_name")
@@ -62,13 +76,24 @@ model User {
   role         Role     @map("fld_role")
   matricNum    String?  @unique @map("fld_matric_num")
   faculty      String?  @default("FTSM") @map("fld_faculty")
+  /// Degree program / course of study (e.g. "Kejuruteraan Awam"). Used by Folio Connect.
+  program      String?  @map("fld_program")
+  /// Short profile bio shown on the user's Folio Connect profile.
+  bio          String?  @db.Text @map("fld_bio")
+  /// Optional contact phone. Displayed on hover cards / quick-contact UI.
+  phone        String?  @map("fld_phone")
+  /// Public path to the user's uploaded avatar (e.g. /uploads/avatars/abc.png). Null = use initials fallback.
+  avatarPath   String?  @map("fld_avatar_path")
   isActive     Boolean  @default(true) @map("fld_is_active")
+  /// Updated by the auth session callback (throttled ~5 min). Null = never seen.
+  lastSeenAt   DateTime? @map("fld_last_seen_at")
   createdAt    DateTime @default(now())
 
   enrollments        ClassEnrollment[]
   taughtCourses      Course[]             @relation("LecturerCourses")
   groupMemberships   GroupMember[]
   submissions        Submission[]
+  submissionsSubmitted Submission[]       @relation("SubmissionSubmitter")
   postedContent      CourseContent[]      @relation("PostedBy")
   notifications      Notification[]
   sentMessages       Message[]            @relation("Sender")
@@ -81,6 +106,16 @@ model User {
   chatGroupMemberships    ChatGroupMember[]
   accessRequestsAsStudent GroupAccessRequest[]   @relation("AccessRequestStudent")
   accessRequestsHandled   GroupAccessRequest[]   @relation("AccessRequestResponder")
+  recentAccess            RecentAccess[]
+  createdBulletins        Bulletin[]             @relation("BulletinCreator")
+  folioPosts              FolioPost[]            @relation("PostAuthor")
+  folioMentions           FolioPostMention[]     @relation("MentionedIn")
+  folioComments           FolioComment[]         @relation("CommentAuthor")
+  folioReactions          FolioReaction[]        @relation("Reactor")
+  monitoringNotesByMe     MonitoringNote[]       @relation("MonitoringNoteLecturer")
+  monitoringNotesOnMe     MonitoringNote[]       @relation("MonitoringNoteStudent")
+  sentMessageRequests     MessageRequest[]       @relation("MsgReqSender")
+  receivedMessageRequests MessageRequest[]       @relation("MsgReqReceiver")
 
   // NextAuth (database session strategy) tables
   accounts Account[]
@@ -103,12 +138,13 @@ model Course {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  enrollments    ClassEnrollment[]
-  assignments    Assignment[]
-  groups         ProjectGroup[]
-  content        CourseContent[]
-  events         CalendarEvent[]
-  accessRequests GroupAccessRequest[]
+  enrollments      ClassEnrollment[]
+  assignments      Assignment[]
+  groups           ProjectGroup[]
+  content          CourseContent[]
+  events           CalendarEvent[]
+  accessRequests   GroupAccessRequest[]
+  monitoringNotes  MonitoringNote[]
 
   @@index([lecturerId])
   @@map("courses")
@@ -158,18 +194,23 @@ model AssignmentAttachment {
 }
 
 model Submission {
-  id           Int                  @id @default(autoincrement()) @map("fld_submission_id")
-  assignment   Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  assignmentId Int                  @map("fld_assignment_id")
-  student      User                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId    Int                  @map("fld_student_id")
-  filePath     String?              @map("fld_file_path")
-  grade        Int?                 @map("fld_grade")
-  status       SubmissionStatus     @default(PENDING) @map("fld_status")
-  submittedAt  DateTime             @default(now()) @map("fld_submitted_at")
-  feedback     SubmissionFeedback[]
+  id              Int                  @id @default(autoincrement()) @map("fld_submission_id")
+  assignment      Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId    Int                  @map("fld_assignment_id")
+  student         User                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId       Int                  @map("fld_student_id")
+  /// For GROUP assignments this is the group member who clicked submit. For INDIVIDUAL it equals studentId.
+  /// Nullable on legacy rows; backfilled to studentId in the migration.
+  submittedBy     User?                @relation("SubmissionSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedById   Int?                 @map("fld_submitted_by_id")
+  filePath        String?              @map("fld_file_path")
+  grade           Int?                 @map("fld_grade")
+  status          SubmissionStatus     @default(PENDING) @map("fld_status")
+  submittedAt     DateTime             @default(now()) @map("fld_submitted_at")
+  feedback        SubmissionFeedback[]
 
   @@unique([assignmentId, studentId], map: "uniq_assignment_student")
+  @@index([submittedById])
   @@map("submissions")
 }
 
@@ -186,12 +227,15 @@ model SubmissionFeedback {
 }
 
 model ProjectGroup {
-  id         Int      @id @default(autoincrement()) @map("fld_group_id")
-  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId   Int      @map("fld_course_id")
-  name       String   @map("fld_name_id")
-  maxMembers Int      @default(5) @map("fld_max_members")
-  createdAt  DateTime @default(now())
+  id          Int      @id @default(autoincrement()) @map("fld_group_id")
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    Int      @map("fld_course_id")
+  name        String   @map("fld_name_id")
+  maxMembers  Int      @default(5) @map("fld_max_members")
+  /// Auto-created ChatGroup paired with this project group. Lazily set on first chat access.
+  chatGroup   ChatGroup? @relation("ProjectGroupChat", fields: [chatGroupId], references: [id], onDelete: SetNull)
+  chatGroupId Int?     @unique @map("fld_chat_group_id")
+  createdAt   DateTime @default(now())
 
   members        GroupMember[]
   events         CalendarEvent[]
@@ -261,6 +305,14 @@ model Message {
   chatGroup   ChatGroup? @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
   chatGroupId Int?       @map("fld_chat_group_id")
   content     String     @db.Text @map("fld_content")
+  /// Optional uploaded asset path (e.g. /uploads/chat/abc.png). Null = text-only.
+  attachmentPath String? @map("fld_attachment_path")
+  /// One of "image" | "video" | "file" — drives how the bubble renders.
+  attachmentType String? @map("fld_attachment_type")
+  /// Original filename (display only; not used for filesystem path).
+  attachmentName String? @map("fld_attachment_name")
+  /// Pretty file size string (e.g. "2.3 MB"). Pre-formatted for display.
+  attachmentSize String? @map("fld_attachment_size")
   isRead      Boolean    @default(false) @map("fld_read")
   timestamp   DateTime   @default(now()) @map("fld_timestamp")
 
@@ -277,8 +329,9 @@ model ChatGroup {
   createdById Int    @map("fld_created_by")
   createdAt DateTime @default(now()) @map("fld_created_at")
 
-  members  ChatGroupMember[]
-  messages Message[]
+  members      ChatGroupMember[]
+  messages     Message[]
+  projectGroup ProjectGroup?     @relation("ProjectGroupChat")
 
   @@map("chat_groups")
 }
@@ -312,6 +365,29 @@ model Friendship {
   @@map("friendships")
 }
 
+enum MessageRequestStatus {
+  PENDING
+  ACCEPTED
+}
+
+/// Chat-request handshake for DMs between users who aren't friends, aren't in
+/// the same course, and have no prior chat history. The first message creates
+/// a PENDING row; the receiver must accept before further messages flow as a
+/// normal conversation. ACCEPTED rows are kept so we know the pair is open.
+model MessageRequest {
+  id         Int                  @id @default(autoincrement()) @map("fld_msg_req_id")
+  sender     User                 @relation("MsgReqSender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId   Int                  @map("fld_sender_id")
+  receiver   User                 @relation("MsgReqReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId Int                  @map("fld_receiver_id")
+  status     MessageRequestStatus @default(PENDING) @map("fld_status")
+  createdAt  DateTime             @default(now()) @map("fld_created_at")
+
+  @@unique([senderId, receiverId], map: "uniq_msg_request")
+  @@index([receiverId])
+  @@map("message_requests")
+}
+
 model Notification {
   id        Int      @id @default(autoincrement()) @map("fld_notification_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -343,6 +419,144 @@ model CalendarEvent {
   createdAt   DateTime      @default(now()) @map("fld_created_at")
 
   @@map("calendar_events")
+}
+
+model RecentAccess {
+  id         Int              @id @default(autoincrement()) @map("fld_recent_id")
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     Int              @map("fld_user_id")
+  type       RecentAccessType @map("fld_type")
+  /// Domain entity ID this row points to. Nullable because target rows may be deleted later.
+  refId      Int?             @map("fld_ref_id")
+  title      String           @map("fld_title")
+  link       String           @map("fld_link")
+  accessedAt DateTime         @default(now()) @map("fld_accessed_at")
+
+  @@index([userId, accessedAt])
+  @@unique([userId, type, refId], map: "uniq_user_type_ref")
+  @@map("recent_access")
+}
+
+model Bulletin {
+  id          Int      @id @default(autoincrement()) @map("fld_bulletin_id")
+  title       String   @map("fld_title")
+  body        String   @db.Text @map("fld_body")
+  imagePath   String?  @map("fld_image_path")
+  linkUrl     String?  @map("fld_link_url")
+  linkLabel   String?  @map("fld_link_label")
+  isActive    Boolean  @default(true) @map("fld_is_active")
+  isPinned    Boolean  @default(false) @map("fld_is_pinned")
+  createdBy   User     @relation("BulletinCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdById Int      @map("fld_created_by")
+  createdAt   DateTime @default(now()) @map("fld_created_at")
+  updatedAt   DateTime @updatedAt @map("fld_updated_at")
+
+  @@index([isActive, isPinned, createdAt])
+  @@map("bulletins")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lecturer Progress Monitoring — per-student private notes
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MonitoringNote {
+  id         Int      @id @default(autoincrement()) @map("fld_note_id")
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   Int      @map("fld_course_id")
+  lecturer   User     @relation("MonitoringNoteLecturer", fields: [lecturerId], references: [id], onDelete: Cascade)
+  lecturerId Int      @map("fld_lecturer_id")
+  student    User     @relation("MonitoringNoteStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  Int      @map("fld_student_id")
+  note       String   @db.Text @map("fld_note")
+  createdAt  DateTime @default(now()) @map("fld_created_at")
+  updatedAt  DateTime @updatedAt @map("fld_updated_at")
+
+  @@unique([courseId, lecturerId, studentId], map: "uniq_monitoring_note")
+  @@index([courseId, lecturerId])
+  @@map("monitoring_notes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Folio Connect — Threads/Twitter-style social posts for students
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FolioPost {
+  id         Int            @id @default(autoincrement()) @map("fld_post_id")
+  author     User           @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId   Int            @map("fld_author_id")
+  content    String         @db.Text @map("fld_content")
+  visibility PostVisibility @default(PUBLIC) @map("fld_visibility")
+  /// Original post for reposts (Twitter-style retweet). Null = original post.
+  parent     FolioPost?     @relation("PostRepost", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId   Int?           @map("fld_parent_id")
+  /// True when this row is a repost (no own content; mirrors parent in feed).
+  isRepost   Boolean        @default(false) @map("fld_is_repost")
+  createdAt  DateTime       @default(now()) @map("fld_created_at")
+
+  images    FolioPostImage[]
+  mentions  FolioPostMention[]
+  reposts   FolioPost[]        @relation("PostRepost")
+  comments  FolioComment[]
+  reactions FolioReaction[]
+
+  @@index([authorId])
+  @@index([parentId])
+  @@index([createdAt])
+  @@map("folio_posts")
+}
+
+model FolioPostImage {
+  id        Int    @id @default(autoincrement()) @map("fld_image_id")
+  post      FolioPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int    @map("fld_post_id")
+  imagePath String @map("fld_image_path")
+  position  Int    @default(0) @map("fld_position")
+
+  @@index([postId])
+  @@map("folio_post_images")
+}
+
+model FolioPostMention {
+  id              Int    @id @default(autoincrement()) @map("fld_mention_id")
+  post            FolioPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId          Int    @map("fld_post_id")
+  mentionedUser   User   @relation("MentionedIn", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  mentionedUserId Int    @map("fld_user_id")
+  /// The matric number string as typed in the post (preserves casing for display).
+  matricNum       String @map("fld_matric_num")
+
+  @@index([postId])
+  @@index([mentionedUserId])
+  @@map("folio_post_mentions")
+}
+
+model FolioComment {
+  id        Int       @id @default(autoincrement()) @map("fld_comment_id")
+  post      FolioPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int       @map("fld_post_id")
+  author    User      @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  Int       @map("fld_author_id")
+  content   String    @db.Text @map("fld_content")
+  createdAt DateTime  @default(now()) @map("fld_created_at")
+
+  @@index([postId])
+  @@index([authorId])
+  @@map("folio_comments")
+}
+
+model FolioReaction {
+  id        Int       @id @default(autoincrement()) @map("fld_reaction_id")
+  post      FolioPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int       @map("fld_post_id")
+  user      User      @relation("Reactor", fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int       @map("fld_user_id")
+  /// Single emoji character/sequence (e.g. "👍", "❤️"). Stored as utf8mb4 string.
+  emoji     String    @map("fld_emoji")
+  createdAt DateTime  @default(now()) @map("fld_created_at")
+
+  @@unique([postId, userId, emoji], map: "uniq_post_user_emoji")
+  @@index([postId])
+  @@map("folio_reactions")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

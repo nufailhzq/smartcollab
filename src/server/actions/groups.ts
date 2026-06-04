@@ -24,7 +24,7 @@ export async function joinGroup(raw: unknown): Promise<ActionResult> {
     where: { id: groupId },
     include: {
       _count: { select: { members: true } },
-      course: { select: { groupsLocked: true } },
+      course: { select: { code: true, groupsLocked: true } },
     },
   });
   if (!group) return { ok: false, error: "Kumpulan tidak wujud." };
@@ -67,6 +67,9 @@ export async function joinGroup(raw: unknown): Promise<ActionResult> {
 
   revalidatePath("/student");
   revalidatePath("/student/kumpulan");
+  // Sync the lecturer's view so they see the change without a manual refresh.
+  revalidatePath("/lecturer/pengurusan-kumpulan");
+  revalidatePath(`/lecturer/kursus/${group.course.code}`);
   return { ok: true };
 }
 
@@ -80,7 +83,7 @@ export async function leaveGroup(raw: unknown): Promise<ActionResult> {
 
   const group = await prisma.projectGroup.findUnique({
     where: { id: parsed.data.groupId },
-    include: { course: { select: { groupsLocked: true } } },
+    include: { course: { select: { code: true, groupsLocked: true } } },
   });
   if (!group) return { ok: false, error: "Kumpulan tidak wujud." };
   if (group.course.groupsLocked) {
@@ -99,5 +102,8 @@ export async function leaveGroup(raw: unknown): Promise<ActionResult> {
 
   revalidatePath("/student");
   revalidatePath("/student/kumpulan");
+  // Sync the lecturer's view too.
+  revalidatePath("/lecturer/pengurusan-kumpulan");
+  revalidatePath(`/lecturer/kursus/${group.course.code}`);
   return { ok: true };
 }

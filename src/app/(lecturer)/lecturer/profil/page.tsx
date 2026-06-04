@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { initials, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { AvatarUploader } from "@/components/common/AvatarUploader";
+import { PhoneEditor } from "@/components/profile/PhoneEditor";
 import {
   Building2,
   Calendar,
@@ -40,18 +42,19 @@ export default async function LecturerProfilePage() {
       </div>
 
       <article className="card-elevated">
-        <div className="flex items-center gap-4">
-          <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-ukm-teal to-ukm-cyan text-2xl font-black text-white shadow-md">
-            {initials(user.name)}
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-ukm-navy">{user.name}</h2>
-            <p className="text-sm text-slate-500">
-              <span className="badge-lecturer mr-2">Pensyarah</span>
-              {user.matricNum} · {user.faculty}
-            </p>
-          </div>
-        </div>
+        <AvatarUploader
+          name={user.name}
+          initialAvatarPath={user.avatarPath}
+          badge={
+            <div>
+              <h2 className="text-xl font-bold text-ukm-navy">{user.name}</h2>
+              <p className="text-sm text-slate-500">
+                <span className="badge-lecturer mr-2">Pensyarah</span>
+                {user.matricNum} · {user.faculty}
+              </p>
+            </div>
+          }
+        />
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {fields.map(({ label, value, Icon }) => (
@@ -66,6 +69,7 @@ export default async function LecturerProfilePage() {
               </div>
             </div>
           ))}
+          <PhoneEditor initialPhone={user.phone} />
         </div>
       </article>
 

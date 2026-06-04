@@ -5,11 +5,16 @@ import { Sidebar } from "@/components/layout/Sidebar";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <RoleGuard allowed={["ADMIN"]}>
-      <div className="min-h-screen bg-slate-50">
+      <div className="relative min-h-screen overflow-hidden aurora-bg">
+        <div className="pointer-events-none absolute left-1/4 -top-32 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-pink-300/12 blur-3xl" />
+        <div
+          className="pointer-events-none absolute -right-40 bottom-10 -z-10 h-[32rem] w-[32rem] animate-bg-drift rounded-full bg-slate-400/12 blur-3xl"
+          style={{ animationDelay: "5s" }}
+        />
         <Navbar />
         <div className="flex">
           <Sidebar />
-          <main className="flex-1 px-6 py-6 md:px-8">{children}</main>
+          <main className="page-enter min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6 md:px-8">{children}</main>
         </div>
       </div>
     </RoleGuard>

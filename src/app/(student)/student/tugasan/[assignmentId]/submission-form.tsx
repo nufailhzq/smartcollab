@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileCheck, MessageSquare } from "lucide-react";
+import { Upload, FileCheck, MessageSquare, UserCheck } from "lucide-react";
 import { submitAssignment } from "@/server/actions/assignments";
 import { useToast } from "@/components/common/Toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { formatDateTime } from "@/lib/utils";
 import type { SubmissionStatus } from "@prisma/client";
+
+type Submitter = { id: number; name: string; matricNum: string | null };
 
 type Existing = {
   id: number;
@@ -15,15 +17,18 @@ type Existing = {
   grade: number | null;
   status: SubmissionStatus;
   submittedAt: Date;
+  submittedBy: Submitter | null;
   feedback: { id: number; comment: string; lecturerName: string; createdAt: Date }[];
 };
 
 type Props = {
   assignmentId: number;
   existing: Existing | null;
+  isGroupAssignment: boolean;
+  currentUserId: number;
 };
 
-export function SubmissionForm({ assignmentId, existing }: Props) {
+export function SubmissionForm({ assignmentId, existing, isGroupAssignment, currentUserId }: Props) {
   const router = useRouter();
   const toast = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
@@ -73,6 +78,29 @@ export function SubmissionForm({ assignmentId, existing }: Props) {
           <p className="text-xs text-slate-500">
             Dihantar pada {formatDateTime(existing.submittedAt)}
           </p>
+          {existing.submittedBy && (
+            <p className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-700">
+              <UserCheck size={12} />
+              <span>
+                Dihantar oleh:{" "}
+                <strong>
+                  {existing.submittedBy.id === currentUserId
+                    ? "Anda"
+                    : existing.submittedBy.name}
+                </strong>
+                {existing.submittedBy.matricNum && existing.submittedBy.id !== currentUserId && (
+                  <span className="ml-1 font-mono text-[10px] text-slate-500">
+                    ({existing.submittedBy.matricNum})
+                  </span>
+                )}
+              </span>
+            </p>
+          )}
+          {isGroupAssignment && existing.submittedBy && existing.submittedBy.id !== currentUserId && (
+            <p className="mt-1 text-[11px] italic text-slate-500">
+              Penghantaran dibuat bagi pihak kumpulan anda. Anda boleh hantar semula untuk gantikan fail.
+            </p>
+          )}
           {existing.filePath && (
             <p className="mt-1 truncate text-xs text-slate-500">Fail: {existing.filePath}</p>
           )}

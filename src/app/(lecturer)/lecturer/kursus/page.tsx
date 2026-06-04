@@ -27,7 +27,8 @@ export default async function LecturerCoursesPage() {
               key={c.id}
               code={c.code}
               title={c.title}
-              lecturerName={`${c._count.enrollments} pelajar · ${c._count.assignments} tugasan · ${c._count.groups} kumpulan`}
+              lecturerName={c.lecturer?.name ?? null}
+              lecturerAvatarPath={c.lecturer?.avatarPath ?? null}
               semester={c.semester}
               creditHours={c.creditHours}
               href={`/lecturer/kursus/${c.code}`}

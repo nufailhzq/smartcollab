@@ -11,6 +11,26 @@ const credSchema = z.object({
   password: z.string().min(3),
 });
 
+/**
+ * Throttled last-seen pinger. The session callback fires on every request,
+ * so we cap writes to one per user every 5 minutes — enough resolution for
+ * lecturers to spot dormant students without hammering MySQL.
+ */
+const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
+const lastSeenCache = new Map<number, number>();
+function touchLastSeen(userId: number) {
+  const now = Date.now();
+  const previous = lastSeenCache.get(userId);
+  if (previous && now - previous < LAST_SEEN_THROTTLE_MS) return;
+  lastSeenCache.set(userId, now);
+  // Fire and forget; swallow failures so login flow never trips on a write.
+  prisma.user
+    .update({ where: { id: userId }, data: { lastSeenAt: new Date(now) } })
+    .catch(() => {
+      lastSeenCache.delete(userId);
+    });
+}
+
 // JWT strategy is required when using the Credentials provider in Auth.js v5.
 // The HTTP-only signed cookie is refresh-stable, so login survives F5 — same
 // guarantee the spec asks for. The Prisma adapter still backs OAuth providers
@@ -67,6 +87,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         session.user.id = token.uid as number;
         session.user.role = token.role as Role;
         session.user.matricNum = (token.matricNum as string | null) ?? null;
+        // Fire-and-forget last-seen ping (throttled per-user in memory).
+        touchLastSeen(token.uid as number);
       }
       return session;
     },

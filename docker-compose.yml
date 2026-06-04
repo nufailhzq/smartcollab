@@ -1,0 +1,71 @@
+# UKMFolio (SmartCollab) — production-ready compose stack.
+#
+# Quick start:
+#   1. Copy .env.docker.example to .env.docker, fill in AUTH_SECRET + GEMINI_API_KEY
+#   2. docker compose up -d --build
+#   3. Browse http://localhost:3000
+#
+# To wipe everything and start fresh:
+#   docker compose down -v
+#
+# The MySQL data volume persists across `docker compose down`. Only `-v`
+# (or removing the volume manually) deletes it.
+
+services:
+  # ---------------------------------------------------------------------------
+  # MySQL — application database
+  # ---------------------------------------------------------------------------
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ukm_lms_new}
+      MYSQL_USER: ${MYSQL_USER:-ukm}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ukmpass}
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      # Expose 3307 on the host so it doesn't clash with XAMPP's 3306.
+      # Tools like MySQL Workbench can still connect at localhost:3307.
+      - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---------------------------------------------------------------------------
+  # Next.js app — built from the local Dockerfile
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.docker
+    environment:
+      # Inside the compose network the DB is reachable at hostname `db`.
+      DATABASE_URL: "mysql://${MYSQL_USER:-ukm}:${MYSQL_PASSWORD:-ukmpass}@db:3306/${MYSQL_DATABASE:-ukm_lms_new}"
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist user-uploaded files (avatars, chat attachments, bulletins,
+      # folio images) across rebuilds.
+      - app_uploads:/app/public/uploads
+
+volumes:
+  db_data:
+  app_uploads:

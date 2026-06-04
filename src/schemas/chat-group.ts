@@ -21,13 +21,10 @@ export const removeChatGroupMemberSchema = z.object({
 
 export const leaveChatGroupSchema = z.object({ chatGroupId: idSchema });
 
+// Content is optional — an attachment-only group message is valid.
 export const sendChatGroupMessageSchema = z.object({
   chatGroupId: idSchema,
-  content: z
-    .string()
-    .trim()
-    .min(1, "Mesej tidak boleh kosong.")
-    .max(2000, "Mesej terlalu panjang."),
+  content: z.string().trim().max(2000, "Mesej terlalu panjang.").optional().default(""),
 });
 
 export const renameChatGroupSchema = z.object({

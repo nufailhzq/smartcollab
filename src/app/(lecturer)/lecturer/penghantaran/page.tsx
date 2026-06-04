@@ -111,8 +111,16 @@ export default async function LecturerSubmissionsPage({
               <GradingPanel
                 submission={{
                   id: s.id,
+                  studentId: s.studentId,
                   studentName: s.student.name,
                   studentMatric: s.student.matricNum,
+                  submittedBy: s.submittedBy
+                    ? {
+                        id: s.submittedBy.id,
+                        name: s.submittedBy.name,
+                        matricNum: s.submittedBy.matricNum,
+                      }
+                    : null,
                   assignmentTitle: s.assignment.title,
                   assignmentType: s.assignment.type,
                   courseCode: s.assignment.course.code,

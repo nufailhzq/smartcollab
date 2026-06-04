@@ -3,9 +3,19 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnrolledCourses } from "@/server/queries/courses";
 import { getUpcomingAssignments } from "@/server/queries/submissions";
-import { getNotificationsForUser } from "@/server/queries/notifications";
+import {
+  getNotificationsForUser,
+  getActiveWarningsForUser,
+} from "@/server/queries/notifications";
+import { getActiveBulletins } from "@/server/queries/bulletins";
+import { getRecentAccess } from "@/server/queries/recent-access";
+import { getUpcomingForUser } from "@/server/queries/upcoming";
 import { CourseCard } from "@/components/course/CourseCard";
 import { EmptyState } from "@/components/common/EmptyState";
+import { BulletinBoard } from "@/components/dashboard/BulletinBoard";
+import { WarningBanner } from "@/components/dashboard/WarningBanner";
+import { RecentAccessPanel } from "@/components/dashboard/RecentAccessPanel";
+import { UpcomingEventsPanel } from "@/components/dashboard/UpcomingEventsPanel";
 import {
   ArrowRight,
   Bell,
@@ -20,6 +30,9 @@ import { formatDate } from "@/lib/utils";
 type UpcomingAssignment = Awaited<ReturnType<typeof getUpcomingAssignments>>[number];
 type Notification = Awaited<ReturnType<typeof getNotificationsForUser>>[number];
 type EnrolledCourse = Awaited<ReturnType<typeof getEnrolledCourses>>[number];
+type ActiveBulletin = Awaited<ReturnType<typeof getActiveBulletins>>[number];
+type RecentAccessItem = Awaited<ReturnType<typeof getRecentAccess>>[number];
+type UpcomingItem = Awaited<ReturnType<typeof getUpcomingForUser>>[number];
 
 export default async function StudentDashboard() {
   const session = await auth();
@@ -29,6 +42,7 @@ export default async function StudentDashboard() {
   }
 
   const userId = session.user.id;
+  const userRole = session.user.role;
 
   let enrollmentsCount = 0;
   let groupMembershipsCount = 0;
@@ -37,6 +51,10 @@ export default async function StudentDashboard() {
   let upcoming: UpcomingAssignment[] = [];
   let notifications: Notification[] = [];
   let courses: EnrolledCourse[] = [];
+  let bulletins: ActiveBulletin[] = [];
+  let recentAccess: RecentAccessItem[] = [];
+  let upcomingEvents: UpcomingItem[] = [];
+  let warnings: Awaited<ReturnType<typeof getActiveWarningsForUser>> = [];
 
   try {
     [
@@ -47,55 +65,30 @@ export default async function StudentDashboard() {
       upcoming,
       notifications,
       courses,
+      bulletins,
+      recentAccess,
+      upcomingEvents,
+      warnings,
     ] = await Promise.all([
-      prisma.classEnrollment.count({
-        where: {
-          studentId: userId,
-        },
-      }),
-
-      prisma.groupMember.count({
-        where: {
-          studentId: userId,
-        },
-      }),
-
+      prisma.classEnrollment.count({ where: { studentId: userId } }),
+      prisma.groupMember.count({ where: { studentId: userId } }),
       prisma.assignment.count({
         where: {
-          course: {
-            enrollments: {
-              some: {
-                studentId: userId,
-              },
-            },
-          },
-          dueDate: {
-            gte: new Date(),
-          },
+          course: { enrollments: { some: { studentId: userId } } },
+          dueDate: { gte: new Date() },
         },
       }),
-
-      prisma.message.count({
-        where: {
-          receiverId: userId,
-          isRead: false,
-        },
-      }),
-
+      prisma.message.count({ where: { receiverId: userId, isRead: false } }),
       getUpcomingAssignments(userId, 5),
       getNotificationsForUser(userId, 8),
       getEnrolledCourses(userId),
+      getActiveBulletins(5),
+      getRecentAccess(userId, 5),
+      getUpcomingForUser(userId, userRole, 6),
+      getActiveWarningsForUser(userId, 5),
     ]);
   } catch (error) {
     console.error("Student dashboard database query failed:", error);
-
-    enrollmentsCount = 0;
-    groupMembershipsCount = 0;
-    upcomingAssignmentsCount = 0;
-    unreadMessages = 0;
-    upcoming = [];
-    notifications = [];
-    courses = [];
   }
 
   const stats = [
@@ -131,145 +124,148 @@ export default async function StudentDashboard() {
 
   return (
     <div className="space-y-6">
+      <WarningBanner
+        warnings={warnings.map((w) => ({
+          id: w.id,
+          title: w.title,
+          message: w.message,
+          createdAt: w.createdAt.toISOString(),
+        }))}
+      />
+
       <div className="gradient-hero relative overflow-hidden rounded-2xl px-6 py-8 text-white shadow-sm">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10" />
         <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-white/10" />
 
         <div className="relative z-10">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/80">
-            SMARTCOLLAB
-          </p>
+          <p className="text-xs uppercase tracking-[0.3em] text-white/80">SMARTCOLLAB</p>
           <h1 className="mt-1 text-2xl font-bold text-white">
             Selamat datang, {session.user.name}
           </h1>
-          <p className="mt-1 text-sm text-white/90">
-            Papan pemuka pelajar UKMFolio
-          </p>
+          <p className="mt-1 text-sm text-white/90">Papan pemuka pelajar UKMFolio</p>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, Icon, accent, bg }) => (
-          <div key={label} className="card flex items-center gap-4">
-            <div className={`grid h-12 w-12 place-items-center rounded-xl ${bg}`}>
+        {stats.map(({ label, value, Icon, accent, bg }, i) => (
+          <div
+            key={label}
+            className="card card-hover flex items-center gap-4 animate-slide-up"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
+            <div
+              className={`grid h-12 w-12 place-items-center rounded-xl ${bg} transition-transform duration-300 ease-spring`}
+            >
               <Icon className={accent} size={22} />
             </div>
 
             <div>
               <p className="text-3xl font-bold text-ukm-navy">{value}</p>
-              <p className="text-xs uppercase tracking-wider text-slate-500">
-                {label}
-              </p>
+              <p className="text-xs uppercase tracking-wider text-slate-500">{label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="card">
-          <header className="mb-3 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-ukm-navy">
-              <CalendarClock className="text-ukm-orange" size={18} />
-              Tugasan Akan Datang
-            </h2>
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="space-y-6 xl:col-span-2">
+          <BulletinBoard bulletins={bulletins} />
 
-            <Link
-              href="/student/tugasan"
-              className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal hover:underline"
-            >
-              Lihat semua <ArrowRight size={12} />
-            </Link>
-          </header>
-
-          {upcoming.length === 0 ? (
-            <EmptyState
-              title="Tiada tugasan akan datang"
-              description="Tugasan dengan tarikh akhir akan muncul di sini."
-            />
-          ) : (
-            <ul className="space-y-2">
-              {upcoming.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="card">
+              <header className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-ukm-navy">
+                  <CalendarClock className="text-ukm-orange" size={18} />
+                  Tugasan Akan Datang
+                </h2>
+                <Link
+                  href="/student/tugasan"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal hover:underline"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ukm-navy">
-                      {a.title}
-                    </p>
+                  Lihat semua <ArrowRight size={12} />
+                </Link>
+              </header>
 
-                    <p className="text-xs text-slate-500">
-                      <span className="rounded bg-orange-100 px-1.5 py-0.5 font-mono font-semibold text-ukm-orange">
-                        {a.course.code}
-                      </span>{" "}
-                      · {a.dueDate ? formatDate(a.dueDate) : "Tiada tarikh akhir"}
-                    </p>
-                  </div>
+              {upcoming.length === 0 ? (
+                <EmptyState
+                  title="Tiada tugasan akan datang"
+                  description="Tugasan dengan tarikh akhir akan muncul di sini."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {upcoming.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ukm-navy">
+                          {a.title}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          <span className="rounded bg-orange-100 px-1.5 py-0.5 font-mono font-semibold text-ukm-orange">
+                            {a.course.code}
+                          </span>{" "}
+                          · {a.dueDate ? formatDate(a.dueDate) : "Tiada tarikh akhir"}
+                        </p>
+                      </div>
 
-                  {a.submissions[0] ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                      {a.submissions[0].status === "GRADED"
-                        ? "Dimarkah"
-                        : "Dihantar"}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                      Belum mula
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                      {a.submissions[0] ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                          {a.submissions[0].status === "GRADED" ? "Dimarkah" : "Dihantar"}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                          Belum mula
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-        <section className="card">
-          <header className="mb-3 flex items-center gap-2">
-            <Bell className="text-ukm-teal" size={18} />
-            <h2 className="text-lg font-semibold text-ukm-navy">
-              Aktiviti Terkini
-            </h2>
-          </header>
+            <section className="card">
+              <header className="mb-3 flex items-center gap-2">
+                <Bell className="text-ukm-teal" size={18} />
+                <h2 className="text-lg font-semibold text-ukm-navy">Aktiviti Terkini</h2>
+              </header>
 
-          {notifications.length === 0 ? (
-            <EmptyState title="Tiada notifikasi" />
-          ) : (
-            <ul className="space-y-2">
-              {notifications.map((n) => (
-                <li
-                  key={n.id}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-ukm-navy">
-                      {n.title}
-                    </p>
+              {notifications.length === 0 ? (
+                <EmptyState title="Tiada notifikasi" />
+              ) : (
+                <ul className="space-y-2">
+                  {notifications.map((n) => (
+                    <li
+                      key={n.id}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-ukm-navy">{n.title}</p>
+                        {!n.isRead && (
+                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ukm-orange" />
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-600">{n.message}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{formatDate(n.createdAt)}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        </div>
 
-                    {!n.isRead && (
-                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ukm-orange" />
-                    )}
-                  </div>
-
-                  <p className="mt-0.5 text-xs text-slate-600">{n.message}</p>
-
-                  <p className="mt-0.5 text-[10px] text-slate-400">
-                    {formatDate(n.createdAt)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <aside className="space-y-4 xl:col-span-1">
+          <RecentAccessPanel items={recentAccess} />
+          <UpcomingEventsPanel items={upcomingEvents} />
+        </aside>
       </div>
 
       <section>
         <header className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ukm-navy">Kursus Saya</h2>
-
-          <Link
-            href="/student/kursus"
-            className="text-xs text-ukm-teal hover:underline"
-          >
+          <Link href="/student/kursus" className="text-xs text-ukm-teal hover:underline">
             Lihat semua
           </Link>
         </header>
@@ -287,6 +283,7 @@ export default async function StudentDashboard() {
                 code={c.code}
                 title={c.title}
                 lecturerName={c.lecturer?.name ?? null}
+                lecturerAvatarPath={c.lecturer?.avatarPath ?? null}
                 semester={c.semester}
                 creditHours={c.creditHours}
                 href={`/student/kursus/${c.code}`}

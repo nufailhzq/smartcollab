@@ -2,9 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getEnrolledCourseByCode } from "@/server/queries/courses";
+import { getCurrentGroupForStudent } from "@/server/queries/groups";
 import { EmptyState } from "@/components/common/EmptyState";
-import { ArrowLeft, BookOpen, FileText, Megaphone, Pin, ClipboardList } from "lucide-react";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { TrackAccess } from "@/components/dashboard/TrackAccess";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Crown,
+  FileText,
+  Megaphone,
+  Pin,
+  ClipboardList,
+  Users,
+} from "lucide-react";
+import { formatDate, formatDateTime, initials } from "@/lib/utils";
 
 type Tab = "general" | "notes" | "tugasan";
 
@@ -16,8 +28,11 @@ export default async function CourseDetailPage({
   searchParams: { tab?: string };
 }) {
   const session = await auth();
-  const course = await getEnrolledCourseByCode(session!.user.id, params.code.toUpperCase());
+  const userId = session!.user.id;
+  const course = await getEnrolledCourseByCode(userId, params.code.toUpperCase());
   if (!course) notFound();
+
+  const myGroup = await getCurrentGroupForStudent(userId, course.id);
 
   const tab: Tab = (["general", "notes", "tugasan"] as const).includes(searchParams.tab as Tab)
     ? (searchParams.tab as Tab)
@@ -30,12 +45,87 @@ export default async function CourseDetailPage({
 
   return (
     <div className="space-y-6">
+      <TrackAccess
+        type="COURSE"
+        refId={course.id}
+        title={`${course.code} — ${course.title}`}
+        link={`/student/kursus/${course.code}`}
+      />
       <Link
         href="/student/kursus"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-ukm-navy"
       >
         <ArrowLeft size={16} /> Kembali ke kursus
       </Link>
+
+      {myGroup && (
+        <section className="card-elevated border-l-4 border-l-ukm-orange">
+          <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="grid h-9 w-9 place-items-center rounded-lg bg-orange-50 text-ukm-orange">
+                <Users size={18} />
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-slate-500">
+                  Kumpulan Saya
+                </p>
+                <h2 className="text-base font-bold text-ukm-navy">{myGroup.name}</h2>
+              </div>
+              <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                {myGroup.members.length}/{myGroup.maxMembers} ahli
+              </span>
+            </div>
+            <Link
+              href={`/student/kumpulan?course=${course.code}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal hover:underline"
+            >
+              Lihat butiran <ArrowRight size={12} />
+            </Link>
+          </header>
+
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {myGroup.members.map((m) => {
+              const isMe = m.studentId === userId;
+              const isLeader = m.role === "LEADER";
+              return (
+                <li
+                  key={m.id}
+                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
+                    isMe
+                      ? "border-ukm-orange bg-orange-50/40"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-ukm-teal to-ukm-cyan text-xs font-bold text-white">
+                    {initials(m.student.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-1 truncate text-sm font-semibold text-ukm-navy">
+                      {m.student.name}
+                      {isMe && (
+                        <span className="rounded-full bg-ukm-orange/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ukm-orange">
+                          Anda
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate font-mono text-[11px] text-slate-500">
+                      {m.student.matricNum ?? "—"}
+                    </p>
+                  </div>
+                  {isLeader && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700"
+                      title="Ketua kumpulan"
+                    >
+                      <Crown size={10} /> Ketua
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <header className="card">
         <div className="flex flex-wrap items-start justify-between gap-3">

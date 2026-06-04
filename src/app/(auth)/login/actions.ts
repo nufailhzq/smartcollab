@@ -1,6 +1,7 @@
 "use server";
 
 import { signIn } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { AuthError } from "next-auth";
 import { z } from "zod";
 
@@ -9,7 +10,9 @@ const inputSchema = z.object({
   password: z.string().min(3, "Kata laluan diperlukan."),
 });
 
-export type LoginResult = { ok: true } | { ok: false; error: string };
+export type LoginResult =
+  | { ok: true; name: string | null }
+  | { ok: false; error: string };
 
 export async function loginAction(raw: unknown): Promise<LoginResult> {
   const parsed = inputSchema.safeParse(raw);
@@ -17,13 +20,22 @@ export async function loginAction(raw: unknown): Promise<LoginResult> {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
   }
 
+  const matric = parsed.data.matric.toUpperCase();
+
   try {
     await signIn("credentials", {
-      matric: parsed.data.matric.toUpperCase(),
+      matric,
       password: parsed.data.password,
       redirect: false,
     });
-    return { ok: true };
+
+    // Pull the display name so the loader can greet the user. Failing here
+    // shouldn't break login — fall back to no name.
+    const user = await prisma.user
+      .findUnique({ where: { matricNum: matric }, select: { name: true } })
+      .catch(() => null);
+
+    return { ok: true, name: user?.name ?? null };
   } catch (err) {
     if (err instanceof AuthError) {
       if (err.type === "CredentialsSignin") {

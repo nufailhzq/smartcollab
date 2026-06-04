@@ -1,6 +1,7 @@
+import Image from "next/image";
 import { auth } from "@/lib/auth";
-import { initials } from "@/lib/utils";
-import { LogOut } from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { Avatar } from "@/components/common/Avatar";
 import {
   getNotificationsForUser,
   getUnreadNotificationCount,
@@ -13,6 +14,10 @@ import {
 } from "@/server/queries/messages";
 import { NotificationBell } from "./NotificationBell";
 import { MessengerBubble } from "./MessengerBubble";
+import { StudentSearchBar } from "@/components/folio/StudentSearchBar";
+import { TranslateToggle } from "./TranslateToggle";
+import { MobileNavToggle } from "./MobileNavToggle";
+import { LogoutButton } from "./LogoutButton";
 
 const ROLE_BADGE: Record<"STUDENT" | "LECTURER" | "ADMIN", string> = {
   STUDENT: "badge-student",
@@ -39,48 +44,68 @@ export async function Navbar() {
   let totalUnread = 0;
   let pendingRequests: Awaited<ReturnType<typeof getPendingFriendRequests>> = [];
   let chatGroups: Awaited<ReturnType<typeof getChatGroupsForUser>> = [];
+  let avatarPath: string | null = null;
 
   try {
-    [
-      notifications,
-      unreadNotifications,
-      contacts,
-      totalUnread,
-      pendingRequests,
-      chatGroups,
-    ] = await Promise.all([
+    const [_n, _un, _c, _tu, _pr, _cg, userRow] = await Promise.all([
       getNotificationsForUser(userId, 20),
       getUnreadNotificationCount(userId),
       getContactsForUser(userId, userRole),
       getTotalUnreadForUser(userId),
       getPendingFriendRequests(userId),
       getChatGroupsForUser(userId),
+      prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } }),
     ]);
+    notifications = _n;
+    unreadNotifications = _un;
+    contacts = _c;
+    totalUnread = _tu;
+    pendingRequests = _pr;
+    chatGroups = _cg;
+    avatarPath = userRow?.avatarPath ?? null;
   } catch (error) {
     console.error("Navbar database query failed:", error);
   }
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
-        <div className="flex h-14 items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-ukm-teal to-ukm-cyan font-black text-white shadow-sm">
-              U
-            </div>
+      <header className="glass sticky top-0 z-30 border-b border-slate-200/70 shadow-sm">
+        <div className="flex h-16 items-center justify-between px-3 sm:px-6">
+          <div className="flex items-center gap-2">
+            <MobileNavToggle />
+            <div className="group flex items-center gap-2 sm:gap-3">
+              <Image
+                src="/images/navbar/UKMOfficialLogo.png"
+                alt="UKM"
+                width={40}
+                height={40}
+                priority
+                className="h-9 w-9 object-contain transition-transform duration-300 ease-spring group-hover:scale-110 group-hover:-rotate-6 sm:h-10 sm:w-10"
+              />
 
-            <div className="leading-tight">
-              <p className="text-sm font-bold">
-                <span className="text-ukm-navy">UKM</span>
-                <span className="text-ukm-orange">FOLIO</span>
-              </p>
-              <p className="text-[10px] uppercase tracking-widest text-slate-400">
-                SMARTCOLLAB
-              </p>
+              <div className="leading-tight">
+                <p className="font-display text-base font-extrabold tracking-tight sm:text-lg">
+                  <span className="text-ukm-navy">UKM</span>
+                  <span className="text-ukm-orange">FOLIO</span>
+                </p>
+                <p className="brand-gradient-text hidden text-[11px] font-bold uppercase tracking-[0.2em] sm:block">
+                  SMARTCOLLAB
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            {(userRole === "STUDENT" || userRole === "LECTURER") && (
+              <div className="hidden md:block">
+                <StudentSearchBar />
+              </div>
+            )}
+
+            <div className="hidden sm:block">
+              <TranslateToggle />
+            </div>
+
             <NotificationBell
               initialUnreadCount={unreadNotifications}
               initialNotifications={notifications.map((n) => ({
@@ -93,7 +118,7 @@ export async function Navbar() {
               }))}
             />
 
-            <div className="hidden text-right sm:block">
+            <div className="hidden text-right lg:block">
               <p className="text-sm font-semibold text-ukm-navy">
                 {session.user.name}
               </p>
@@ -105,20 +130,14 @@ export async function Navbar() {
               </p>
             </div>
 
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-orange-100 text-sm font-bold text-ukm-orange ring-2 ring-white">
-              {initials(session.user.name ?? "?")}
-            </div>
+            <Avatar
+              name={session.user.name ?? "?"}
+              avatarPath={avatarPath}
+              size="md"
+              ring
+            />
 
-            <form action="/logout" method="POST">
-              <button
-                type="submit"
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-ukm-red"
-                aria-label="Log keluar"
-                title="Log keluar"
-              >
-                <LogOut size={18} />
-              </button>
-            </form>
+            <LogoutButton />
           </div>
         </div>
       </header>

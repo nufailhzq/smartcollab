@@ -1,5 +1,5 @@
 :root {
-  /* testfyp2-aligned palette: light theme, navy + orange accents */
+  /* Brand anchors — navy + orange + teal stay the core identity */
   --ukm-navy: #1e3a5f;
   --ukm-dark: #0f2744;
   --ukm-orange: #f97316;
@@ -8,11 +8,19 @@
   --ukm-teal: #0ea5e9;
   --ukm-cyan: #22d3ee;
 
+  /* Playful but on-palette accents (used sparingly for variety) */
+  --ukm-pink: #ec4899;
+  --ukm-purple: #a855f7;
+  --ukm-green: #10b981;
+  --ukm-amber: #f59e0b;
+  --ukm-mint: #34d399;
+
   --bg-app: #f8fafc;
   --bg-surface: #ffffff;
   --bg-muted: #f1f5f9;
   --border-soft: #e2e8f0;
-  --text: #334155;
-  --text-muted: #64748b;
+  --text: #1e293b;
+  --text-muted: #475569;
   --text-faint: #94a3b8;
 }
+

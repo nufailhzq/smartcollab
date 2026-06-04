@@ -64,6 +64,7 @@ export default async function LecturerGroupsPage({
             <GroupManager
               courseId={data.course.id}
               courseCode={data.course.code}
+              groupsLocked={data.course.groupsLocked}
               groups={data.groups.map((g) => ({
                 id: g.id,
                 name: g.name,
@@ -81,6 +82,18 @@ export default async function LecturerGroupsPage({
                 id: s.id,
                 name: s.name,
                 matricNum: s.matricNum,
+              }))}
+              pendingRequests={data.pendingRequests.map((r) => ({
+                id: r.id,
+                type: r.type,
+                reason: r.reason,
+                createdAt: r.createdAt.toISOString(),
+                student: {
+                  id: r.student.id,
+                  name: r.student.name,
+                  matricNum: r.student.matricNum,
+                },
+                group: { id: r.group.id, name: r.group.name },
               }))}
             />
           ) : (

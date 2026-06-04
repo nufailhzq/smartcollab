@@ -122,6 +122,91 @@ export async function searchUsers(
   return { ok: true, data: results };
 }
 
+export type FriendSuggestion = {
+  id: number;
+  name: string;
+  role: "STUDENT" | "LECTURER";
+  matricNum: string | null;
+  faculty: string | null;
+  program: string | null;
+  avatarPath: string | null;
+  sharedFaculty: boolean;
+  sharedProgram: boolean;
+};
+
+/**
+ * Friend suggestions for the navbar search bar.
+ * Excludes self + anyone already in a friendship row (any status — pending or
+ * accepted). Prefers same program, then same faculty, then alphabetical.
+ */
+export async function getFriendSuggestions(
+  take = 8,
+  excludeIds: number[] = [],
+): Promise<ActionResult<FriendSuggestion[]>> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const me = session.user.id;
+  const limit = Math.max(1, Math.min(take, 20));
+
+  const viewer = await prisma.user.findUnique({
+    where: { id: me },
+    select: { faculty: true, program: true },
+  });
+
+  // IDs the viewer already has any friendship row with (pending or accepted).
+  const friendships = await prisma.friendship.findMany({
+    where: { OR: [{ senderId: me }, { receiverId: me }] },
+    select: { senderId: true, receiverId: true },
+  });
+  const excludedIds = new Set<number>([me, ...excludeIds]);
+  for (const f of friendships) {
+    excludedIds.add(f.senderId === me ? f.receiverId : f.senderId);
+  }
+
+  // Pull a generous pool so we can rank by shared faculty/program client-side.
+  const pool = await prisma.user.findMany({
+    where: {
+      role: { in: ["STUDENT", "LECTURER"] },
+      isActive: true,
+      id: { notIn: Array.from(excludedIds) },
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      matricNum: true,
+      faculty: true,
+      program: true,
+      avatarPath: true,
+    },
+    take: limit * 4,
+  });
+
+  const ranked = pool
+    .map((u) => {
+      const sharedFaculty = !!viewer?.faculty && u.faculty === viewer.faculty;
+      const sharedProgram = !!viewer?.program && u.program === viewer.program;
+      // Light lecturer bonus so a few teaching staff surface alongside peers.
+      const score =
+        (sharedProgram ? 2 : 0) +
+        (sharedFaculty ? 1 : 0) +
+        (u.role === "LECTURER" ? 1 : 0);
+      return {
+        ...u,
+        role: u.role as "STUDENT" | "LECTURER",
+        sharedFaculty,
+        sharedProgram,
+        _score: score,
+      };
+    })
+    .sort((a, b) => b._score - a._score || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map(({ _score, ...rest }) => rest);
+
+  return { ok: true, data: ranked };
+}
+
 export async function removeFriend(raw: unknown): Promise<ActionResult> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };

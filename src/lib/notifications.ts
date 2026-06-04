@@ -64,3 +64,25 @@ export async function notifyGroupMembers(
     n,
   );
 }
+
+/**
+ * Notify every active STUDENT and LECTURER. Used by org-wide announcements
+ * like bulletins. Admins are skipped — they typically authored the announcement.
+ */
+export async function notifyAllStudentsAndLecturers(
+  n: NotificationPayload,
+  excludeUserId?: number,
+) {
+  const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      role: { in: ["STUDENT", "LECTURER"] },
+      ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+    },
+    select: { id: true },
+  });
+  return notifyMany(
+    users.map((u) => u.id),
+    n,
+  );
+}

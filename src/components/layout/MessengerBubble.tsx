@@ -12,22 +12,31 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Check,
+  Download,
+  File as FileIcon,
   LogOut,
   MessageCircle,
   Plus,
   Search,
   Send,
   Settings,
+  Sparkles,
   UserPlus,
   Users,
   X,
 } from "lucide-react";
+import { askAi, type AiChatMessage } from "@/server/actions/ai-chat";
 import { cn, initials } from "@/lib/utils";
 import {
+  acceptChatRequest,
   loadConversation,
+  rejectChatRequest,
   sendMessage,
   type ConversationPayload,
 } from "@/server/actions/chat";
+import { EmojiPicker } from "./chat/EmojiPicker";
+import { AttachmentMenu } from "./chat/AttachmentMenu";
+import type { AttachmentType } from "@/schemas/chat";
 import {
   acceptFriendRequest,
   rejectFriendRequest,
@@ -87,7 +96,8 @@ type View =
   | "conversation"
   | "createGroup"
   | "groupConversation"
-  | "groupSettings";
+  | "groupSettings"
+  | "aiConversation";
 type SearchHit = { id: number; name: string; role: "STUDENT" | "LECTURER" | "ADMIN"; matricNum: string | null };
 
 const RELATIONSHIP_LABEL: Record<BubbleContact["relationship"], string> = {
@@ -112,9 +122,32 @@ export function MessengerBubble({
   const [groupConversation, setGroupConversation] =
     useState<ChatGroupConversationPayload | null>(null);
   const [draft, setDraft] = useState("");
+  const [pendingAttachment, setPendingAttachment] = useState<
+    | { file: File; type: AttachmentType; previewUrl: string }
+    | null
+  >(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
   const [pending, startTransition] = useTransition();
+
+  const clearPendingAttachment = () => {
+    if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.previewUrl);
+    setPendingAttachment(null);
+  };
+
+  const onPickAttachment = (file: File, type: AttachmentType) => {
+    // Replace any prior selection (only one attachment per message for now).
+    if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.previewUrl);
+    setPendingAttachment({ file, type, previewUrl: URL.createObjectURL(file) });
+  };
+
+  // AI chat state
+  const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
+  const [aiPending, setAiPending] = useState(false);
+
+  // Top-of-chatbox tab filter for the list view
+  type ListTab = "all" | "friends" | "lecturers" | "groups" | "ai";
+  const [listTab, setListTab] = useState<ListTab>("all");
 
   // Create-group dialog state
   const [newGroupName, setNewGroupName] = useState("");
@@ -129,12 +162,68 @@ export function MessengerBubble({
   // Auto-scroll to bottom when conversation messages change.
   useEffect(() => {
     if (
-      (view !== "conversation" && view !== "groupConversation") ||
+      (view !== "conversation" &&
+        view !== "groupConversation" &&
+        view !== "aiConversation") ||
       !messageListRef.current
     )
       return;
     messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-  }, [view, conversation?.messages.length, groupConversation?.messages.length]);
+  }, [
+    view,
+    conversation?.messages.length,
+    groupConversation?.messages.length,
+    aiMessages.length,
+    aiPending,
+  ]);
+
+  // Cross-component deep-link: listen for `ukmfolio:open-chat-group` and open
+  // that conversation in the bubble. Other pages dispatch this after ensuring
+  // the chat group exists.
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent<{ chatGroupId: number }>).detail;
+      if (!detail?.chatGroupId) return;
+      setOpen(true);
+      startTransition(async () => {
+        const res = await loadChatGroupConversation(detail.chatGroupId);
+        if (!res.ok) {
+          toast.push({ kind: "error", message: res.error });
+          return;
+        }
+        setGroupConversation(res.data);
+        setView("groupConversation");
+        router.refresh();
+      });
+    }
+    window.addEventListener("ukmfolio:open-chat-group", onOpen);
+    return () => window.removeEventListener("ukmfolio:open-chat-group", onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cross-component deep-link: listen for `ukmfolio:open-dm` and open a 1:1
+  // conversation with the given userId. Used by the lecturer hover card on
+  // Kursus Saya to give students one-click access to message the lecturer.
+  useEffect(() => {
+    function onOpenDm(e: Event) {
+      const detail = (e as CustomEvent<{ userId: number }>).detail;
+      if (!detail?.userId) return;
+      setOpen(true);
+      startTransition(async () => {
+        const res = await loadConversation(detail.userId);
+        if (!res.ok) {
+          toast.push({ kind: "error", message: res.error });
+          return;
+        }
+        setConversation(res.data);
+        setView("conversation");
+        router.refresh();
+      });
+    }
+    window.addEventListener("ukmfolio:open-dm", onOpenDm);
+    return () => window.removeEventListener("ukmfolio:open-dm", onOpenDm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounce friend search.
   useEffect(() => {
@@ -172,6 +261,84 @@ export function MessengerBubble({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberSearchQuery, view]);
 
+  const openAiChat = () => {
+    setView("aiConversation");
+  };
+
+  const onSendAi = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const content = draft.trim();
+    if (!content || aiPending) return;
+    const next: AiChatMessage[] = [...aiMessages, { role: "user", content }];
+    setAiMessages(next);
+    setDraft("");
+    setAiPending(true);
+    (async () => {
+      const res = await askAi(next);
+      setAiPending(false);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      setAiMessages((prev) => [...prev, { role: "assistant", content: res.reply }]);
+    })();
+  };
+
+  const onAiQuickPrompt = (prompt: string) => {
+    if (aiPending) return;
+    const next: AiChatMessage[] = [...aiMessages, { role: "user", content: prompt }];
+    setAiMessages(next);
+    setAiPending(true);
+    (async () => {
+      const res = await askAi(next);
+      setAiPending(false);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      setAiMessages((prev) => [...prev, { role: "assistant", content: res.reply }]);
+    })();
+  };
+
+  const onClearAi = () => {
+    if (aiMessages.length === 0) return;
+    if (!confirm("Padam semua perbualan dengan FolioBot AI?")) return;
+    setAiMessages([]);
+  };
+
+  const onAcceptChatRequest = () => {
+    if (!conversation) return;
+    startTransition(async () => {
+      const res = await acceptChatRequest(conversation.partner.id);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      // Flip local snapshot so the input renders without reloading.
+      setConversation((prev) =>
+        prev ? { ...prev, requestStatus: "open" } : prev,
+      );
+      toast.push({ kind: "success", message: "Permintaan chat diterima." });
+      router.refresh();
+    });
+  };
+
+  const onRejectChatRequest = () => {
+    if (!conversation) return;
+    if (!confirm("Tolak permintaan chat ini? Mesej akan dipadam.")) return;
+    startTransition(async () => {
+      const res = await rejectChatRequest(conversation.partner.id);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({ kind: "success", message: "Permintaan ditolak." });
+      setConversation(null);
+      setView("list");
+      router.refresh();
+    });
+  };
+
   const openContact = (contact: BubbleContact) => {
     startTransition(async () => {
       const res = await loadConversation(contact.id);
@@ -189,9 +356,18 @@ export function MessengerBubble({
     e.preventDefault();
     if (!conversation) return;
     const content = draft.trim();
-    if (!content) return;
+    if (!content && !pendingAttachment) return;
+
+    const fd = new FormData();
+    fd.set("receiverId", String(conversation.partner.id));
+    fd.set("content", content);
+    if (pendingAttachment) {
+      fd.set("attachment", pendingAttachment.file);
+      fd.set("attachmentType", pendingAttachment.type);
+    }
+
     startTransition(async () => {
-      const res = await sendMessage({ receiverId: conversation.partner.id, content });
+      const res = await sendMessage(fd);
       if (!res.ok) {
         toast.push({ kind: "error", message: res.error });
         return;
@@ -209,12 +385,17 @@ export function MessengerBubble({
                   content: res.data.content,
                   timestamp: new Date(res.data.timestamp as unknown as string).toISOString(),
                   isRead: res.data.isRead,
+                  attachmentPath: res.data.attachmentPath,
+                  attachmentType: res.data.attachmentType,
+                  attachmentName: res.data.attachmentName,
+                  attachmentSize: res.data.attachmentSize,
                 },
               ],
             }
           : prev,
       );
       setDraft("");
+      clearPendingAttachment();
       router.refresh();
     });
   };
@@ -264,12 +445,18 @@ export function MessengerBubble({
     e.preventDefault();
     if (!groupConversation) return;
     const content = draft.trim();
-    if (!content) return;
+    if (!content && !pendingAttachment) return;
+
+    const fd = new FormData();
+    fd.set("chatGroupId", String(groupConversation.group.id));
+    fd.set("content", content);
+    if (pendingAttachment) {
+      fd.set("attachment", pendingAttachment.file);
+      fd.set("attachmentType", pendingAttachment.type);
+    }
+
     startTransition(async () => {
-      const res = await sendChatGroupMessage({
-        chatGroupId: groupConversation.group.id,
-        content,
-      });
+      const res = await sendChatGroupMessage(fd);
       if (!res.ok) {
         toast.push({ kind: "error", message: res.error });
         return;
@@ -288,12 +475,17 @@ export function MessengerBubble({
                   timestamp: new Date(
                     res.data.timestamp as unknown as string,
                   ).toISOString(),
+                  attachmentPath: res.data.attachmentPath,
+                  attachmentType: res.data.attachmentType,
+                  attachmentName: res.data.attachmentName,
+                  attachmentSize: res.data.attachmentSize,
                 },
               ],
             }
           : prev,
       );
       setDraft("");
+      clearPendingAttachment();
       router.refresh();
     });
   };
@@ -431,21 +623,21 @@ export function MessengerBubble({
         }}
         aria-label="Mesej"
         className={cn(
-          "fixed bottom-6 right-6 z-40 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-ukm-teal to-ukm-cyan text-white shadow-[0_10px_25px_rgba(14,165,233,0.4)] transition hover:scale-105",
-          open && "scale-95 opacity-90",
+          "fixed bottom-4 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-ukm-teal via-sky-500 to-ukm-cyan text-white shadow-[0_10px_25px_rgba(14,165,233,0.45)] transition-all duration-300 ease-spring hover:scale-110 hover:rotate-6 hover:shadow-glow active:scale-95 sm:bottom-6 sm:right-6",
+          open && "scale-95 opacity-90 rotate-0",
         )}
       >
         <MessageCircle size={24} />
         {totalBadge > 0 && (
-          <span className="absolute -right-1 -top-1 grid min-h-[22px] min-w-[22px] place-items-center rounded-full border-2 border-white bg-ukm-red px-1 text-[11px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 grid min-h-[22px] min-w-[22px] animate-pop-in place-items-center rounded-full border-2 border-white bg-ukm-red px-1 text-[11px] font-bold text-white">
             {totalBadge > 99 ? "99+" : totalBadge}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-40 flex h-[560px] max-h-[calc(100vh-7rem)] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,39,68,0.18)] animate-fade-in">
-          <header className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="fixed inset-x-2 bottom-20 top-2 z-40 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_15px_40px_rgba(15,39,68,0.22)] animate-fade-in sm:inset-auto sm:bottom-24 sm:right-6 sm:top-auto sm:h-[620px] sm:max-h-[calc(100vh-7rem)] sm:w-[420px] sm:max-w-[calc(100vw-2rem)]">
+          <header className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-sky-50/60 px-4 py-3">
             <div className="flex items-center gap-2">
               {view !== "list" ? (
                 <button
@@ -459,7 +651,10 @@ export function MessengerBubble({
                   <ArrowLeft size={16} />
                 </button>
               ) : null}
-              <h3 className="text-sm font-semibold text-ukm-navy">
+              <h3 className="flex items-center gap-1.5 text-base font-bold text-ukm-navy">
+                {view === "aiConversation" && (
+                  <Sparkles size={14} className="text-ukm-orange" />
+                )}
                 {view === "conversation"
                   ? conversation?.partner.name
                   : view === "groupConversation"
@@ -470,11 +665,18 @@ export function MessengerBubble({
                         ? "Cari Rakan"
                         : view === "createGroup"
                           ? "Kumpulan Chat Baharu"
-                          : "Mesej"}
+                          : view === "aiConversation"
+                            ? "FolioBot AI"
+                            : "Mesej"}
               </h3>
               {view === "groupConversation" && groupConversation && (
                 <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
                   {groupConversation.group.members.length} ahli
+                </span>
+              )}
+              {view === "aiConversation" && (
+                <span className="rounded-full bg-gradient-to-r from-ukm-orange to-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  BETA
                 </span>
               )}
             </div>
@@ -516,6 +718,17 @@ export function MessengerBubble({
                   <Settings size={16} />
                 </button>
               )}
+              {view === "aiConversation" && aiMessages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onClearAi}
+                  aria-label="Mulakan perbualan baharu"
+                  title="Mulakan perbualan baharu"
+                  className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-ukm-orange"
+                >
+                  <Plus size={16} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -528,8 +741,85 @@ export function MessengerBubble({
           </header>
 
           {view === "list" && (
-            <div className="flex-1 overflow-y-auto bg-white">
-              {requestCount > 0 && (
+            <div className="flex flex-1 flex-col overflow-hidden bg-white">
+              {/* Tab strip — switch between sections */}
+              <div className="flex gap-1 border-b border-slate-200 bg-slate-50/80 px-2 py-2">
+                {(
+                  [
+                    { id: "all", label: "Semua", icon: MessageCircle, tint: "from-ukm-teal to-sky-600" },
+                    { id: "friends", label: "Rakan", icon: UserPlus, tint: "from-ukm-pink to-rose-500" },
+                    { id: "groups", label: "Kumpulan", icon: Users, tint: "from-emerald-500 to-teal-600" },
+                    { id: "ai", label: "AI", icon: Sparkles, tint: "from-ukm-orange to-amber-500" },
+                  ] as const
+                ).map((tab) => {
+                  const Icon = tab.icon;
+                  const active = listTab === tab.id;
+                  const count =
+                    tab.id === "friends"
+                      ? groupedContacts.friends.length
+                      : tab.id === "groups"
+                        ? initialChatGroups.length
+                        : 0;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setListTab(tab.id)}
+                      className={cn(
+                        "group relative flex flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-bold transition-all duration-200 ease-spring",
+                        active
+                          ? `bg-gradient-to-br ${tab.tint} text-white shadow-soft`
+                          : "text-slate-500 hover:bg-white hover:text-ukm-navy",
+                      )}
+                    >
+                      <Icon size={16} className={active ? "" : "group-hover:scale-110 transition-transform"} />
+                      <span className="leading-none">{tab.label}</span>
+                      {count > 0 && !active && (
+                        <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-ukm-orange px-1 text-[9px] font-bold text-white">
+                          {count > 9 ? "9+" : count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+              {/* FolioBot AI — pinned virtual contact (shown when tab is All or AI) */}
+              {(listTab === "all" || listTab === "ai") && (
+              <button
+                type="button"
+                onClick={openAiChat}
+                className="group flex w-full items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-orange-50 via-amber-50 to-sky-50 px-4 py-3.5 text-left transition hover:from-orange-100 hover:via-amber-100 hover:to-sky-100"
+              >
+                <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-ukm-orange via-amber-500 to-ukm-teal text-white shadow-glow-orange transition group-hover:scale-110 group-hover:rotate-6">
+                  <Sparkles size={20} />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-base font-bold text-ukm-navy">FolioBot AI</p>
+                    <span className="rounded-full bg-gradient-to-r from-ukm-orange to-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                      AI
+                    </span>
+                  </div>
+                  <p className="truncate text-xs text-slate-500">
+                    Pembantu pintar untuk bantu anda belajar
+                  </p>
+                </div>
+              </button>
+              )}
+
+              {listTab === "ai" && aiMessages.length === 0 && (
+                <div className="px-6 py-10 text-center">
+                  <p className="text-sm font-semibold text-ukm-navy">Pembantu Belajar AI ✨</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Tekan FolioBot AI di atas untuk mula bertanya.
+                  </p>
+                </div>
+              )}
+
+              {(listTab === "all" || listTab === "friends") && requestCount > 0 && (
                 <section className="border-b border-slate-100 bg-orange-50 px-4 py-3">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ukm-orange">
                     Permintaan Rakan ({requestCount})
@@ -573,42 +863,67 @@ export function MessengerBubble({
                 </section>
               )}
 
-              {initialChatGroups.length > 0 && (
+              {(listTab === "all" || listTab === "groups") && initialChatGroups.length > 0 && (
                 <ChatGroupSection groups={initialChatGroups} onOpen={openChatGroup} />
               )}
 
-              {initialContacts.length === 0 && initialChatGroups.length === 0 ? (
+              {listTab === "groups" && initialChatGroups.length === 0 && (
+                <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+                  <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100">
+                    <Users className="text-emerald-600" size={26} />
+                  </div>
+                  <p className="text-base font-bold text-ukm-navy">Tiada kumpulan lagi</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Tekan + di atas untuk cipta kumpulan chat baharu.
+                  </p>
+                </div>
+              )}
+
+              {listTab === "friends" && groupedContacts.friends.length === 0 && requestCount === 0 && (
+                <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+                  <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-pink-100 to-rose-100">
+                    <UserPlus className="text-ukm-pink" size={26} />
+                  </div>
+                  <p className="text-base font-bold text-ukm-navy">Tiada rakan lagi</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Cari rakan dengan butang tambah-rakan di atas.
+                  </p>
+                </div>
+              )}
+
+              {listTab === "all" && initialContacts.length === 0 && initialChatGroups.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
                   <MessageCircle className="mb-3 text-slate-300" size={32} />
-                  <p className="text-sm font-semibold text-ukm-navy">Tiada perbualan lagi</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="text-base font-bold text-ukm-navy">Tiada perbualan lagi</p>
+                  <p className="mt-1 text-sm text-slate-500">
                     Tekan + untuk cipta kumpulan chat, atau ikon tambah-rakan untuk cari rakan.
                   </p>
                 </div>
               ) : (
                 <>
-                  {groupedContacts.friends.length > 0 && (
-                    <ContactGroup
-                      title="Rakan"
-                      contacts={groupedContacts.friends}
-                      onClick={openContact}
-                    />
-                  )}
-                  {groupedContacts.lecturers.length > 0 && (
+                  {(listTab === "all" || listTab === "friends") &&
+                    groupedContacts.friends.length > 0 && (
+                      <ContactGroup
+                        title="Rakan"
+                        contacts={groupedContacts.friends}
+                        onClick={openContact}
+                      />
+                    )}
+                  {listTab === "all" && groupedContacts.lecturers.length > 0 && (
                     <ContactGroup
                       title="Pensyarah Kursus"
                       contacts={groupedContacts.lecturers}
                       onClick={openContact}
                     />
                   )}
-                  {groupedContacts.students.length > 0 && (
+                  {listTab === "all" && groupedContacts.students.length > 0 && (
                     <ContactGroup
                       title="Pelajar Kursus"
                       contacts={groupedContacts.students}
                       onClick={openContact}
                     />
                   )}
-                  {groupedContacts.others.length > 0 && (
+                  {listTab === "all" && groupedContacts.others.length > 0 && (
                     <ContactGroup
                       title="Sejarah Mesej"
                       contacts={groupedContacts.others}
@@ -617,6 +932,7 @@ export function MessengerBubble({
                   )}
                 </>
               )}
+              </div>
             </div>
           )}
 
@@ -675,6 +991,26 @@ export function MessengerBubble({
 
           {view === "conversation" && conversation && (
             <>
+              {conversation.requestStatus === "outgoing-pending" && (
+                <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] text-amber-800">
+                  <p className="font-semibold">Permintaan chat dihantar</p>
+                  <p className="text-[10px] text-amber-700">
+                    {conversation.partner.name} perlu menerima permintaan ini
+                    sebelum melihat mesej anda dalam senarai chat biasa.
+                  </p>
+                </div>
+              )}
+              {conversation.requestStatus === "incoming-pending" && (
+                <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] text-sky-800">
+                  <p className="font-semibold">
+                    {conversation.partner.name} ingin memulakan chat
+                  </p>
+                  <p className="text-[10px] text-sky-700">
+                    Terima untuk mula membalas, atau tolak untuk memadam mesej
+                    ini.
+                  </p>
+                </div>
+              )}
               <div
                 ref={messageListRef}
                 className="flex-1 space-y-2 overflow-y-auto bg-slate-50 px-4 py-3"
@@ -699,7 +1035,18 @@ export function MessengerBubble({
                               : "bg-white text-slate-700 border border-slate-200",
                           )}
                         >
-                          <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                          {m.attachmentPath && (
+                            <MessageAttachment
+                              path={m.attachmentPath}
+                              type={m.attachmentType}
+                              name={m.attachmentName}
+                              size={m.attachmentSize}
+                              mine={mine}
+                            />
+                          )}
+                          {m.content && (
+                            <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                          )}
                           <p
                             className={cn(
                               "mt-1 text-[10px]",
@@ -717,27 +1064,62 @@ export function MessengerBubble({
                   })
                 )}
               </div>
-              <form
-                onSubmit={onSend}
-                className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2"
-              >
-                <input
-                  type="text"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Taip mesej…"
-                  maxLength={2000}
-                  className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-ukm-teal focus:bg-white"
-                />
-                <button
-                  type="submit"
-                  disabled={pending || !draft.trim()}
-                  className="grid h-9 w-9 place-items-center rounded-lg bg-ukm-teal text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Hantar"
+              {conversation.requestStatus === "incoming-pending" ? (
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white px-3 py-3">
+                  <button
+                    type="button"
+                    onClick={onRejectChatRequest}
+                    disabled={pending}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-ukm-red hover:bg-red-50 hover:text-ukm-red disabled:opacity-50"
+                  >
+                    Tolak
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onAcceptChatRequest}
+                    disabled={pending}
+                    className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pending ? "Menerima…" : "Terima Chat"}
+                  </button>
+                </div>
+              ) : (
+                <form
+                  onSubmit={onSend}
+                  className="space-y-2 border-t border-slate-200 bg-white px-3 py-2"
                 >
-                  <Send size={16} />
-                </button>
-              </form>
+                  {pendingAttachment && (
+                    <AttachmentPreview
+                      attachment={pendingAttachment}
+                      onRemove={clearPendingAttachment}
+                    />
+                  )}
+                  <div className="flex items-center gap-1">
+                    <AttachmentMenu onPick={onPickAttachment} disabled={pending} />
+                    <EmojiPicker onPick={(e) => setDraft((d) => d + e)} />
+                    <input
+                      type="text"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      placeholder={
+                        conversation.requestStatus === "outgoing-pending"
+                          ? "Taip mesej (menunggu jawapan)…"
+                          : "Taip mesej…"
+                      }
+                      maxLength={2000}
+                      className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-ukm-teal focus:bg-white"
+                    />
+                    <button
+                      type="submit"
+                      disabled={pending || (!draft.trim() && !pendingAttachment)}
+                      className="grid h-9 w-9 place-items-center rounded-lg bg-ukm-teal text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Hantar"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                </form>
+              )}
             </>
           )}
 
@@ -899,7 +1281,18 @@ export function MessengerBubble({
                                 : "border border-slate-200 bg-white text-slate-700",
                             )}
                           >
-                            <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                            {m.attachmentPath && (
+                              <MessageAttachment
+                                path={m.attachmentPath}
+                                type={m.attachmentType}
+                                name={m.attachmentName}
+                                size={m.attachmentSize}
+                                mine={mine}
+                              />
+                            )}
+                            {m.content && (
+                              <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                            )}
                             <p
                               className={cn(
                                 "mt-1 text-[10px]",
@@ -920,24 +1313,148 @@ export function MessengerBubble({
               </div>
               <form
                 onSubmit={onSendGroup}
-                className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2"
+                className="space-y-2 border-t border-slate-200 bg-white px-3 py-2"
               >
-                <input
-                  type="text"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={`Mesej ke ${groupConversation.group.name}…`}
-                  maxLength={2000}
-                  className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-ukm-teal focus:bg-white"
-                />
-                <button
-                  type="submit"
-                  disabled={pending || !draft.trim()}
-                  className="grid h-9 w-9 place-items-center rounded-lg bg-ukm-teal text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Hantar"
-                >
-                  <Send size={16} />
-                </button>
+                {pendingAttachment && (
+                  <AttachmentPreview
+                    attachment={pendingAttachment}
+                    onRemove={clearPendingAttachment}
+                  />
+                )}
+                <div className="flex items-center gap-1">
+                  <AttachmentMenu onPick={onPickAttachment} disabled={pending} />
+                  <EmojiPicker onPick={(e) => setDraft((d) => d + e)} />
+                  <input
+                    type="text"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={`Mesej ke ${groupConversation.group.name}…`}
+                    maxLength={2000}
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-ukm-teal focus:bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={pending || (!draft.trim() && !pendingAttachment)}
+                    className="grid h-9 w-9 place-items-center rounded-lg bg-ukm-teal text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Hantar"
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
+
+          {view === "aiConversation" && (
+            <>
+              <div
+                ref={messageListRef}
+                className="flex-1 space-y-2 overflow-y-auto bg-gradient-to-b from-orange-50/40 via-white to-sky-50/40 px-4 py-3"
+              >
+                {aiMessages.length === 0 ? (
+                  <div className="flex flex-col items-center py-6 text-center">
+                    <div className="mb-3 grid h-14 w-14 animate-float-y place-items-center rounded-2xl bg-gradient-to-br from-ukm-orange via-amber-500 to-ukm-teal text-white shadow-glow-orange">
+                      <Sparkles size={26} />
+                    </div>
+                    <p className="text-sm font-bold text-ukm-navy">
+                      Hai! Saya FolioBot AI 👋
+                    </p>
+                    <p className="mt-1 max-w-[260px] text-xs text-slate-500">
+                      Tanya saya apa-apa tentang kursus, tugasan, atau coding.
+                      Saya di sini untuk bantu anda faham, bukan buat tugasan.
+                    </p>
+                    <div className="mt-4 flex w-full flex-col gap-1.5">
+                      {[
+                        "Terangkan konsep OOP dalam Java secara ringkas",
+                        "Beri tips belajar struktur data",
+                        "Apa beza SQL JOIN dan UNION?",
+                      ].map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => onAiQuickPrompt(q)}
+                          className="w-full rounded-lg border border-orange-200 bg-white px-3 py-2 text-left text-xs text-slate-600 transition hover:-translate-y-0.5 hover:border-ukm-orange hover:bg-orange-50 hover:text-ukm-navy hover:shadow-soft"
+                        >
+                          <span className="mr-1">💡</span>
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  aiMessages.map((m, i) => {
+                    const mine = m.role === "user";
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "flex animate-fade-in",
+                          mine ? "justify-end" : "justify-start gap-2",
+                        )}
+                      >
+                        {!mine && (
+                          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-ukm-orange to-amber-500 text-white shadow-sm">
+                            <Sparkles size={14} />
+                          </div>
+                        )}
+                        <div
+                          className={cn(
+                            "max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm",
+                            mine
+                              ? "bg-gradient-to-br from-ukm-teal to-sky-600 text-white"
+                              : "border border-orange-100 bg-white text-slate-700",
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap break-words leading-relaxed">
+                            {m.content}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                {aiPending && (
+                  <div className="flex animate-fade-in items-end gap-2">
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-ukm-orange to-amber-500 text-white shadow-sm">
+                      <Sparkles size={14} />
+                    </div>
+                    <div className="rounded-2xl border border-orange-100 bg-white px-3 py-2.5 shadow-sm">
+                      <div className="flex items-center gap-1">
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-ukm-orange [animation-delay:-0.3s]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-amber-500 [animation-delay:-0.15s]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-ukm-teal" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <form
+                onSubmit={onSendAi}
+                className="border-t border-slate-200 bg-white px-3 py-2"
+              >
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Tanya FolioBot AI..."
+                    maxLength={2000}
+                    disabled={aiPending}
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-ukm-orange focus:bg-white disabled:opacity-60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={aiPending || !draft.trim()}
+                    className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-ukm-orange to-amber-500 text-white shadow-glow-orange transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Hantar"
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
+                <p className="mt-1 px-1 text-[10px] text-slate-400">
+                  ✨ Dijana oleh Gemini. Jawapan mungkin tidak tepat — sahkan
+                  semula dengan pensyarah.
+                </p>
               </form>
             </>
           )}
@@ -1092,7 +1609,7 @@ function ContactGroup({
 }) {
   return (
     <section className="border-b border-slate-100 last:border-b-0">
-      <p className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+      <p className="px-4 pt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         {title}
       </p>
       <ul>
@@ -1101,19 +1618,19 @@ function ContactGroup({
             <button
               type="button"
               onClick={() => onClick(c)}
-              className="flex w-full items-center gap-3 px-4 py-2 text-left transition hover:bg-slate-50"
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-sky-50/60"
             >
               <Avatar name={c.name} role={c.role} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-semibold text-ukm-navy">{c.name}</p>
+                  <p className="truncate text-[15px] font-semibold text-ukm-navy">{c.name}</p>
                   {c.unread > 0 && (
-                    <span className="grid min-h-[18px] min-w-[18px] place-items-center rounded-full bg-ukm-orange px-1 text-[10px] font-bold text-white">
+                    <span className="grid min-h-[20px] min-w-[20px] place-items-center rounded-full bg-gradient-to-br from-ukm-orange to-amber-500 px-1.5 text-[11px] font-bold text-white shadow-soft">
                       {c.unread}
                     </span>
                   )}
                 </div>
-                <p className="truncate text-[10px] text-slate-500">
+                <p className="truncate text-xs text-slate-500">
                   {c.matricNum ?? RELATIONSHIP_LABEL[c.relationship]}
                 </p>
               </div>
@@ -1134,14 +1651,132 @@ function Avatar({
 }) {
   const tint =
     role === "LECTURER"
-      ? "bg-purple-100 text-purple-700"
+      ? "bg-gradient-to-br from-purple-100 to-fuchsia-100 text-purple-700"
       : role === "ADMIN"
-        ? "bg-pink-100 text-pink-700"
-        : "bg-sky-100 text-sky-700";
+        ? "bg-gradient-to-br from-pink-100 to-rose-100 text-pink-700"
+        : "bg-gradient-to-br from-sky-100 to-cyan-100 text-sky-700";
   return (
-    <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold", tint)}>
+    <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold shadow-sm", tint)}>
       {initials(name)}
     </div>
+  );
+}
+
+function AttachmentPreview({
+  attachment,
+  onRemove,
+}: {
+  attachment: { file: File; type: AttachmentType; previewUrl: string };
+  onRemove: () => void;
+}) {
+  const sizeMb = (attachment.file.size / 1024 / 1024).toFixed(1);
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+      {attachment.type === "image" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={attachment.previewUrl}
+          alt=""
+          className="h-12 w-12 rounded object-cover"
+        />
+      ) : attachment.type === "video" ? (
+        <video
+          src={attachment.previewUrl}
+          className="h-12 w-12 rounded bg-black object-cover"
+          muted
+        />
+      ) : (
+        <div className="grid h-12 w-12 place-items-center rounded bg-orange-50 text-ukm-orange">
+          <FileIcon size={20} />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold text-ukm-navy">
+          {attachment.file.name}
+        </p>
+        <p className="text-[10px] text-slate-500">
+          {sizeMb} MB · {attachment.type === "image" ? "Imej" : attachment.type === "video" ? "Video" : "Fail"}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Buang lampiran"
+        className="rounded-full p-1 text-slate-400 transition hover:bg-slate-200 hover:text-ukm-red"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+function MessageAttachment({
+  path,
+  type,
+  name,
+  size,
+  mine,
+}: {
+  path: string;
+  type: string | null;
+  name: string | null;
+  size: string | null;
+  mine: boolean;
+}) {
+  if (type === "image") {
+    return (
+      <a
+        href={path}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mb-1 block overflow-hidden rounded-lg"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={path}
+          alt={name ?? ""}
+          loading="lazy"
+          className="max-h-60 w-full max-w-[240px] object-cover"
+        />
+      </a>
+    );
+  }
+  if (type === "video") {
+    return (
+      <video
+        src={path}
+        controls
+        playsInline
+        preload="metadata"
+        className="mb-1 max-h-60 w-full max-w-[240px] rounded-lg bg-black"
+      />
+    );
+  }
+  // Generic file: show pill with download.
+  return (
+    <a
+      href={path}
+      target="_blank"
+      rel="noopener noreferrer"
+      download={name ?? undefined}
+      className={cn(
+        "mb-1 flex max-w-[260px] items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition",
+        mine
+          ? "border-white/30 bg-white/10 text-white hover:bg-white/15"
+          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+      )}
+    >
+      <FileIcon size={16} className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">{name ?? "Fail"}</p>
+        {size && (
+          <p className={cn("text-[10px]", mine ? "text-white/70" : "text-slate-500")}>
+            {size}
+          </p>
+        )}
+      </div>
+      <Download size={12} className="shrink-0" />
+    </a>
   );
 }
 
@@ -1154,7 +1789,7 @@ function ChatGroupSection({
 }) {
   return (
     <section className="border-b border-slate-100">
-      <p className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+      <p className="px-4 pt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         Kumpulan Chat
       </p>
       <ul>
@@ -1163,21 +1798,21 @@ function ChatGroupSection({
             <button
               type="button"
               onClick={() => onOpen(g.id)}
-              className="flex w-full items-center gap-3 px-4 py-2 text-left transition hover:bg-slate-50"
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-emerald-50/40"
             >
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-ukm-teal to-ukm-cyan text-xs font-bold text-white">
-                <Users size={16} />
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+                <Users size={18} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-semibold text-ukm-navy">{g.name}</p>
+                  <p className="truncate text-[15px] font-semibold text-ukm-navy">{g.name}</p>
                   {g.unread > 0 && (
-                    <span className="grid min-h-[18px] min-w-[18px] place-items-center rounded-full bg-ukm-orange px-1 text-[10px] font-bold text-white">
+                    <span className="grid min-h-[20px] min-w-[20px] place-items-center rounded-full bg-gradient-to-br from-ukm-orange to-amber-500 px-1.5 text-[11px] font-bold text-white shadow-soft">
                       {g.unread}
                     </span>
                   )}
                 </div>
-                <p className="truncate text-[11px] text-slate-500">
+                <p className="truncate text-xs text-slate-500">
                   {g.lastMessagePreview
                     ? `${g.lastSenderName ?? ""}${g.lastSenderName ? ": " : ""}${g.lastMessagePreview}`
                     : `${g.memberCount} ahli`}

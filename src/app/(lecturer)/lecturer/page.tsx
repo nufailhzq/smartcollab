@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getActiveBulletins } from "@/server/queries/bulletins";
+import { getRecentAccess } from "@/server/queries/recent-access";
+import { getUpcomingForUser } from "@/server/queries/upcoming";
+import { BulletinBoard } from "@/components/dashboard/BulletinBoard";
+import { RecentAccessPanel } from "@/components/dashboard/RecentAccessPanel";
+import { UpcomingEventsPanel } from "@/components/dashboard/UpcomingEventsPanel";
 import {
   AlertTriangle,
   ArrowRight,
@@ -16,41 +22,54 @@ import { formatDateTime } from "@/lib/utils";
 export default async function LecturerDashboard() {
   const session = await auth();
   const userId = session!.user.id;
+  const userRole = session!.user.role;
 
-  const [coursesTaught, pendingGrades, totalStudents, lateSubmissions, courses, recentSubs] =
-    await Promise.all([
-      prisma.course.count({ where: { lecturerId: userId } }),
-      prisma.submission.count({
-        where: { status: "SUBMITTED", assignment: { course: { lecturerId: userId } } },
-      }),
-      prisma.classEnrollment.count({ where: { course: { lecturerId: userId } } }),
-      prisma.submission.count({
-        where: { status: "LATE", assignment: { course: { lecturerId: userId } } },
-      }),
-      prisma.course.findMany({
-        where: { lecturerId: userId },
-        include: {
-          lecturer: { select: { id: true, name: true } },
-          _count: { select: { enrollments: true, assignments: true } },
+  const [
+    coursesTaught,
+    pendingGrades,
+    totalStudents,
+    lateSubmissions,
+    courses,
+    recentSubs,
+    bulletins,
+    recentAccess,
+    upcomingEvents,
+  ] = await Promise.all([
+    prisma.course.count({ where: { lecturerId: userId } }),
+    prisma.submission.count({
+      where: { status: "SUBMITTED", assignment: { course: { lecturerId: userId } } },
+    }),
+    prisma.classEnrollment.count({ where: { course: { lecturerId: userId } } }),
+    prisma.submission.count({
+      where: { status: "LATE", assignment: { course: { lecturerId: userId } } },
+    }),
+    prisma.course.findMany({
+      where: { lecturerId: userId },
+      include: {
+        lecturer: { select: { id: true, name: true, avatarPath: true } },
+        _count: { select: { enrollments: true, assignments: true } },
+      },
+      orderBy: { code: "asc" },
+      take: 6,
+    }),
+    prisma.submission.findMany({
+      where: {
+        status: { in: ["SUBMITTED", "LATE"] },
+        assignment: { course: { lecturerId: userId } },
+      },
+      include: {
+        student: { select: { name: true, matricNum: true } },
+        assignment: {
+          select: { title: true, maxGrade: true, course: { select: { code: true } } },
         },
-        orderBy: { code: "asc" },
-        take: 6,
-      }),
-      prisma.submission.findMany({
-        where: {
-          status: { in: ["SUBMITTED", "LATE"] },
-          assignment: { course: { lecturerId: userId } },
-        },
-        include: {
-          student: { select: { name: true, matricNum: true } },
-          assignment: {
-            select: { title: true, maxGrade: true, course: { select: { code: true } } },
-          },
-        },
-        orderBy: { submittedAt: "desc" },
-        take: 6,
-      }),
-    ]);
+      },
+      orderBy: { submittedAt: "desc" },
+      take: 6,
+    }),
+    getActiveBulletins(5),
+    getRecentAccess(userId, 5),
+    getUpcomingForUser(userId, userRole, 6),
+  ]);
 
   const stats = [
     { label: "Kursus Diajar", value: coursesTaught, Icon: BookOpen, accent: "text-ukm-teal", bg: "bg-sky-50" },
@@ -86,9 +105,15 @@ export default async function LecturerDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, Icon, accent, bg }) => (
-          <div key={label} className="card flex items-center gap-4">
-            <div className={`grid h-12 w-12 place-items-center rounded-xl ${bg}`}>
+        {stats.map(({ label, value, Icon, accent, bg }, i) => (
+          <div
+            key={label}
+            className="card card-hover flex items-center gap-4 animate-slide-up"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
+            <div
+              className={`grid h-12 w-12 place-items-center rounded-xl ${bg} transition-transform duration-300 ease-spring`}
+            >
               <Icon className={accent} size={22} />
             </div>
             <div>
@@ -99,92 +124,101 @@ export default async function LecturerDashboard() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="card lg:col-span-2">
-          <header className="mb-3 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-ukm-navy">
-              <FileCheck className="text-ukm-orange" size={18} /> Penghantaran Terkini
-            </h2>
-            <Link
-              href="/lecturer/penghantaran"
-              className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal hover:underline"
-            >
-              Lihat semua <ArrowRight size={12} />
-            </Link>
-          </header>
-          {recentSubs.length === 0 ? (
-            <EmptyState
-              title="Tiada penghantaran terkini"
-              description="Penghantaran baharu pelajar akan muncul di sini."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Pelajar</th>
-                    <th>Tugasan</th>
-                    <th>Status</th>
-                    <th>Hantar</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSubs.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <p className="font-medium text-ukm-navy">{s.student.name}</p>
-                        <p className="font-mono text-[11px] text-slate-500">
-                          {s.student.matricNum}
-                        </p>
-                      </td>
-                      <td>
-                        <p className="text-sm">{s.assignment.title}</p>
-                        <p className="font-mono text-[11px] text-ukm-orange">
-                          {s.assignment.course.code}
-                        </p>
-                      </td>
-                      <td>
-                        <span
-                          className={
-                            s.status === "LATE"
-                              ? "inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
-                              : "inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
-                          }
-                        >
-                          {s.status === "LATE" ? "Lewat" : "Dihantar"}
-                        </span>
-                      </td>
-                      <td className="text-xs text-slate-500">{formatDateTime(s.submittedAt)}</td>
-                      <td>
-                        <Link
-                          href={`/lecturer/penghantaran?course=${s.assignment.course.code}`}
-                          className="text-xs font-medium text-ukm-teal hover:underline"
-                        >
-                          Markah
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="space-y-6 xl:col-span-2">
+          <BulletinBoard bulletins={bulletins} />
 
-        <section className="card">
-          <header className="mb-3 flex items-center gap-2">
-            <BookOpen className="text-ukm-teal" size={18} />
-            <h2 className="text-lg font-semibold text-ukm-navy">Pintasan</h2>
-          </header>
-          <ul className="space-y-2 text-sm">
-            <ShortcutLink href="/lecturer/kursus" label="Senarai Kursus Saya" />
-            <ShortcutLink href="/lecturer/pengurusan-kumpulan" label="Urus Kumpulan Pelajar" />
-            <ShortcutLink href="/lecturer/penghantaran" label="Penghantaran & Markah" />
-            <ShortcutLink href="/lecturer/pemantauan" label="Progress Monitoring" />
-            <ShortcutLink href="/lecturer/kalendar" label="Kalendar" />
-          </ul>
-        </section>
+          <section className="card">
+            <header className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-ukm-navy">
+                <FileCheck className="text-ukm-orange" size={18} /> Penghantaran Terkini
+              </h2>
+              <Link
+                href="/lecturer/penghantaran"
+                className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal hover:underline"
+              >
+                Lihat semua <ArrowRight size={12} />
+              </Link>
+            </header>
+            {recentSubs.length === 0 ? (
+              <EmptyState
+                title="Tiada penghantaran terkini"
+                description="Penghantaran baharu pelajar akan muncul di sini."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Pelajar</th>
+                      <th>Tugasan</th>
+                      <th>Status</th>
+                      <th>Hantar</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSubs.map((s) => (
+                      <tr key={s.id}>
+                        <td>
+                          <p className="font-medium text-ukm-navy">{s.student.name}</p>
+                          <p className="font-mono text-[11px] text-slate-500">
+                            {s.student.matricNum}
+                          </p>
+                        </td>
+                        <td>
+                          <p className="text-sm">{s.assignment.title}</p>
+                          <p className="font-mono text-[11px] text-ukm-orange">
+                            {s.assignment.course.code}
+                          </p>
+                        </td>
+                        <td>
+                          <span
+                            className={
+                              s.status === "LATE"
+                                ? "inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+                                : "inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
+                            }
+                          >
+                            {s.status === "LATE" ? "Lewat" : "Dihantar"}
+                          </span>
+                        </td>
+                        <td className="text-xs text-slate-500">{formatDateTime(s.submittedAt)}</td>
+                        <td>
+                          <Link
+                            href={`/lecturer/penghantaran?course=${s.assignment.course.code}`}
+                            className="text-xs font-medium text-ukm-teal hover:underline"
+                          >
+                            Markah
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="card">
+            <header className="mb-3 flex items-center gap-2">
+              <BookOpen className="text-ukm-teal" size={18} />
+              <h2 className="text-lg font-semibold text-ukm-navy">Pintasan</h2>
+            </header>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              <ShortcutLink href="/lecturer/kursus" label="Senarai Kursus Saya" />
+              <ShortcutLink href="/lecturer/pengurusan-kumpulan" label="Urus Kumpulan Pelajar" />
+              <ShortcutLink href="/lecturer/penghantaran" label="Penghantaran & Markah" />
+              <ShortcutLink href="/lecturer/pemantauan" label="Progress Monitoring" />
+              <ShortcutLink href="/lecturer/kalendar" label="Kalendar" />
+            </ul>
+          </section>
+        </div>
+
+        <aside className="space-y-4 xl:col-span-1">
+          <RecentAccessPanel items={recentAccess} />
+          <UpcomingEventsPanel items={upcomingEvents} />
+        </aside>
       </div>
 
       <section>
@@ -206,7 +240,8 @@ export default async function LecturerDashboard() {
                 key={c.id}
                 code={c.code}
                 title={c.title}
-                lecturerName={`${c._count.enrollments} pelajar · ${c._count.assignments} tugasan`}
+                lecturerName={c.lecturer?.name ?? null}
+                lecturerAvatarPath={c.lecturer?.avatarPath ?? null}
                 semester={c.semester}
                 creditHours={c.creditHours}
                 href={`/lecturer/kursus/${c.code}`}

@@ -45,6 +45,7 @@ export default async function StudentGroupsPage({
           studentId={studentId}
           courses={courses.map((c) => ({ id: c.id, code: c.code, title: c.title }))}
           selectedCode={selectedCode}
+          groupsLocked={ctx?.course.groupsLocked ?? false}
           currentGroup={
             ctx?.currentGroup
               ? {
@@ -59,6 +60,7 @@ export default async function StudentGroupsPage({
               : null
           }
           otherGroups={ctx?.otherGroups ?? []}
+          pendingRequests={ctx?.pendingRequests ?? []}
         />
       )}
     </div>

@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getTaughtCourseByCode } from "@/server/queries/lecturer";
 import { EmptyState } from "@/components/common/EmptyState";
-import { ArrowLeft, BookOpen, ClipboardList, FileText, Megaphone, Users } from "lucide-react";
+import { TrackAccess } from "@/components/dashboard/TrackAccess";
+import { ArrowLeft, ClipboardList, FileText, Megaphone, Users } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CourseAuthoring } from "./course-authoring";
 
@@ -40,6 +41,12 @@ export default async function LecturerCourseDetailPage({
 
   return (
     <div className="space-y-6">
+      <TrackAccess
+        type="COURSE"
+        refId={course.id}
+        title={`${course.code} — ${course.title}`}
+        link={`/lecturer/kursus/${course.code}`}
+      />
       <Link
         href="/lecturer/kursus"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-ukm-navy"

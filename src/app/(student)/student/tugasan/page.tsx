@@ -5,6 +5,7 @@ import { getStudentAssignments } from "@/server/queries/submissions";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ClipboardList } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { CourseFilterDropdown } from "./course-filter";
 
 type FilterType = "all" | "INDIVIDUAL" | "GROUP";
 
@@ -53,28 +54,15 @@ export default async function StudentSubmissionsPage({
           >
             Pilih Kursus
           </label>
-          <form>
-            <select
-              id="course-filter"
-              name="course"
-              defaultValue={selectedCode}
-              className="input-base"
-            >
-              <option value="ALL">Semua kursus</option>
-              {courses.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.title}
-                  {c.lecturer ? ` (${c.lecturer.name})` : ""}
-                </option>
-              ))}
-            </select>
-            {filterType !== "all" && <input type="hidden" name="type" value={filterType} />}
-            <noscript>
-              <button type="submit" className="btn-secondary mt-2 text-xs">
-                Tapis
-              </button>
-            </noscript>
-          </form>
+          <CourseFilterDropdown
+            courses={courses.map((c) => ({
+              code: c.code,
+              title: c.title,
+              lecturer: c.lecturer ? { name: c.lecturer.name } : null,
+            }))}
+            selectedCode={selectedCode}
+            filterType={filterType}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(["all", "INDIVIDUAL", "GROUP"] as const).map((t) => {

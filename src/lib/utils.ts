@@ -27,6 +27,26 @@ export function formatDateTime(d: Date | string | null | undefined, locale = "ms
   }).format(date);
 }
 
+/**
+ * Format a date as a short BM relative phrase ("baru tadi", "5 minit lalu",
+ * "2 jam lalu", "3 hari lalu", "30 Jul"). Returns "—" for null/undefined.
+ */
+export function relativeTime(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  const diffMs = Date.now() - date.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return "baru tadi";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} minit lalu`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} jam lalu`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} hari lalu`;
+  if (day < 30) return `${Math.floor(day / 7)} minggu lalu`;
+  return formatDate(date);
+}
+
 export function initials(name: string): string {
   return name
     .split(/\s+/)

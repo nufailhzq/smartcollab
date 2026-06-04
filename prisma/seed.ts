@@ -22,6 +22,9 @@ type SeedUser = {
   role: Role;
   email: string;
   password: string;
+  faculty?: string;
+  program?: string;
+  bio?: string;
 };
 
 const ADMIN: SeedUser = {
@@ -99,8 +102,150 @@ const STUDENTS: SeedUser[] = STUDENT_NAMES.map((name, i) => {
     email: `${handle}@siswa.ukm.edu.my`,
     role: "STUDENT" as const,
     password: STUDENT_PW,
+    faculty: "FTSM",
+    program: "Sains Komputer",
   };
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Folio Connect: additional 30 students across FKAB / FSSK / FST.
+// 6 programs × 5 students each. Matric numbers use a fresh A23xxxx block so
+// they never collide with the FTSM cohort above.
+// ─────────────────────────────────────────────────────────────────────────────
+type FacultyProgram = {
+  faculty: string;
+  facultyFull: string;
+  program: string;
+  names: readonly string[];
+};
+
+const CROSS_FACULTY_PROGRAMS: FacultyProgram[] = [
+  {
+    faculty: "FKAB",
+    facultyFull: "Fakulti Kejuruteraan dan Alam Bina",
+    program: "Kejuruteraan Awam",
+    names: [
+      "Aisyah Najwa Rahmat",
+      "Iqbal Hakim Rosli",
+      "Tan Kar Mun",
+      "Nur Hidayah Suhaimi",
+      "Arvinder Singh",
+    ],
+  },
+  {
+    faculty: "FKAB",
+    facultyFull: "Fakulti Kejuruteraan dan Alam Bina",
+    program: "Kejuruteraan Elektrik",
+    names: [
+      "Hafiz Danial Zulkifli",
+      "Lim Jia Hao",
+      "Nurin Damia Azhar",
+      "Muhammad Daniel Faiz",
+      "Sharvin Raj",
+    ],
+  },
+  {
+    faculty: "FSSK",
+    facultyFull: "Fakulti Sains Sosial dan Kemanusiaan",
+    program: "Psikologi",
+    names: [
+      "Nur Qaisara Aiman",
+      "Adam Mikhail Suhaimi",
+      "Chong Wei Xin",
+      "Farah Adriana Roslan",
+      "Iman Syafiqah Aziz",
+    ],
+  },
+  {
+    faculty: "FSSK",
+    facultyFull: "Fakulti Sains Sosial dan Kemanusiaan",
+    program: "MASSCOMM",
+    names: [
+      "Danish Hakimi Rahman",
+      "Tasha Maisarah Idris",
+      "Lee Wei Sheng",
+      "Nadhirah Khairina Yusof",
+      "Khairul Imran Hassan",
+    ],
+  },
+  {
+    faculty: "FST",
+    facultyFull: "Fakulti Sains dan Teknologi",
+    program: "Sains Laut",
+    names: [
+      "Nur Liyana Marissa",
+      "Brandon Tan Chee Kit",
+      "Aiman Haziq Salleh",
+      "Priya Maheswari",
+      "Zaim Aniq Razali",
+    ],
+  },
+  {
+    faculty: "FST",
+    facultyFull: "Fakulti Sains dan Teknologi",
+    program: "Sains Persekitaran",
+    names: [
+      "Aleeya Sofea Hakim",
+      "Ravi Kumaran",
+      "Wong Jia Yi",
+      "Muhammad Aqil Iskandar",
+      "Nur Alesya Damia",
+    ],
+  },
+];
+
+const PROGRAM_BIOS: Record<string, readonly string[]> = {
+  "Kejuruteraan Awam": [
+    "Cinta concrete & coffee.",
+    "Tahun 2 — sedang sayang AutoCAD.",
+    "Pelajar Civil yang suka outdoor.",
+  ],
+  "Kejuruteraan Elektrik": [
+    "Volt out loud ⚡",
+    "Antara litar & solder, ada saya.",
+    "Power systems > everything.",
+  ],
+  Psikologi: [
+    "Self-care is research.",
+    "Belajar mind, satu pengalaman pada satu masa.",
+    "INFJ. Cuba bertenang.",
+  ],
+  MASSCOMM: [
+    "Future broadcaster.",
+    "Cerita orang lain, gaya kita.",
+    "Mic check 1, 2.",
+  ],
+  "Sains Laut": [
+    "Saltwater in my veins.",
+    "Coral over everything.",
+    "Marine bio nerd, weekend kayaker.",
+  ],
+  "Sains Persekitaran": [
+    "For a greener UKM.",
+    "Climate first, slides later.",
+    "Recycle, reuse, repost.",
+  ],
+};
+
+const CROSS_FACULTY_STUDENTS: SeedUser[] = CROSS_FACULTY_PROGRAMS.flatMap((fp, fpIdx) =>
+  fp.names.map((name, i) => {
+    // Matric: A23 + (faculty index * 100) + (i+1) -> e.g. a230001, a230002 ... a230501
+    const seq = fpIdx * 100 + (i + 1);
+    const matric = `A23${seq.toString().padStart(4, "0")}`;
+    const handle = matric.toLowerCase();
+    const bios = PROGRAM_BIOS[fp.program] ?? [];
+    return {
+      matric,
+      name,
+      email: `${handle}@siswa.ukm.edu.my`,
+      role: "STUDENT" as const,
+      password: STUDENT_PW,
+      faculty: fp.faculty,
+      program: fp.program,
+      bio: bios[i % Math.max(bios.length, 1)],
+    };
+  }),
+);
 
 type SeedCourse = {
   code: string;
@@ -266,21 +411,32 @@ async function main() {
     });
   }
 
-  for (const s of STUDENTS) {
+  const allStudents: SeedUser[] = [...STUDENTS, ...CROSS_FACULTY_STUDENTS];
+  for (const s of allStudents) {
     await prisma.user.upsert({
       where: { matricNum: s.matric },
-      update: { name: s.name, email: s.email, role: s.role, isActive: true },
+      update: {
+        name: s.name,
+        email: s.email,
+        role: s.role,
+        isActive: true,
+        faculty: s.faculty ?? "FTSM",
+        program: s.program ?? null,
+        bio: s.bio ?? null,
+      },
       create: {
         matricNum: s.matric,
         name: s.name,
         email: s.email,
         role: s.role,
         passwordHash: studentHash,
-        faculty: "FTSM",
+        faculty: s.faculty ?? "FTSM",
+        program: s.program ?? null,
+        bio: s.bio ?? null,
       },
     });
   }
-  console.warn(`✓ Users: ${1 + LECTURERS.length + STUDENTS.length}`);
+  console.warn(`✓ Users: ${1 + LECTURERS.length + allStudents.length}`);
 
   const lecturerByMatric = new Map<string, number>();
   for (const l of LECTURERS) {
@@ -291,6 +447,13 @@ async function main() {
   for (const s of STUDENTS) {
     const u = await prisma.user.findUniqueOrThrow({ where: { matricNum: s.matric } });
     studentByMatric.set(s.matric, u.id);
+  }
+  // Cross-faculty Folio Connect students are not enrolled in FTSM courses;
+  // we still need their IDs for seeding Folio posts below.
+  const folioStudentByMatric = new Map<string, number>();
+  for (const s of CROSS_FACULTY_STUDENTS) {
+    const u = await prisma.user.findUniqueOrThrow({ where: { matricNum: s.matric } });
+    folioStudentByMatric.set(s.matric, u.id);
   }
   const studentIds = [...studentByMatric.values()];
   const sarahId = studentByMatric.get("A201762")!;
@@ -662,6 +825,62 @@ async function main() {
     }
   }
   console.warn(`✓ Notifications: ${notifCount} for A201762`);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Folio Connect — seed a handful of posts so the feed isn't empty on first run.
+  // Skipped entirely if any folio post already exists (idempotent).
+  // ─────────────────────────────────────────────────────────────────────────
+  const folioCount = await prisma.folioPost.count();
+  let folioSeeded = folioCount;
+  if (folioCount === 0) {
+    const folioAuthors = [
+      { matric: "A201762", text: "Selamat datang ke Folio Connect! Drop your matric kalau dah jumpa feature ni 👋" },
+      { matric: "A230001", text: "Hari ni kelas struktur konkrit. Doakan tutorial saya tak runtuh." },
+      { matric: "A230002", text: "Lab transmission lines dah siap. Next stop: kopi.", program: "Kejuruteraan Elektrik" },
+      { matric: "A230201", text: "Reading week mood: 80% notes, 20% mental breakdown." },
+      { matric: "A230301", text: "Behind the mic in studio 2. Catch our morning show next week 📻" },
+      { matric: "A230401", text: "Lautan tak pernah penat. Hari ke-3 sampling di Pulau Tioman." },
+      { matric: "A230501", text: "Recycling drive @ Kolej Tun Dr Ismail esok. Jom turun!" },
+      { matric: "A230101", text: "Project final EE: mini-grid solar. Test run berjaya 🌞" },
+    ];
+
+    type MatricResolver = (m: string) => number | undefined;
+    const resolveAuthor: MatricResolver = (m) =>
+      studentByMatric.get(m) ?? folioStudentByMatric.get(m);
+
+    const originalIds: number[] = [];
+    for (const fa of folioAuthors) {
+      const authorId = resolveAuthor(fa.matric);
+      if (!authorId) continue;
+      const post = await prisma.folioPost.create({
+        data: {
+          authorId,
+          content: fa.text,
+          visibility: "PUBLIC",
+        },
+      });
+      originalIds.push(post.id);
+      folioSeeded++;
+    }
+
+    // Two sample reposts: Sarah reposts the first two originals.
+    const sarahFolio = studentByMatric.get("A201762");
+    if (sarahFolio && originalIds.length >= 2) {
+      for (let i = 1; i <= 2; i++) {
+        await prisma.folioPost.create({
+          data: {
+            authorId: sarahFolio,
+            content: "",
+            visibility: "PUBLIC",
+            parentId: originalIds[i]!,
+            isRepost: true,
+          },
+        });
+        folioSeeded++;
+      }
+    }
+  }
+  console.warn(`✓ Folio Connect posts: ${folioSeeded}`);
 
   console.warn("Seed complete.");
 }

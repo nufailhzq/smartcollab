@@ -1,0 +1,41 @@
+# Build artifacts — generated inside the image
+node_modules
+.next
+out
+dist
+build
+
+# Local env (real secrets are injected via compose / docker run -e)
+.env
+.env.local
+.env.*.local
+
+# Dev tooling
+.git
+.github
+.vscode
+.idea
+.turbo
+.vercel
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+
+# Logs + test artifacts
+*.log
+coverage
+playwright-report
+test-results
+
+# Docker meta — never ship the Dockerfile inside its own image
+Dockerfile
+docker-compose*.yml
+.dockerignore
+README.md
+CHANGELOG.md
+MIGRATION.md
+
+# Legacy import scripts + SQL dumps
+prisma/dev.db*
+prisma/seed-data

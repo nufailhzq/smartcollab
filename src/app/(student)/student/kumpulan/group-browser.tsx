@@ -6,15 +6,25 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   BarChart3,
+  Clock,
   Crown,
   Grid,
+  Lock,
   LogOut,
+  MessageCircle,
+  Send,
   UserPlus,
   Users,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { useToast } from "@/components/common/Toast";
 import { joinGroup, leaveGroup } from "@/server/actions/groups";
+import {
+  cancelAccessRequest,
+  requestJoinGroup,
+  requestLeaveGroup,
+} from "@/server/actions/group-access";
+import { ensureProjectGroupChat } from "@/server/actions/group-chat";
 
 type Member = {
   studentId: number;
@@ -44,12 +54,21 @@ type OtherGroup = {
 
 type Course = { id: number; code: string; title: string };
 
+type PendingRequest = {
+  id: number;
+  type: "JOIN" | "LEAVE";
+  groupId: number;
+  groupName: string;
+};
+
 type Props = {
   studentId: number;
   courses: Course[];
   selectedCode: string | null;
+  groupsLocked: boolean;
   currentGroup: CurrentGroup | null;
   otherGroups: OtherGroup[];
+  pendingRequests: PendingRequest[];
 };
 
 function activityLabel(iso: string | null): { dot: string; text: string } {
@@ -65,12 +84,34 @@ export function GroupBrowser({
   studentId,
   courses,
   selectedCode,
+  groupsLocked,
   currentGroup,
   otherGroups,
+  pendingRequests,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
+
+  // Index pending requests by groupId so each card can show its own state.
+  const pendingByGroup = new Map<number, PendingRequest>();
+  for (const r of pendingRequests) pendingByGroup.set(r.groupId, r);
+  const pendingLeave = currentGroup ? pendingByGroup.get(currentGroup.id) : undefined;
+
+  const onOpenChat = (groupId: number) => {
+    startTransition(async () => {
+      const res = await ensureProjectGroupChat(groupId);
+      if (!res.ok) return toast.push({ kind: "error", message: res.error });
+      if (res.data.created) {
+        toast.push({ kind: "success", message: "Chat kumpulan dibuka." });
+      }
+      window.dispatchEvent(
+        new CustomEvent("ukmfolio:open-chat-group", {
+          detail: { chatGroupId: res.data.chatGroupId },
+        }),
+      );
+    });
+  };
 
   const onJoin = (groupId: number) => {
     startTransition(async () => {
@@ -87,6 +128,50 @@ export function GroupBrowser({
       const res = await leaveGroup({ groupId });
       if (!res.ok) return toast.push({ kind: "error", message: res.error });
       toast.push({ kind: "success", message: "Anda telah keluar dari kumpulan." });
+      router.refresh();
+    });
+  };
+
+  const onRequestJoin = (groupId: number) => {
+    const reason = prompt(
+      "Sebab anda mahu menyertai kumpulan ini (boleh dikosongkan):",
+      "",
+    );
+    if (reason === null) return; // user cancelled prompt
+    startTransition(async () => {
+      const res = await requestJoinGroup({ groupId, reason: reason.trim() });
+      if (!res.ok) return toast.push({ kind: "error", message: res.error });
+      toast.push({
+        kind: "success",
+        message: "Permohonan dihantar. Menunggu kelulusan pensyarah.",
+      });
+      router.refresh();
+    });
+  };
+
+  const onRequestLeave = (groupId: number) => {
+    const reason = prompt(
+      "Sebab anda mahu keluar dari kumpulan ini (boleh dikosongkan):",
+      "",
+    );
+    if (reason === null) return;
+    startTransition(async () => {
+      const res = await requestLeaveGroup({ groupId, reason: reason.trim() });
+      if (!res.ok) return toast.push({ kind: "error", message: res.error });
+      toast.push({
+        kind: "success",
+        message: "Permohonan dihantar. Menunggu kelulusan pensyarah.",
+      });
+      router.refresh();
+    });
+  };
+
+  const onCancelRequest = (requestId: number) => {
+    if (!confirm("Batalkan permohonan ini?")) return;
+    startTransition(async () => {
+      const res = await cancelAccessRequest({ requestId });
+      if (!res.ok) return toast.push({ kind: "error", message: res.error });
+      toast.push({ kind: "success", message: "Permohonan dibatalkan." });
       router.refresh();
     });
   };
@@ -117,8 +202,22 @@ export function GroupBrowser({
 
       {selectedCode && (
         <>
+          {/* Locked / open status banner */}
+          {groupsLocked && (
+            <div className="animate-fade-in flex items-center gap-3 rounded-xl border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-amber-800 shadow-soft">
+              <Lock size={18} className="shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold">Kumpulan dikunci oleh pensyarah</p>
+                <p className="text-[12px] text-amber-700">
+                  Anda perlu menghantar permohonan untuk sertai atau keluar kumpulan.
+                  Permohonan akan disemak oleh pensyarah.
+                </p>
+              </div>
+            </div>
+          )}
+
           {currentGroup ? (
-            <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <article className="animate-slide-up overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-spring hover:shadow-lift">
               <header className="gradient-group flex items-center justify-between px-6 py-5 text-white">
                 <div className="flex items-center gap-4">
                   <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/20">
@@ -131,14 +230,48 @@ export function GroupBrowser({
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onLeave(currentGroup.id)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-2 rounded-lg bg-red-500/85 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <LogOut size={16} /> Keluar Kumpulan
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onOpenChat(currentGroup.id)}
+                    disabled={pending}
+                    className="inline-flex items-center gap-2 rounded-lg bg-white/95 px-4 py-2 text-sm font-semibold text-ukm-navy shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <MessageCircle size={16} className="text-ukm-teal" />
+                    Buka Chat Kumpulan
+                  </button>
+                  {groupsLocked ? (
+                    pendingLeave ? (
+                      <button
+                        type="button"
+                        onClick={() => onCancelRequest(pendingLeave.id)}
+                        disabled={pending}
+                        className="inline-flex items-center gap-2 rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:bg-amber-500 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Klik untuk batalkan permohonan"
+                      >
+                        <Clock size={16} /> Permohonan Keluar Dihantar
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onRequestLeave(currentGroup.id)}
+                        disabled={pending}
+                        className="inline-flex items-center gap-2 rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:bg-amber-500 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Send size={16} /> Mohon Keluar
+                      </button>
+                    )
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onLeave(currentGroup.id)}
+                      disabled={pending}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-500/85 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <LogOut size={16} /> Keluar Kumpulan
+                    </button>
+                  )}
+                </div>
               </header>
 
               <div className="p-6">
@@ -146,17 +279,18 @@ export function GroupBrowser({
                   Ahli Kumpulan ({currentGroup.memberCount})
                 </h4>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {currentGroup.members.map((m) => {
+                  {currentGroup.members.map((m, idx) => {
                     const isMe = m.studentId === studentId;
                     const activity = activityLabel(m.lastActivityAt);
                     return (
                       <div
                         key={m.studentId}
+                        style={{ animationDelay: `${idx * 60}ms` }}
                         className={cn(
-                          "rounded-xl border-2 p-4 transition-all",
+                          "animate-slide-up rounded-xl border-2 p-4 transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:shadow-soft",
                           isMe
                             ? "border-ukm-orange bg-orange-50"
-                            : "border-slate-200 bg-slate-50 hover:border-slate-300",
+                            : "border-slate-200 bg-slate-50 hover:border-ukm-teal/40",
                         )}
                       >
                         <div className="flex items-start gap-4">
@@ -233,13 +367,14 @@ export function GroupBrowser({
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                {otherGroups.map((g) => {
+                {otherGroups.map((g, idx) => {
                   const isFull = !g.hasCapacity;
                   const pct = (g.memberCount / g.maxMembers) * 100;
                   return (
                     <article
                       key={g.id}
-                      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
+                      style={{ animationDelay: `${idx * 70}ms` }}
+                      className="animate-slide-up overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-spring hover:-translate-y-1 hover:border-ukm-teal/40 hover:shadow-lift"
                     >
                       <div className="bg-ukm-navy px-4 py-3 text-white">
                         <div className="flex items-center justify-between">
@@ -286,24 +421,62 @@ export function GroupBrowser({
                             </li>
                           )}
                         </ul>
-                        {!currentGroup && (
-                          <button
-                            type="button"
-                            onClick={() => onJoin(g.id)}
-                            disabled={pending || isFull}
-                            className={cn(
-                              "w-full rounded-lg px-4 py-2 text-sm font-semibold transition-all",
-                              isFull
-                                ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                                : "bg-ukm-orange text-white hover:bg-orange-600",
-                            )}
-                          >
-                            <span className="inline-flex items-center justify-center gap-2">
-                              <UserPlus size={14} />
-                              {isFull ? "Kumpulan Penuh" : "Sertai Kumpulan"}
-                            </span>
-                          </button>
-                        )}
+                        {!currentGroup && (() => {
+                          const pendingJoin = pendingByGroup.get(g.id);
+                          if (groupsLocked && pendingJoin) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => onCancelRequest(pendingJoin.id)}
+                                disabled={pending}
+                                title="Klik untuk batalkan permohonan"
+                                className="w-full rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:bg-amber-500 hover:shadow-lift disabled:opacity-50"
+                              >
+                                <span className="inline-flex items-center justify-center gap-2">
+                                  <Clock size={14} /> Permohonan Dihantar
+                                </span>
+                              </button>
+                            );
+                          }
+                          if (groupsLocked) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => onRequestJoin(g.id)}
+                                disabled={pending || isFull}
+                                className={cn(
+                                  "w-full rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ease-spring",
+                                  isFull
+                                    ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-soft hover:-translate-y-0.5 hover:shadow-lift",
+                                )}
+                              >
+                                <span className="inline-flex items-center justify-center gap-2">
+                                  <Send size={14} />
+                                  {isFull ? "Kumpulan Penuh" : "Mohon Sertai"}
+                                </span>
+                              </button>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => onJoin(g.id)}
+                              disabled={pending || isFull}
+                              className={cn(
+                                "w-full rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ease-spring",
+                                isFull
+                                  ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                                  : "bg-ukm-orange text-white shadow-soft hover:-translate-y-0.5 hover:bg-orange-600 hover:shadow-lift",
+                              )}
+                            >
+                              <span className="inline-flex items-center justify-center gap-2">
+                                <UserPlus size={14} />
+                                {isFull ? "Kumpulan Penuh" : "Sertai Kumpulan"}
+                              </span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </article>
                   );

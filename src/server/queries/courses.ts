@@ -4,7 +4,16 @@ export async function getEnrolledCourses(studentId: number) {
   return prisma.course.findMany({
     where: { enrollments: { some: { studentId } } },
     include: {
-      lecturer: { select: { id: true, name: true, matricNum: true } },
+      lecturer: {
+        select: {
+          id: true,
+          name: true,
+          matricNum: true,
+          avatarPath: true,
+          email: true,
+          phone: true,
+        },
+      },
       _count: { select: { assignments: true, content: true } },
     },
     orderBy: { code: "asc" },

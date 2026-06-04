@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyMany } from "@/lib/notifications";
+import { saveChatAttachment } from "@/lib/chat-uploads";
 import {
   addChatGroupMemberSchema,
   createChatGroupSchema,
@@ -12,7 +13,8 @@ import {
   renameChatGroupSchema,
   sendChatGroupMessageSchema,
 } from "@/schemas/chat-group";
-import type { ActionResult } from "@/schemas/common";
+import { ATTACHMENT_TYPES, type AttachmentType } from "@/schemas/chat";
+import { idSchema, type ActionResult } from "@/schemas/common";
 import type { Message } from "@prisma/client";
 
 async function ensureMember(chatGroupId: number, userId: number) {
@@ -227,12 +229,18 @@ export async function renameChatGroup(raw: unknown): Promise<ActionResult> {
 }
 
 export async function sendChatGroupMessage(
-  raw: unknown,
+  formData: FormData,
 ): Promise<ActionResult<Message>> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
 
-  const parsed = sendChatGroupMessageSchema.safeParse(raw);
+  const chatGroupIdParsed = idSchema.safeParse(formData.get("chatGroupId"));
+  if (!chatGroupIdParsed.success) return { ok: false, error: "Kumpulan tidak sah." };
+
+  const parsed = sendChatGroupMessageSchema.safeParse({
+    chatGroupId: chatGroupIdParsed.data,
+    content: String(formData.get("content") ?? ""),
+  });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
   }
@@ -241,11 +249,39 @@ export async function sendChatGroupMessage(
   const meMember = await ensureMember(parsed.data.chatGroupId, me);
   if (!meMember) return { ok: false, error: "Anda bukan ahli kumpulan ini." };
 
+  // Optional attachment
+  const file = formData.get("attachment");
+  const declared = String(formData.get("attachmentType") ?? "");
+  let attachmentPath: string | null = null;
+  let attachmentType: AttachmentType | null = null;
+  let attachmentName: string | null = null;
+  let attachmentSize: string | null = null;
+
+  if (file instanceof File && file.size > 0) {
+    const type: AttachmentType = (ATTACHMENT_TYPES as readonly string[]).includes(declared)
+      ? (declared as AttachmentType)
+      : "file";
+    const saved = await saveChatAttachment(file, type);
+    if (!saved.ok) return { ok: false, error: saved.error };
+    attachmentPath = saved.data.path;
+    attachmentType = saved.data.type;
+    attachmentName = saved.data.name;
+    attachmentSize = saved.data.size;
+  }
+
+  if (!parsed.data.content && !attachmentPath) {
+    return { ok: false, error: "Mesej kosong." };
+  }
+
   const message = await prisma.message.create({
     data: {
       senderId: me,
       chatGroupId: parsed.data.chatGroupId,
       content: parsed.data.content,
+      attachmentPath,
+      attachmentType,
+      attachmentName,
+      attachmentSize,
     },
   });
 
@@ -274,6 +310,10 @@ export type ChatGroupConversationPayload = {
     senderName: string;
     content: string;
     timestamp: string;
+    attachmentPath: string | null;
+    attachmentType: string | null;
+    attachmentName: string | null;
+    attachmentSize: string | null;
   }[];
 };
 
@@ -345,6 +385,10 @@ export async function loadChatGroupConversation(
         senderName: m.sender.name,
         content: m.content,
         timestamp: m.timestamp.toISOString(),
+        attachmentPath: m.attachmentPath,
+        attachmentType: m.attachmentType,
+        attachmentName: m.attachmentName,
+        attachmentSize: m.attachmentSize,
       })),
     },
   };

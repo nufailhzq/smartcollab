@@ -5,6 +5,7 @@ import { getAssignmentForStudent } from "@/server/queries/submissions";
 import { ArrowLeft } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { SubmissionForm } from "./submission-form";
+import { TrackAccess } from "@/components/dashboard/TrackAccess";
 
 export default async function AssignmentDetailPage({
   params,
@@ -22,8 +23,16 @@ export default async function AssignmentDetailPage({
   const due = assignment.dueDate ? new Date(assignment.dueDate) : null;
   const isPast = due ? due < new Date() : false;
 
+  const currentUserId = session!.user.id;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      <TrackAccess
+        type="ASSIGNMENT"
+        refId={assignment.id}
+        title={`${assignment.course.code}: ${assignment.title}`}
+        link={`/student/tugasan/${assignment.id}`}
+      />
       <Link
         href="/student/tugasan"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-ukm-navy"
@@ -52,6 +61,8 @@ export default async function AssignmentDetailPage({
 
       <SubmissionForm
         assignmentId={assignment.id}
+        isGroupAssignment={assignment.type === "GROUP"}
+        currentUserId={currentUserId}
         existing={
           sub
             ? {
@@ -60,6 +71,13 @@ export default async function AssignmentDetailPage({
                 grade: sub.grade,
                 status: sub.status,
                 submittedAt: sub.submittedAt,
+                submittedBy: sub.submittedBy
+                  ? {
+                      id: sub.submittedBy.id,
+                      name: sub.submittedBy.name,
+                      matricNum: sub.submittedBy.matricNum,
+                    }
+                  : null,
                 feedback: sub.feedback.map((f) => ({
                   id: f.id,
                   comment: f.comment,

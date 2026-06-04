@@ -11,6 +11,7 @@ export async function getStudentAssignments(studentId: number, courseId?: number
       submissions: {
         where: { studentId },
         include: {
+          submittedBy: { select: { id: true, name: true, matricNum: true } },
           feedback: {
             include: { lecturer: { select: { id: true, name: true } } },
             orderBy: { createdAt: "desc" },
@@ -48,6 +49,7 @@ export async function getAssignmentForStudent(studentId: number, assignmentId: n
       submissions: {
         where: { studentId },
         include: {
+          submittedBy: { select: { id: true, name: true, matricNum: true } },
           feedback: {
             include: { lecturer: { select: { name: true } } },
             orderBy: { createdAt: "desc" },

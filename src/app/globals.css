@@ -1,85 +1,147 @@
 @import "../styles/tokens.css";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Lexend:wght@500;600;700;800&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  html {
+    /* Bumps the base sizing of the whole system — easier on the eyes. */
+    font-size: 16px;
+  }
   html,
   body {
     height: 100%;
     background: var(--bg-app);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.9375rem; /* 15px — readable default for UI text */
+    line-height: 1.6;
+    letter-spacing: -0.005em;
   }
 
   h1, h2, h3, h4 {
+    font-family: Lexend, "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
     color: var(--ukm-navy);
     font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
   }
 
+  h1 { font-size: 1.875rem; } /* 30px */
+  h2 { font-size: 1.5rem; }   /* 24px */
+  h3 { font-size: 1.25rem; }  /* 20px */
+  h4 { font-size: 1.0625rem; } /* 17px */
+
   *:focus-visible {
-    outline: 2px solid var(--ukm-teal);
+    outline: 3px solid var(--ukm-teal);
     outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /*
+   * Default hover affordance for every button — float + soft glow, inspired
+   * by SmartBiz's interaction language. Opt out with `data-no-float` for
+   * buttons inside tight grids or compact menus. Utility-class buttons
+   * (`.btn-*`) keep their own richer animation via the override below.
+   */
+  button:not(:disabled):not([data-no-float]),
+  .hover-float {
+    transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 300ms ease,
+      filter 250ms ease;
+  }
+  button:not(:disabled):not([data-no-float]):hover,
+  .hover-float:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 32px -8px rgba(14, 165, 233, 0.45);
+    filter: brightness(1.04);
+  }
+  button:not(:disabled):not([data-no-float]):active,
+  .hover-float:active {
+    transform: translateY(0) scale(0.985);
+    box-shadow: 0 4px 10px -4px rgba(14, 165, 233, 0.3);
+    filter: brightness(1);
+  }
+  /* .btn-* classes manage their own animation, so skip the global filter. */
+  button.btn-primary:hover,
+  button.btn-secondary:hover,
+  button.btn-danger:hover,
+  button.btn-ghost:hover,
+  button.btn-success:hover {
+    filter: none;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ukm-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-ukm-orange to-orange-600 px-5 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-glow-orange hover:from-orange-500 hover:to-orange-700 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-soft;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-5 py-2.5 text-[15px] font-semibold text-slate-700 shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-sky-50/50 hover:text-ukm-navy hover:shadow-lift active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0;
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ukm-red px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-ukm-red to-red-700 px-5 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-[15px] font-medium text-slate-600 transition-all duration-200 ease-spring hover:bg-slate-100 hover:text-ukm-navy disabled:opacity-50;
+  }
+
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-5 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .input-base {
-    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-ukm-teal focus:ring-2 focus:ring-sky-500/20;
+    @apply w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-700 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-ukm-teal focus:bg-sky-50/30 focus:ring-4 focus:ring-sky-500/15;
   }
 
   .card {
-    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+    @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-soft transition-all duration-200;
+  }
+
+  /* `.card-hover` lifts a card on hover. Composable: add to any card to make it interactive. */
+  .card-hover {
+    @apply transition-all duration-200 ease-spring hover:-translate-y-1 hover:shadow-lift hover:border-sky-500/40;
   }
 
   .card-elevated {
-    @apply rounded-xl bg-white p-6 shadow-[0_10px_25px_rgba(15,39,68,0.08)];
+    @apply rounded-2xl border border-slate-100 bg-white p-7 shadow-lift transition-all duration-200;
   }
 
   .badge-student {
-    @apply inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700;
+    @apply inline-flex items-center rounded-full bg-gradient-to-r from-sky-100 to-cyan-100 px-3 py-1 text-[12px] font-bold text-sky-700;
   }
 
   .badge-lecturer {
-    @apply inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700;
+    @apply inline-flex items-center rounded-full bg-gradient-to-r from-purple-100 to-fuchsia-100 px-3 py-1 text-[12px] font-bold text-purple-700;
   }
 
   .badge-admin {
-    @apply inline-flex items-center rounded-full bg-pink-100 px-2.5 py-0.5 text-xs font-semibold text-pink-700;
+    @apply inline-flex items-center rounded-full bg-gradient-to-r from-pink-100 to-rose-100 px-3 py-1 text-[12px] font-bold text-pink-700;
   }
 
   .data-table {
-    @apply w-full border-collapse text-sm;
+    @apply w-full border-collapse text-[15px];
   }
   .data-table th {
-    @apply bg-slate-50 px-4 py-3 text-left font-semibold text-ukm-navy border-b border-slate-200;
+    @apply bg-slate-50 px-5 py-3.5 text-left font-bold text-ukm-navy border-b-2 border-slate-200;
   }
   .data-table td {
-    @apply px-4 py-3 border-b border-slate-100;
+    @apply px-5 py-3.5 border-b border-slate-100;
+  }
+  .data-table tbody tr {
+    @apply transition-colors;
   }
   .data-table tbody tr:hover {
-    @apply bg-slate-50;
+    @apply bg-sky-50/40;
   }
 }
 
@@ -96,9 +158,209 @@
 .gradient-group {
   background: linear-gradient(135deg, #22c55e 0%, #059669 100%);
 }
+.gradient-fun {
+  background: linear-gradient(135deg, #f97316 0%, #ec4899 50%, #a855f7 100%);
+}
+.gradient-cool {
+  background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 50%, #34d399 100%);
+}
 
 /* Custom scrollbar (testfyp2 vibe) */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+  border-radius: 999px;
+  border: 2px solid #f1f5f9;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #0ea5e9, #1e3a5f);
+}
+
+/* Selection */
+::selection {
+  background: rgba(249, 115, 22, 0.25);
+  color: var(--ukm-dark);
+}
+
+/* Animated brand gradient text utility */
+.brand-gradient-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--ukm-navy) 0%,
+    var(--ukm-teal) 35%,
+    var(--ukm-orange) 70%,
+    var(--ukm-navy) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* Glassy surface */
+.glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+/* Skeleton shimmer (use w/ a sized div) */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 40%,
+    #e2e8f0 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+  border-radius: 8px;
+}
+
+/* Bouncy emoji-ish hover utility */
+.hover-bouncy {
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hover-bouncy:hover { transform: translateY(-2px) scale(1.04); }
+.hover-bouncy:active { transform: translateY(0) scale(0.98); }
+
+/* Soft page entrance */
+.page-enter {
+  animation: slide-up 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Soft dot pattern — drop on hero sections for SmartBiz-style polish */
+.dot-pattern {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(15, 39, 68, 0.06) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+/* Soft mesh gradient surface — great under cards / sections */
+.mesh-bg {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(14, 165, 233, 0.10), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(249, 115, 22, 0.08), transparent 50%),
+    radial-gradient(circle at 50% 90%, rgba(168, 85, 247, 0.08), transparent 50%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+/* Elevated, sticky bottom action bar */
+.action-bar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  box-shadow: 0 -10px 30px -10px rgba(15, 39, 68, 0.12);
+}
+
+/* ============================================================
+   SmartBiz-style polish
+   ============================================================ */
+
+/* Aurora background — soft multi-blob gradient wash, sticky to viewport. */
+.aurora-bg {
+  background:
+    radial-gradient(900px circle at 12% 8%,  rgba(59, 130, 246, 0.18), transparent 45%),
+    radial-gradient(900px circle at 88% 12%, rgba(249, 115, 22, 0.14), transparent 45%),
+    radial-gradient(1000px circle at 50% 110%, rgba(34, 211, 238, 0.16), transparent 50%),
+    linear-gradient(135deg, #eaf2ff 0%, #eef0ff 45%, #fdf3ec 100%);
+  background-attachment: fixed;
+}
+
+/* Glassy card — denser than .card / .glass, with violet-tinted shadow. */
+.glass-card {
+  background: rgba(255, 255, 255, 0.80);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.90);
+  box-shadow: 0 12px 32px -14px rgba(79, 70, 229, 0.28);
+  border-radius: 1.5rem;
+  transition: background-color 250ms ease, border-color 250ms ease,
+    box-shadow 300ms ease, transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.glass-card.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(59, 130, 246, 0.40);
+  box-shadow: 0 28px 56px -18px rgba(59, 130, 246, 0.45),
+    0 0 30px -8px rgba(139, 92, 246, 0.40);
+  transform: translateY(-3px);
+}
+
+/* Splash title + subtitle (loader, hero sections) */
+.aurora-title {
+  font-family: Lexend, "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: clamp(28px, 5vw, 50px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  background: linear-gradient(90deg, #2563eb, #7c3aed, #0d9488);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.aurora-sub {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* SmartBiz-style animated label — heavy, uppercase, tracking-widest. */
+.sb-label {
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(71, 85, 105, 0.75);
+}
+
+/* ============================================================
+   Animations used by loader + SmartBiz polish
+   ============================================================ */
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+.animate-float-soft { animation: float-soft 3s ease-in-out infinite; }
+
+@keyframes pulse-soft {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
+@keyframes loading-bar {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+.animate-loading-bar { animation: loading-bar 1.5s ease-in-out infinite; }
+
+@keyframes bg-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(40px, -30px) scale(1.10); }
+  66%      { transform: translate(-30px, 25px) scale(0.95); }
+}
+.animate-bg-drift { animation: bg-drift 22s ease-in-out infinite; }
+
+@keyframes phrase-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-phrase-in { animation: phrase-in 450ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
