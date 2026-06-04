@@ -18,6 +18,7 @@ import { StudentSearchBar } from "@/components/folio/StudentSearchBar";
 import { TranslateToggle } from "./TranslateToggle";
 import { MobileNavToggle } from "./MobileNavToggle";
 import { LogoutButton } from "./LogoutButton";
+import { MessageStream } from "./MessageStream";
 
 const ROLE_BADGE: Record<"STUDENT" | "LECTURER" | "ADMIN", string> = {
   STUDENT: "badge-student",
@@ -45,9 +46,10 @@ export async function Navbar() {
   let pendingRequests: Awaited<ReturnType<typeof getPendingFriendRequests>> = [];
   let chatGroups: Awaited<ReturnType<typeof getChatGroupsForUser>> = [];
   let avatarPath: string | null = null;
+  let mutedIds: number[] = [];
 
   try {
-    const [_n, _un, _c, _tu, _pr, _cg, userRow] = await Promise.all([
+    const [_n, _un, _c, _tu, _pr, _cg, userRow, mutes] = await Promise.all([
       getNotificationsForUser(userId, 20),
       getUnreadNotificationCount(userId),
       getContactsForUser(userId, userRole),
@@ -55,6 +57,10 @@ export async function Navbar() {
       getPendingFriendRequests(userId),
       getChatGroupsForUser(userId),
       prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } }),
+      prisma.userMute.findMany({
+        where: { muterId: userId },
+        select: { mutedId: true },
+      }),
     ]);
     notifications = _n;
     unreadNotifications = _un;
@@ -63,12 +69,14 @@ export async function Navbar() {
     pendingRequests = _pr;
     chatGroups = _cg;
     avatarPath = userRow?.avatarPath ?? null;
+    mutedIds = mutes.map((m) => m.mutedId);
   } catch (error) {
     console.error("Navbar database query failed:", error);
   }
 
   return (
     <>
+      <MessageStream currentUserId={userId} mutedIds={mutedIds} />
       <header className="glass sticky top-0 z-30 border-b border-slate-200/70 shadow-sm">
         <div className="flex h-16 items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2">

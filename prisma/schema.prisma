@@ -116,6 +116,10 @@ model User {
   monitoringNotesOnMe     MonitoringNote[]       @relation("MonitoringNoteStudent")
   sentMessageRequests     MessageRequest[]       @relation("MsgReqSender")
   receivedMessageRequests MessageRequest[]       @relation("MsgReqReceiver")
+  blocksMade              UserBlock[]            @relation("Blocker")
+  blocksReceived          UserBlock[]            @relation("Blocked")
+  mutesMade               UserMute[]             @relation("Muter")
+  mutesReceived           UserMute[]             @relation("Muted")
 
   // NextAuth (database session strategy) tables
   accounts Account[]
@@ -314,12 +318,44 @@ model Message {
   /// Pretty file size string (e.g. "2.3 MB"). Pre-formatted for display.
   attachmentSize String? @map("fld_attachment_size")
   isRead      Boolean    @default(false) @map("fld_read")
+  /// Set when the sender unsends the message. Display flips to "Mesej dipadam".
+  deletedAt   DateTime?  @map("fld_deleted_at")
   timestamp   DateTime   @default(now()) @map("fld_timestamp")
 
   @@index([senderId])
   @@index([receiverId])
   @@index([chatGroupId])
   @@map("private_messages")
+}
+
+/// One-way block. `blockerId` cannot see or be messaged by `blockedId`.
+/// Two rows are needed for mutual block; this keeps the model symmetric.
+model UserBlock {
+  id        Int      @id @default(autoincrement()) @map("fld_block_id")
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockerId Int      @map("fld_blocker_id")
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  blockedId Int      @map("fld_blocked_id")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  @@unique([blockerId, blockedId], map: "uniq_user_block")
+  @@index([blockedId])
+  @@map("user_blocks")
+}
+
+/// Silences notifications + the "ting" sound for messages from `mutedId`.
+/// Conversation history still flows; this only affects alerting.
+model UserMute {
+  id        Int      @id @default(autoincrement()) @map("fld_mute_id")
+  muter     User     @relation("Muter", fields: [muterId], references: [id], onDelete: Cascade)
+  muterId   Int      @map("fld_muter_id")
+  muted     User     @relation("Muted", fields: [mutedId], references: [id], onDelete: Cascade)
+  mutedId   Int      @map("fld_muted_id")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  @@unique([muterId, mutedId], map: "uniq_user_mute")
+  @@index([mutedId])
+  @@map("user_mutes")
 }
 
 model ChatGroup {

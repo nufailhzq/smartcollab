@@ -11,16 +11,21 @@ import {
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Ban,
+  Bell,
+  BellOff,
   Check,
   Download,
   File as FileIcon,
   LogOut,
   MessageCircle,
+  MoreVertical,
   Plus,
   Search,
   Send,
   Settings,
   Sparkles,
+  Trash2,
   UserPlus,
   Users,
   X,
@@ -29,11 +34,20 @@ import { askAi, type AiChatMessage } from "@/server/actions/ai-chat";
 import { cn, initials } from "@/lib/utils";
 import {
   acceptChatRequest,
+  deleteMessage,
   loadConversation,
   rejectChatRequest,
   sendMessage,
   type ConversationPayload,
 } from "@/server/actions/chat";
+import {
+  blockUser,
+  getModerationState,
+  muteUser,
+  unblockUser,
+  unmuteUser,
+  type ModerationState,
+} from "@/server/actions/moderation";
 import { EmojiPicker } from "./chat/EmojiPicker";
 import { AttachmentMenu } from "./chat/AttachmentMenu";
 import type { AttachmentType } from "@/schemas/chat";
@@ -141,6 +155,14 @@ export function MessengerBubble({
     setPendingAttachment({ file, type, previewUrl: URL.createObjectURL(file) });
   };
 
+  // Moderation state for the open DM partner (blocks + mutes).
+  const [moderation, setModeration] = useState<ModerationState>({
+    blocked: false,
+    blockedMe: false,
+    muted: false,
+  });
+  const [contactMenuOpen, setContactMenuOpen] = useState(false);
+
   // AI chat state
   const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
   const [aiPending, setAiPending] = useState(false);
@@ -225,6 +247,116 @@ export function MessengerBubble({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live updates from /api/messages/stream — auto-open the conversation when
+  // a message lands (unless muted), and flip deleted bubbles in real time.
+  useEffect(() => {
+    function onNewMessage(e: Event) {
+      const detail = (e as CustomEvent<{
+        senderId: number;
+        senderName: string;
+        messageId: number;
+        content: string;
+        preview: string;
+        timestamp: string;
+        silent?: boolean;
+      }>).detail;
+      if (!detail) return;
+
+      // If the existing conversation with this sender is already open,
+      // append the new message in place so the user sees it without a refresh.
+      if (
+        view === "conversation" &&
+        conversation?.partner.id === detail.senderId
+      ) {
+        setConversation((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: [
+                  ...prev.messages,
+                  {
+                    id: detail.messageId,
+                    senderId: detail.senderId,
+                    receiverId: currentUserId,
+                    content: detail.content,
+                    timestamp: detail.timestamp,
+                    isRead: true,
+                    deletedAt: null,
+                    attachmentPath: null,
+                    attachmentType: null,
+                    attachmentName: null,
+                    attachmentSize: null,
+                  },
+                ],
+              }
+            : prev,
+        );
+        return;
+      }
+
+      // Otherwise open the bubble + load the conversation with the sender.
+      // Skip auto-open for muted contacts — they only get a silent unread bump.
+      if (detail.silent) {
+        router.refresh();
+        return;
+      }
+      setOpen(true);
+      startTransition(async () => {
+        const res = await loadConversation(detail.senderId);
+        if (res.ok) {
+          setConversation(res.data);
+          setView("conversation");
+        }
+        router.refresh();
+      });
+    }
+
+    function onMessageDeleted(e: Event) {
+      const detail = (e as CustomEvent<{ messageId: number }>).detail;
+      if (!detail) return;
+      setConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === detail.messageId
+                  ? {
+                      ...m,
+                      content: "",
+                      deletedAt: new Date().toISOString(),
+                      attachmentPath: null,
+                      attachmentType: null,
+                    }
+                  : m,
+              ),
+            }
+          : prev,
+      );
+      router.refresh();
+    }
+
+    window.addEventListener("ukmfolio:new-message", onNewMessage);
+    window.addEventListener("ukmfolio:message-deleted", onMessageDeleted);
+    return () => {
+      window.removeEventListener("ukmfolio:new-message", onNewMessage);
+      window.removeEventListener("ukmfolio:message-deleted", onMessageDeleted);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, conversation?.partner.id, currentUserId]);
+
+  // Reload moderation flags whenever the active partner changes.
+  useEffect(() => {
+    if (view !== "conversation" || !conversation) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getModerationState(conversation.partner.id);
+      if (!cancelled && res.ok) setModeration(res.data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view, conversation?.partner.id]);
+
   // Debounce friend search.
   useEffect(() => {
     if (view !== "search") return;
@@ -306,6 +438,79 @@ export function MessengerBubble({
     setAiMessages([]);
   };
 
+  const onDeleteMessage = (messageId: number) => {
+    if (!confirm("Padam mesej ini? Tindakan tidak boleh dipulihkan.")) return;
+    startTransition(async () => {
+      const res = await deleteMessage(messageId);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      setConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      content: "",
+                      deletedAt: new Date().toISOString(),
+                      attachmentPath: null,
+                      attachmentType: null,
+                    }
+                  : m,
+              ),
+            }
+          : prev,
+      );
+      router.refresh();
+    });
+  };
+
+  const onToggleMute = () => {
+    if (!conversation) return;
+    const partnerId = conversation.partner.id;
+    startTransition(async () => {
+      const res = moderation.muted
+        ? await unmuteUser(partnerId)
+        : await muteUser(partnerId);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      setModeration((m) => ({ ...m, muted: !m.muted }));
+      toast.push({
+        kind: "success",
+        message: moderation.muted ? "Notifikasi dipulihkan." : "Notifikasi disenyapkan.",
+      });
+      router.refresh();
+    });
+  };
+
+  const onToggleBlock = () => {
+    if (!conversation) return;
+    const partnerId = conversation.partner.id;
+    if (!moderation.blocked) {
+      if (!confirm(`Blok ${conversation.partner.name}? Anda dan dia tidak akan dapat menghantar mesej.`)) return;
+    }
+    startTransition(async () => {
+      const res = moderation.blocked
+        ? await unblockUser(partnerId)
+        : await blockUser(partnerId);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      setModeration((m) => ({ ...m, blocked: !m.blocked }));
+      toast.push({
+        kind: "success",
+        message: moderation.blocked ? "Blok dibuka." : "Pengguna diblok.",
+      });
+      router.refresh();
+    });
+  };
+
   const onAcceptChatRequest = () => {
     if (!conversation) return;
     startTransition(async () => {
@@ -385,6 +590,7 @@ export function MessengerBubble({
                   content: res.data.content,
                   timestamp: new Date(res.data.timestamp as unknown as string).toISOString(),
                   isRead: res.data.isRead,
+                  deletedAt: null,
                   attachmentPath: res.data.attachmentPath,
                   attachmentType: res.data.attachmentType,
                   attachmentName: res.data.attachmentName,
@@ -729,6 +935,61 @@ export function MessengerBubble({
                   <Plus size={16} />
                 </button>
               )}
+              {view === "conversation" && conversation && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setContactMenuOpen((v) => !v)}
+                    aria-label="Pilihan chat"
+                    title="Pilihan chat"
+                    className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-ukm-navy"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {contactMenuOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-30"
+                        onClick={() => setContactMenuOpen(false)}
+                        aria-hidden
+                      />
+                      <div className="absolute right-0 top-full z-40 mt-1 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lift animate-fade-in">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContactMenuOpen(false);
+                            onToggleMute();
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          {moderation.muted ? (
+                            <>
+                              <Bell size={14} className="text-emerald-600" />
+                              Pulihkan notifikasi
+                            </>
+                          ) : (
+                            <>
+                              <BellOff size={14} className="text-slate-500" />
+                              Senyapkan notifikasi
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContactMenuOpen(false);
+                            onToggleBlock();
+                          }}
+                          className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-sm text-ukm-red hover:bg-red-50"
+                        >
+                          <Ban size={14} />
+                          {moderation.blocked ? "Buka blok" : "Blok pengguna"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -1022,35 +1283,59 @@ export function MessengerBubble({
                 ) : (
                   conversation.messages.map((m) => {
                     const mine = m.senderId === currentUserId;
+                    const isDeleted = m.deletedAt !== null;
                     return (
                       <div
                         key={m.id}
-                        className={cn("flex", mine ? "justify-end" : "justify-start")}
+                        className={cn(
+                          "group/msg flex items-center gap-1.5",
+                          mine ? "justify-end" : "justify-start",
+                        )}
                       >
+                        {mine && !isDeleted && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteMessage(m.id)}
+                            disabled={pending}
+                            title="Padam mesej"
+                            aria-label="Padam mesej"
+                            className="opacity-0 transition group-hover/msg:opacity-100 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-ukm-red disabled:opacity-40"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                         <div
                           className={cn(
                             "max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm",
-                            mine
-                              ? "bg-gradient-to-br from-ukm-teal to-sky-600 text-white"
-                              : "bg-white text-slate-700 border border-slate-200",
+                            isDeleted
+                              ? "bg-slate-100 italic text-slate-500 border border-slate-200"
+                              : mine
+                                ? "bg-gradient-to-br from-ukm-teal to-sky-600 text-white"
+                                : "bg-white text-slate-700 border border-slate-200",
                           )}
                         >
-                          {m.attachmentPath && (
-                            <MessageAttachment
-                              path={m.attachmentPath}
-                              type={m.attachmentType}
-                              name={m.attachmentName}
-                              size={m.attachmentSize}
-                              mine={mine}
-                            />
-                          )}
-                          {m.content && (
-                            <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                          {isDeleted ? (
+                            <p className="whitespace-pre-wrap break-words">Mesej dipadam</p>
+                          ) : (
+                            <>
+                              {m.attachmentPath && (
+                                <MessageAttachment
+                                  path={m.attachmentPath}
+                                  type={m.attachmentType}
+                                  name={m.attachmentName}
+                                  size={m.attachmentSize}
+                                  mine={mine}
+                                />
+                              )}
+                              {m.content && (
+                                <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                              )}
+                            </>
                           )}
                           <p
                             className={cn(
                               "mt-1 text-[10px]",
-                              mine ? "text-slate-700" : "text-slate-400",
+                              mine && !isDeleted ? "text-slate-700" : "text-slate-400",
                             )}
                           >
                             {new Date(m.timestamp).toLocaleTimeString("ms-MY", {
@@ -1064,7 +1349,13 @@ export function MessengerBubble({
                   })
                 )}
               </div>
-              {conversation.requestStatus === "incoming-pending" ? (
+              {moderation.blocked || moderation.blockedMe ? (
+                <div className="border-t border-slate-200 bg-red-50 px-4 py-3 text-center text-xs text-ukm-red">
+                  {moderation.blocked
+                    ? "Anda telah blok pengguna ini. Buka blok melalui menu untuk membalas."
+                    : "Anda tidak boleh menghantar mesej kepada pengguna ini."}
+                </div>
+              ) : conversation.requestStatus === "incoming-pending" ? (
                 <div className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white px-3 py-3">
                   <button
                     type="button"

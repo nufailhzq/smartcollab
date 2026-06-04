@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notifications";
 import { saveChatAttachment } from "@/lib/chat-uploads";
+import { emitMessageEvent } from "@/lib/message-events";
 import {
   ATTACHMENT_TYPES,
   sendMessageSchema,
@@ -36,6 +37,8 @@ export type ConversationPayload = {
     content: string;
     timestamp: string;
     isRead: boolean;
+    /** Set when the sender unsent the message — UI shows "Mesej dipadam". */
+    deletedAt: string | null;
     attachmentPath: string | null;
     attachmentType: string | null;
     attachmentName: string | null;
@@ -129,6 +132,26 @@ export async function sendMessage(formData: FormData): Promise<ActionResult<Mess
   });
   if (!receiver || !receiver.isActive) return { ok: false, error: "Penerima tidak wujud." };
 
+  // Block gate — either direction blocks the conversation.
+  const block = await prisma.userBlock.findFirst({
+    where: {
+      OR: [
+        { blockerId: me, blockedId: receiverId },
+        { blockerId: receiverId, blockedId: me },
+      ],
+    },
+    select: { blockerId: true },
+  });
+  if (block) {
+    return {
+      ok: false,
+      error:
+        block.blockerId === me
+          ? "Anda telah blok pengguna ini. Buka blok untuk menghantar mesej."
+          : "Anda tidak dapat menghantar mesej kepada pengguna ini.",
+    };
+  }
+
   // Optional attachment
   const file = formData.get("attachment");
   const declared = String(formData.get("attachmentType") ?? "");
@@ -195,10 +218,24 @@ export async function sendMessage(formData: FormData): Promise<ActionResult<Mess
     },
   });
 
+  const preview = attachmentPreview(content, attachmentType);
   await notifyUser(receiverId, {
     title: isFreshRequest ? "Permintaan Chat" : "Mesej Baharu",
-    message: `${session.user.name}: ${attachmentPreview(content, attachmentType)}`,
+    message: `${session.user.name}: ${preview}`,
     link: "chat",
+  });
+
+  // Live push — the SSE handler routes this to the receiver's open clients.
+  emitMessageEvent({
+    kind: "message:new",
+    receiverId,
+    senderId: me,
+    senderName: session.user.name ?? "Pengguna",
+    messageId: message.id,
+    content,
+    preview,
+    timestamp: message.timestamp.toISOString(),
+    hasAttachment: attachmentPath !== null,
   });
 
   revalidatePath("/student");
@@ -277,6 +314,7 @@ export async function loadConversation(
         content: m.content,
         timestamp: m.timestamp.toISOString(),
         isRead: m.isRead,
+        deletedAt: m.deletedAt ? m.deletedAt.toISOString() : null,
         attachmentPath: m.attachmentPath,
         attachmentType: m.attachmentType,
         attachmentName: m.attachmentName,
@@ -364,6 +402,67 @@ export async function rejectChatRequest(
   revalidatePath("/student");
   revalidatePath("/lecturer");
   return { ok: true, data: { partnerId: senderId } };
+}
+
+/**
+ * Soft-delete a DM the viewer sent. The row stays for audit, but the bubble
+ * renders "Mesej dipadam" instead of the original content/attachment.
+ */
+export async function deleteMessage(
+  rawMessageId: unknown,
+): Promise<ActionResult<{ messageId: number }>> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const parsed = idSchema.safeParse(rawMessageId);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const me = session.user.id;
+  const messageId = parsed.data;
+
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: {
+      id: true,
+      senderId: true,
+      receiverId: true,
+      chatGroupId: true,
+      deletedAt: true,
+    },
+  });
+  if (!message) return { ok: false, error: "Mesej tidak wujud." };
+  if (message.senderId !== me) {
+    return { ok: false, error: "Anda hanya boleh padam mesej anda sendiri." };
+  }
+  if (message.deletedAt) {
+    return { ok: true, data: { messageId } };
+  }
+
+  await prisma.message.update({
+    where: { id: messageId },
+    data: {
+      deletedAt: new Date(),
+      content: "",
+      attachmentPath: null,
+      attachmentType: null,
+      attachmentName: null,
+      attachmentSize: null,
+    },
+  });
+
+  // Push to the receiver so their UI flips immediately.
+  if (message.receiverId) {
+    emitMessageEvent({
+      kind: "message:deleted",
+      receiverId: message.receiverId,
+      senderId: me,
+      messageId,
+    });
+  }
+
+  revalidatePath("/student");
+  revalidatePath("/lecturer");
+  return { ok: true, data: { messageId } };
 }
 
 export async function markMessagesRead(raw: unknown): Promise<ActionResult<{ count: number }>> {

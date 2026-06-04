@@ -6,8 +6,22 @@
 smartcollab.me, www.smartcollab.me {
     encode gzip zstd
 
-    # Forward the real client IP + scheme to Next.js so server-side code
-    # sees the public origin instead of the internal container hop.
+    # SSE endpoint — disable buffering and don't gzip event-streams so
+    # message-bus pushes reach the browser immediately.
+    @sse {
+        path /api/messages/stream
+    }
+    reverse_proxy @sse app:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        flush_interval -1
+        transport http {
+            response_header_timeout 0s
+            read_timeout 24h
+        }
+    }
+
+    # Everything else — normal proxy with gzip.
     reverse_proxy app:3000 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-Proto {scheme}
