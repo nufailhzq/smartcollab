@@ -2,11 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { ImagePlus, Loader2, Send, Trash2, X } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { addFolioComment, deleteFolioComment } from "@/server/actions/folio";
 import { COMMENT_MAX_LENGTH } from "@/schemas/folio";
+
+// Only image MIME types — videos are intentionally excluded for comments.
+const ALLOWED_COMMENT_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type CommentAuthor = {
   id: number;
@@ -19,6 +28,8 @@ type CommentAuthor = {
 export type CommentRow = {
   id: number;
   content: string;
+  /** Public path to an attached image (gif/jpg/png/webp). Null = text-only. */
+  imagePath: string | null;
   createdAt: string;
   author: CommentAuthor;
 };
@@ -62,22 +73,54 @@ export function CommentSection({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [image, setImage] = useState<{ file: File; previewUrl: string } | null>(
+    null,
+  );
 
   const canPost = viewer.role === "STUDENT" || viewer.role === "LECTURER";
   const remaining = COMMENT_MAX_LENGTH - text.length;
 
+  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    if (!ALLOWED_COMMENT_IMAGE_TYPES.has(file.type)) {
+      setError("Hanya imej (PNG/JPG/WEBP/GIF) dibenarkan — bukan video.");
+      return;
+    }
+    if (file.size > MAX_COMMENT_IMAGE_BYTES) {
+      setError("Saiz imej melebihi 5MB.");
+      return;
+    }
+    setError(null);
+    if (image) URL.revokeObjectURL(image.previewUrl);
+    setImage({ file, previewUrl: URL.createObjectURL(file) });
+  }
+
+  function clearImage() {
+    if (image) URL.revokeObjectURL(image.previewUrl);
+    setImage(null);
+  }
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const content = text.trim();
-    if (!content || pending) return;
+    if (!content && !image) return;
+    if (pending) return;
     startTransition(async () => {
       setError(null);
-      const res = await addFolioComment({ postId, content });
+      const fd = new FormData();
+      fd.set("postId", String(postId));
+      fd.set("content", content);
+      if (image) fd.set("image", image.file);
+      const res = await addFolioComment(fd);
       if (!res.ok) {
         setError(res.error);
         return;
       }
       setText("");
+      clearImage();
       router.refresh();
     });
   }
@@ -132,9 +175,27 @@ export function CommentSection({
                         @{c.author.matricNum?.toLowerCase() ?? "—"}
                       </span>
                     </div>
-                    <p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                      {c.content}
-                    </p>
+                    {c.content && (
+                      <p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                        {c.content}
+                      </p>
+                    )}
+                    {c.imagePath && (
+                      <a
+                        href={c.imagePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 block overflow-hidden rounded-lg"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={c.imagePath}
+                          alt=""
+                          loading="lazy"
+                          className="max-h-72 max-w-full rounded-lg object-cover"
+                        />
+                      </a>
+                    )}
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
                     <span>{timeAgo(c.createdAt)}</span>
@@ -169,9 +230,26 @@ export function CommentSection({
                 type="text"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Tulis komen…"
+                placeholder={image ? "Tambah teks (pilihan)…" : "Tulis komen…"}
                 maxLength={COMMENT_MAX_LENGTH + 20}
-                className="w-full rounded-full border border-slate-200 bg-slate-50 py-2 pl-3 pr-20 text-sm outline-none transition focus:border-ukm-teal focus:bg-white focus:ring-4 focus:ring-sky-500/15"
+                className="w-full rounded-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-20 text-sm outline-none transition focus:border-ukm-teal focus:bg-white focus:ring-4 focus:ring-sky-500/15"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={pending}
+                title="Lampirkan imej atau GIF"
+                aria-label="Lampirkan imej atau GIF"
+                className="absolute left-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-slate-400 transition hover:bg-sky-100 hover:text-ukm-teal disabled:opacity-40"
+              >
+                <ImagePlus size={14} />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={onPickImage}
+                className="hidden"
               />
               <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-2">
                 <span
@@ -187,7 +265,11 @@ export function CommentSection({
                 </span>
                 <button
                   type="submit"
-                  disabled={pending || text.trim().length === 0 || remaining < 0}
+                  disabled={
+                    pending ||
+                    (text.trim().length === 0 && !image) ||
+                    remaining < 0
+                  }
                   className="grid h-7 w-7 place-items-center rounded-full bg-ukm-teal text-white shadow-soft transition hover:bg-cyan-600 disabled:opacity-40"
                   aria-label="Hantar komen"
                 >
@@ -195,6 +277,26 @@ export function CommentSection({
                 </button>
               </div>
             </div>
+
+            {image && (
+              <div className="relative mt-2 inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={image.previewUrl}
+                  alt="Pratonton"
+                  className="max-h-32 rounded-lg border border-slate-200 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-slate-900/70 text-white shadow-soft hover:bg-ukm-red"
+                  aria-label="Buang imej"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            )}
+
             {error && (
               <p className="mt-1 text-xs text-ukm-red">{error}</p>
             )}

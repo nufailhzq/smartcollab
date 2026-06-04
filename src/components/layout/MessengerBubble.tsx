@@ -270,6 +270,18 @@ export function MessengerBubble({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // NotificationBell clicks "chat" notifications and dispatches this so the
+  // bubble opens without leaving the current page.
+  useEffect(() => {
+    const onOpenBubble = () => {
+      setOpen(true);
+      setView((v) => (v === "list" ? "list" : v));
+    };
+    window.addEventListener("ukmfolio:open-messenger", onOpenBubble);
+    return () =>
+      window.removeEventListener("ukmfolio:open-messenger", onOpenBubble);
+  }, []);
+
   // Live updates from /api/messages/stream — auto-open the conversation when
   // a message lands (unless muted), and flip deleted bubbles in real time.
   useEffect(() => {

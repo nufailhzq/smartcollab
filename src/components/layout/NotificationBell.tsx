@@ -9,6 +9,20 @@ import {
   markNotificationRead,
 } from "@/server/actions/notifications";
 
+/**
+ * Map the short legacy tags that earlier server actions used as `link`
+ * payloads to real URLs. `"chat"` opens the messenger bubble via the same
+ * custom event the bubble already listens for; everything else routes
+ * normally with the Next router.
+ */
+function resolveLink(link: string | null): string | null {
+  if (!link) return null;
+  if (link.startsWith("/")) return link;
+  if (link === "chat") return "chat:open";
+  if (link === "warning") return "/student";
+  return null;
+}
+
 export type BellNotification = {
   id: number;
   title: string;
@@ -60,6 +74,28 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: P
     });
   };
 
+  const handleOpen = (n: BellNotification) => {
+    const resolved = resolveLink(n.link);
+    // Always mark read on click — even if there's no destination.
+    if (!n.isRead) {
+      startTransition(async () => {
+        await markNotificationRead({ id: n.id });
+        router.refresh();
+      });
+    }
+    setOpen(false);
+
+    if (!resolved) return;
+
+    if (resolved === "chat:open") {
+      // Dispatch the same event the messenger bubble already listens for to
+      // pop open. Fall back to the dashboard if the listener isn't mounted.
+      window.dispatchEvent(new CustomEvent("ukmfolio:open-messenger"));
+      return;
+    }
+    router.push(resolved);
+  };
+
   return (
     <div ref={wrapperRef} className="relative">
       <button
@@ -101,35 +137,50 @@ export function NotificationBell({ initialNotifications, initialUnreadCount }: P
                 Tiada notifikasi
               </li>
             ) : (
-              initialNotifications.map((n) => (
-                <li
-                  key={n.id}
-                  className={cn(
-                    "border-b border-slate-100 px-4 py-3 last:border-b-0",
-                    !n.isRead && "bg-orange-50/50",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-ukm-navy">{n.title}</p>
-                    {!n.isRead && (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkOne(n.id)}
-                        disabled={pending}
-                        className="shrink-0 text-[10px] font-medium text-ukm-teal hover:underline disabled:opacity-40"
-                      >
-                        Tandakan dibaca
-                      </button>
+              initialNotifications.map((n) => {
+                const hasLink = resolveLink(n.link) !== null;
+                return (
+                  <li
+                    key={n.id}
+                    className={cn(
+                      "border-b border-slate-100 last:border-b-0",
+                      !n.isRead && "bg-orange-50/50",
                     )}
-                  </div>
-                  {n.message && (
-                    <p className="mt-0.5 text-xs text-slate-600">{n.message}</p>
-                  )}
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    {formatDateTime(n.createdAt)}
-                  </p>
-                </li>
-              ))
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleOpen(n)}
+                      disabled={pending}
+                      className={cn(
+                        "flex w-full flex-col gap-1 px-4 py-3 text-left transition",
+                        hasLink && "hover:bg-sky-50/60",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-ukm-navy">
+                          {n.title}
+                        </p>
+                        {!n.isRead && (
+                          <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-ukm-orange" />
+                        )}
+                      </div>
+                      {n.message && (
+                        <p className="whitespace-pre-line text-xs text-slate-600">
+                          {n.message}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>{formatDateTime(n.createdAt)}</span>
+                        {hasLink && (
+                          <span className="font-medium text-ukm-teal">
+                            Lihat →
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })
             )}
           </ul>
         </div>

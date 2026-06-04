@@ -236,7 +236,7 @@ export async function toggleRepost(raw: unknown): Promise<ActionResult<{ reposte
 }
 
 export async function addFolioComment(
-  raw: unknown,
+  input: FormData | { postId: number; content: string },
 ): Promise<ActionResult<{ commentId: number }>> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
@@ -244,7 +244,27 @@ export async function addFolioComment(
     return { ok: false, error: "Hanya pelajar dan pensyarah boleh memberi komen." };
   }
 
-  const parsed = addCommentSchema.safeParse(raw);
+  // Comments now optionally carry an image attachment (gif/jpg/png/webp).
+  // To keep the existing object-call sites working, accept both shapes.
+  let postIdRaw: unknown;
+  let contentRaw: unknown;
+  let attachment: File | null = null;
+
+  if (input instanceof FormData) {
+    postIdRaw = Number(input.get("postId"));
+    contentRaw = String(input.get("content") ?? "");
+    const f = input.get("image");
+    if (f instanceof File && f.size > 0) attachment = f;
+  } else {
+    postIdRaw = input?.postId;
+    contentRaw = input?.content;
+  }
+
+  const parsed = addCommentSchema.safeParse({
+    postId: postIdRaw,
+    // Allow empty text when an image is present — re-check below.
+    content: attachment ? (contentRaw || "📷") : contentRaw,
+  });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
   }
@@ -258,11 +278,21 @@ export async function addFolioComment(
   // Comments attach to the original post — a repost row should forward to its parent.
   const targetPostId = post.isRepost && post.parentId ? post.parentId : post.id;
 
+  // Save attachment first; defensively reject anything that isn't an image
+  // type (the helper enforces gif/jpg/png/webp; videos are not on the list).
+  let imagePath: string | null = null;
+  if (attachment) {
+    const saved = await saveImage(attachment);
+    if (!saved.ok) return { ok: false, error: saved.error };
+    imagePath = saved.path;
+  }
+
   const comment = await prisma.folioComment.create({
     data: {
       postId: targetPostId,
       authorId: session.user.id,
       content: parsed.data.content,
+      imagePath,
     },
     select: { id: true },
   });
@@ -300,7 +330,13 @@ export async function deleteFolioComment(raw: unknown): Promise<ActionResult> {
 
   const comment = await prisma.folioComment.findUnique({
     where: { id: parsed.data.commentId },
-    select: { id: true, authorId: true, postId: true, post: { select: { authorId: true } } },
+    select: {
+      id: true,
+      authorId: true,
+      postId: true,
+      imagePath: true,
+      post: { select: { authorId: true } },
+    },
   });
   if (!comment) return { ok: false, error: "Komen tidak wujud." };
 
@@ -312,6 +348,7 @@ export async function deleteFolioComment(raw: unknown): Promise<ActionResult> {
   if (!allowed) return { ok: false, error: "Tidak dibenarkan." };
 
   await prisma.folioComment.delete({ where: { id: comment.id } });
+  if (comment.imagePath) await deleteImageFile(comment.imagePath);
   bumpCaches();
   revalidatePath(`/folio/pos/${comment.postId}`);
   return { ok: true };
@@ -493,10 +530,10 @@ export async function adminDeleteFolioPost(
     await deleteImageFile(img.imagePath);
   }
 
+  // No `link` — the post is gone, so the notification is purely informational.
   await notifyUser(post.authorId, {
     title: "⚠️ Pos Anda Dipadam Oleh Admin",
     message: `Pos: "${snippet}"\n\nSebab: ${parsed.data.reason}`,
-    link: "/admin-delete",
   });
 
   bumpCaches();

@@ -599,6 +599,8 @@ model FolioComment {
   author    User      @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   authorId  Int       @map("fld_author_id")
   content   String    @db.Text @map("fld_content")
+  /// Optional image attached to the comment (gif/jpg/png/webp). Null = text-only.
+  imagePath String?   @map("fld_image_path")
   createdAt DateTime  @default(now()) @map("fld_created_at")
 
   @@index([postId])

@@ -106,6 +106,7 @@ export default async function FolioPostDetailPage({ params }: Props) {
   const commentRows: CommentRow[] = comments.map((c) => ({
     id: c.id,
     content: c.content,
+    imagePath: c.imagePath,
     createdAt: c.createdAt.toISOString(),
     author: {
       id: c.author.id,
