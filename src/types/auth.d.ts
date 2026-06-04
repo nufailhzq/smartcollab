@@ -15,11 +15,3 @@ declare module "next-auth" {
     matricNum?: string | null;
   }
 }
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    uid?: number;
-    role?: Role;
-    matricNum?: string | null;
-  }
-}
