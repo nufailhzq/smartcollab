@@ -155,6 +155,7 @@ export async function Navbar() {
             <NotificationBell
               initialUnreadCount={unreadNotifications}
               notificationsMuted={notificationsMuted}
+              userRole={userRole}
               initialNotifications={notifications.map((n) => ({
                 id: n.id,
                 title: n.title,

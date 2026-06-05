@@ -49,6 +49,7 @@ export async function getLecturerSubmissions(
     courseId?: number;
     assignmentId?: number;
     status?: SubmissionStatus | "ALL";
+    sort?: "recent" | "name";
   } = {},
 ) {
   const where: Prisma.SubmissionWhereInput = {
@@ -80,7 +81,13 @@ export async function getLecturerSubmissions(
         orderBy: { createdAt: "desc" },
       },
     },
-    orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
+    // "recent" (default) — newest submission at the top across all statuses.
+    // "name" — group submissions per student in alphabetical order, with the
+    //          most recent submission per student first inside each group.
+    orderBy:
+      filters.sort === "name"
+        ? [{ student: { name: "asc" } }, { submittedAt: "desc" }]
+        : [{ submittedAt: "desc" }],
   });
 }
 

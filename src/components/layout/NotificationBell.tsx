@@ -10,16 +10,30 @@ import {
 } from "@/server/actions/notifications";
 
 /**
- * Map the short legacy tags that earlier server actions used as `link`
- * payloads to real URLs. `"chat"` opens the messenger bubble via the same
- * custom event the bubble already listens for; everything else routes
- * normally with the Next router.
+ * Map the short legacy tags that server actions use as `link` payloads to
+ * real URLs. `"chat"` opens the messenger bubble; the other tags map to
+ * role-specific dashboards/lists.
  */
-function resolveLink(link: string | null): string | null {
+type Role = "STUDENT" | "LECTURER" | "ADMIN";
+
+function resolveLink(link: string | null, role: Role): string | null {
   if (!link) return null;
   if (link.startsWith("/")) return link;
   if (link === "chat") return "chat:open";
-  if (link === "warning") return "/student";
+  if (link === "warning") {
+    return role === "LECTURER" ? "/lecturer" : "/student";
+  }
+  if (link === "submissions") {
+    return role === "LECTURER" ? "/lecturer/penghantaran" : "/student/tugasan";
+  }
+  if (link === "groups") {
+    return role === "LECTURER"
+      ? "/lecturer/pengurusan-kumpulan"
+      : "/student/kumpulan";
+  }
+  if (link === "bulletin") {
+    return role === "LECTURER" ? "/lecturer" : "/student";
+  }
   return null;
 }
 
@@ -35,6 +49,7 @@ export type BellNotification = {
 type Props = {
   initialNotifications: BellNotification[];
   initialUnreadCount: number;
+  userRole: Role;
   /** When true: hides the unread badge + replaces dropdown with mute banner. */
   notificationsMuted?: boolean;
 };
@@ -42,6 +57,7 @@ type Props = {
 export function NotificationBell({
   initialNotifications,
   initialUnreadCount,
+  userRole,
   notificationsMuted = false,
 }: Props) {
   const effectiveUnreadCount = notificationsMuted ? 0 : initialUnreadCount;
@@ -82,7 +98,7 @@ export function NotificationBell({
   };
 
   const handleOpen = (n: BellNotification) => {
-    const resolved = resolveLink(n.link);
+    const resolved = resolveLink(n.link, userRole);
     // Always mark read on click — even if there's no destination.
     if (!n.isRead) {
       startTransition(async () => {
@@ -157,7 +173,7 @@ export function NotificationBell({
               </li>
             ) : (
               initialNotifications.map((n) => {
-                const hasLink = resolveLink(n.link) !== null;
+                const hasLink = resolveLink(n.link, userRole) !== null;
                 return (
                   <li
                     key={n.id}

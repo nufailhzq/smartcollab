@@ -8,11 +8,18 @@ import type { SubmissionStatus } from "@prisma/client";
 
 const STATUS_OPTIONS = ["ALL", "SUBMITTED", "LATE", "GRADED"] as const;
 type StatusFilter = (typeof STATUS_OPTIONS)[number];
+const SORT_OPTIONS = ["recent", "name"] as const;
+type SortBy = (typeof SORT_OPTIONS)[number];
 
 export default async function LecturerSubmissionsPage({
   searchParams,
 }: {
-  searchParams: { course?: string; assignment?: string; status?: string };
+  searchParams: {
+    course?: string;
+    assignment?: string;
+    status?: string;
+    sort?: string;
+  };
 }) {
   const session = await auth();
   const lecturerId = session!.user.id;
@@ -24,12 +31,33 @@ export default async function LecturerSubmissionsPage({
   const status: StatusFilter = STATUS_OPTIONS.includes(searchParams.status as StatusFilter)
     ? (searchParams.status as StatusFilter)
     : "ALL";
+  const sort: SortBy = SORT_OPTIONS.includes(searchParams.sort as SortBy)
+    ? (searchParams.sort as SortBy)
+    : "recent";
 
   const submissions = await getLecturerSubmissions(lecturerId, {
     courseId: selectedCourse?.id,
     assignmentId,
     status: status as SubmissionStatus | "ALL",
+    sort,
   });
+
+  // When sorting by name, the server already groups them; pre-compute the
+  // student-name header positions so the JSX can render dividers.
+  const showStudentHeader = (idx: number) =>
+    sort === "name" &&
+    (idx === 0 ||
+      submissions[idx - 1]?.student.name !== submissions[idx]?.student.name);
+
+  function withSort(next: SortBy): string {
+    const params = new URLSearchParams();
+    if (courseCode) params.set("course", courseCode);
+    if (assignmentId) params.set("assignment", String(assignmentId));
+    if (status !== "ALL") params.set("status", status);
+    if (next !== "recent") params.set("sort", next);
+    const qs = params.toString();
+    return `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -73,6 +101,7 @@ export default async function LecturerSubmissionsPage({
             if (courseCode) params.set("course", courseCode);
             if (assignmentId) params.set("assignment", String(assignmentId));
             if (s !== "ALL") params.set("status", s);
+            if (sort !== "recent") params.set("sort", sort);
             const qs = params.toString();
             const href = `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
             return (
@@ -96,6 +125,30 @@ export default async function LecturerSubmissionsPage({
             );
           })}
         </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Susun:
+          </span>
+          {(
+            [
+              { id: "recent", label: "Terbaru" },
+              { id: "name", label: "Nama Pelajar" },
+            ] as const
+          ).map((opt) => (
+            <Link
+              key={opt.id}
+              href={withSort(opt.id)}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                sort === opt.id
+                  ? "bg-ukm-teal text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
+              }`}
+            >
+              {opt.label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {submissions.length === 0 ? (
@@ -106,39 +159,51 @@ export default async function LecturerSubmissionsPage({
         />
       ) : (
         <ul className="space-y-3">
-          {submissions.map((s) => (
-            <li key={s.id} className="card">
-              <GradingPanel
-                submission={{
-                  id: s.id,
-                  studentId: s.studentId,
-                  studentName: s.student.name,
-                  studentMatric: s.student.matricNum,
-                  submittedBy: s.submittedBy
-                    ? {
-                        id: s.submittedBy.id,
-                        name: s.submittedBy.name,
-                        matricNum: s.submittedBy.matricNum,
-                      }
-                    : null,
-                  assignmentTitle: s.assignment.title,
-                  assignmentType: s.assignment.type,
-                  courseCode: s.assignment.course.code,
-                  courseTitle: s.assignment.course.title,
-                  filePath: s.filePath,
-                  grade: s.grade,
-                  status: s.status,
-                  maxGrade: s.assignment.maxGrade ?? 100,
-                  submittedAt: s.submittedAt.toISOString(),
-                  dueDate: s.assignment.dueDate?.toISOString() ?? null,
-                  feedback: s.feedback.map((f) => ({
-                    id: f.id,
-                    comment: f.comment,
-                    lecturerName: f.lecturer.name,
-                    createdAt: f.createdAt.toISOString(),
-                  })),
-                }}
-              />
+          {submissions.map((s, idx) => (
+            <li key={s.id} className="space-y-2">
+              {showStudentHeader(idx) && (
+                <h3 className="sticky top-16 z-10 -mx-1 rounded-md bg-gradient-to-r from-ukm-teal/15 to-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-ukm-navy backdrop-blur">
+                  {s.student.name}
+                  {s.student.matricNum && (
+                    <span className="ml-2 font-mono text-[10px] text-slate-500">
+                      @{s.student.matricNum.toLowerCase()}
+                    </span>
+                  )}
+                </h3>
+              )}
+              <div className="card">
+                <GradingPanel
+                  submission={{
+                    id: s.id,
+                    studentId: s.studentId,
+                    studentName: s.student.name,
+                    studentMatric: s.student.matricNum,
+                    submittedBy: s.submittedBy
+                      ? {
+                          id: s.submittedBy.id,
+                          name: s.submittedBy.name,
+                          matricNum: s.submittedBy.matricNum,
+                        }
+                      : null,
+                    assignmentTitle: s.assignment.title,
+                    assignmentType: s.assignment.type,
+                    courseCode: s.assignment.course.code,
+                    courseTitle: s.assignment.course.title,
+                    filePath: s.filePath,
+                    grade: s.grade,
+                    status: s.status,
+                    maxGrade: s.assignment.maxGrade ?? 100,
+                    submittedAt: s.submittedAt.toISOString(),
+                    dueDate: s.assignment.dueDate?.toISOString() ?? null,
+                    feedback: s.feedback.map((f) => ({
+                      id: f.id,
+                      comment: f.comment,
+                      lecturerName: f.lecturer.name,
+                      createdAt: f.createdAt.toISOString(),
+                    })),
+                  }}
+                />
+              </div>
             </li>
           ))}
         </ul>
