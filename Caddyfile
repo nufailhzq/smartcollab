@@ -3,6 +3,17 @@
 # resolves to this droplet (HTTP-01 challenge on port 80). Subsequent
 # renewals happen silently every ~60 days.
 
+phpmyadmin.smartcollab.me {
+    # phpMyAdmin lives inside the compose network; Caddy reverse-proxies it
+    # over HTTPS so you can reach it from any browser without an SSH tunnel.
+    # The MySQL root password is still the gatekeeper at the login form.
+    encode gzip
+    reverse_proxy pma:80
+    request_body {
+        max_size 30MB
+    }
+}
+
 smartcollab.me, www.smartcollab.me {
     encode gzip zstd
 

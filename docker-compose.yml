@@ -71,10 +71,9 @@ services:
       - app_uploads:/app/public/uploads
 
   # ---------------------------------------------------------------------------
-  # phpMyAdmin — bound to the droplet's loopback only. Reach it from Windows
-  # by opening an SSH tunnel:
-  #   ssh -L 8081:127.0.0.1:8081 root@<droplet-ip>
-  # then browse to http://localhost:8081
+  # phpMyAdmin — fronted by Caddy at https://phpmyadmin.smartcollab.me.
+  # Internal-only (no `ports:` block) — Caddy reaches it via the compose
+  # network. Log in with the MySQL root password from .env.docker.
   # ---------------------------------------------------------------------------
   pma:
     image: phpmyadmin/phpmyadmin:latest
@@ -85,11 +84,12 @@ services:
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
-      # 30 MB upload so we can import/export SmartCollab seed dumps without
-      # tripping the default 2 MB cap.
+      # Trust Caddy's X-Forwarded-* headers so phpMyAdmin emits correct
+      # HTTPS URLs in its forms / redirects.
+      PMA_ABSOLUTE_URI: https://phpmyadmin.smartcollab.me/
       UPLOAD_LIMIT: 30M
-    ports:
-      - "127.0.0.1:8081:80"
+    expose:
+      - "80"
 
   # ---------------------------------------------------------------------------
   # Caddy — HTTPS reverse proxy with automatic Let's Encrypt certificates
