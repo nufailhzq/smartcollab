@@ -87,6 +87,9 @@ model User {
   isActive     Boolean  @default(true) @map("fld_is_active")
   /// Updated by the auth session callback (throttled ~5 min). Null = never seen.
   lastSeenAt   DateTime? @map("fld_last_seen_at")
+  /// Master notification mute. When true: bell hides badges, no toast, no
+  /// "ting" sound. Notification rows are still written for audit.
+  notificationsMuted Boolean @default(false) @map("fld_notifications_muted")
   createdAt    DateTime @default(now())
 
   enrollments        ClassEnrollment[]
@@ -556,6 +559,10 @@ model FolioPost {
   parentId   Int?           @map("fld_parent_id")
   /// True when this row is a repost (no own content; mirrors parent in feed).
   isRepost   Boolean        @default(false) @map("fld_is_repost")
+  /// Set when the post owner archives this post. Archived posts are hidden
+  /// from the feed and other users' profiles but stay visible in the owner's
+  /// "Archive" tab. Reposts of an archived post are also hidden.
+  archivedAt DateTime?      @map("fld_archived_at")
   createdAt  DateTime       @default(now()) @map("fld_created_at")
 
   images    FolioPostImage[]

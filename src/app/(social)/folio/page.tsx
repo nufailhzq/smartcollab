@@ -34,6 +34,7 @@ export default async function FolioFeedPage() {
     content: p.content,
     visibility: p.visibility,
     isRepost: p.isRepost,
+    archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
     createdAt: p.createdAt.toISOString(),
     author: {
       id: p.author.id,
@@ -103,7 +104,7 @@ export default async function FolioFeedPage() {
             <Hash size={20} />
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-white/80">UKMFolio</p>
+            <p className="text-[11px] uppercase tracking-[0.25em] text-white/80">SmartCollab</p>
             <h1 className="text-2xl font-bold text-white">Folio Connect</h1>
           </div>
         </div>

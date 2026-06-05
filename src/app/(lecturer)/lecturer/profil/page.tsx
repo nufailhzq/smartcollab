@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { AvatarUploader } from "@/components/common/AvatarUploader";
 import { PhoneEditor } from "@/components/profile/PhoneEditor";
+import { MuteToggle } from "@/components/profile/MuteToggle";
 import {
   Building2,
   Calendar,
@@ -38,7 +39,7 @@ export default async function LecturerProfilePage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-ukm-navy">Profil Saya</h1>
-        <p className="text-sm text-slate-500">Maklumat akaun anda di UKMFolio.</p>
+        <p className="text-sm text-slate-500">Maklumat akaun anda di SmartCollab.</p>
       </div>
 
       <article className="card-elevated">
@@ -87,6 +88,8 @@ export default async function LecturerProfilePage() {
           <p className="text-xs uppercase tracking-wider text-slate-500">Tugasan Dimarkah</p>
         </div>
       </div>
+
+      <MuteToggle initial={user.notificationsMuted} />
 
       <form action="/logout" method="POST">
         <button type="submit" className="btn-danger">

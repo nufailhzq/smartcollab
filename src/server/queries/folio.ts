@@ -84,17 +84,37 @@ const POST_INCLUDE = {
 export async function getFolioFeed(viewerId: number, take = 50) {
   const visibility = await buildVisibilityWhere(viewerId);
   return prisma.folioPost.findMany({
-    where: visibility,
+    where: {
+      AND: [
+        visibility,
+        { archivedAt: null },
+        // Hide reposts of archived parents too.
+        { OR: [{ parentId: null }, { parent: { archivedAt: null } }] },
+      ],
+    },
     include: POST_INCLUDE,
     orderBy: { createdAt: "desc" },
     take,
   });
 }
 
-export async function getFolioPostsByAuthor(viewerId: number, authorId: number, take = 50) {
+/**
+ * Posts authored by `authorId` that `viewerId` can see.
+ * - When `includeArchived` is false (default) → hides archived posts.
+ * - When `includeArchived` is true (owner viewing their own archive) → shows
+ *   archived posts too. Only honored when viewer === author for safety.
+ */
+export async function getFolioPostsByAuthor(
+  viewerId: number,
+  authorId: number,
+  take = 50,
+  includeArchived = false,
+) {
   const visibility = await buildVisibilityWhere(viewerId);
+  const archivedFilter =
+    includeArchived && viewerId === authorId ? {} : { archivedAt: null };
   return prisma.folioPost.findMany({
-    where: { AND: [visibility, { authorId }] },
+    where: { AND: [visibility, { authorId }, archivedFilter] },
     include: POST_INCLUDE,
     orderBy: { createdAt: "desc" },
     take,

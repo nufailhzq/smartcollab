@@ -42,6 +42,7 @@ export default async function FolioPostDetailPage({ params }: Props) {
     content: p.content,
     visibility: p.visibility,
     isRepost: p.isRepost,
+    archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
     createdAt: p.createdAt.toISOString(),
     author: {
       id: p.author.id,

@@ -62,6 +62,7 @@ export async function Navbar() {
   let chatGroups: Awaited<ReturnType<typeof getChatGroupsForUser>> = [];
   let avatarPath: string | null = null;
   let mutedIds: number[] = [];
+  let notificationsMuted = false;
 
   try {
     const [_n, _un, _c, _tu, _pr, _cg, userRow, mutes] = await Promise.all([
@@ -71,7 +72,10 @@ export async function Navbar() {
       getTotalUnreadForUser(userId),
       getPendingFriendRequests(userId),
       getChatGroupsForUser(userId),
-      prisma.user.findUnique({ where: { id: userId }, select: { avatarPath: true } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatarPath: true, notificationsMuted: true },
+      }),
       prisma.userMute.findMany({
         where: { muterId: userId },
         select: { mutedId: true },
@@ -84,6 +88,7 @@ export async function Navbar() {
     pendingRequests = _pr;
     chatGroups = _cg;
     avatarPath = userRow?.avatarPath ?? null;
+    notificationsMuted = userRow?.notificationsMuted ?? false;
     mutedIds = mutes.map((m) => m.mutedId);
   } catch (error) {
     console.error("Navbar database query failed:", error);
@@ -99,7 +104,11 @@ export async function Navbar() {
 
   return (
     <>
-      <MessageStream currentUserId={userId} mutedIds={mutedIds} />
+      <MessageStream
+        currentUserId={userId}
+        mutedIds={mutedIds}
+        notificationsMuted={notificationsMuted}
+      />
       <header className="glass sticky top-0 z-30 border-b border-slate-200/70 shadow-sm">
         <div className="flex h-16 items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2">
@@ -145,6 +154,7 @@ export async function Navbar() {
 
             <NotificationBell
               initialUnreadCount={unreadNotifications}
+              notificationsMuted={notificationsMuted}
               initialNotifications={notifications.map((n) => ({
                 id: n.id,
                 title: n.title,

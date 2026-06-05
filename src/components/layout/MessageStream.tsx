@@ -35,18 +35,25 @@ type StreamEvent =
 export function MessageStream({
   currentUserId,
   mutedIds,
+  notificationsMuted = false,
 }: {
   currentUserId: number;
   mutedIds: number[];
+  /** Master mute — when true: no sound, no toast, no auto-open. */
+  notificationsMuted?: boolean;
 }) {
   const toast = useToast();
   const mutedRef = useRef(new Set(mutedIds));
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const muteAllRef = useRef(notificationsMuted);
 
   // Refresh muted set if the prop changes (e.g. user just toggled mute).
   useEffect(() => {
     mutedRef.current = new Set(mutedIds);
   }, [mutedIds]);
+  useEffect(() => {
+    muteAllRef.current = notificationsMuted;
+  }, [notificationsMuted]);
 
   useEffect(() => {
     if (currentUserId <= 0) return;
@@ -68,8 +75,8 @@ export function MessageStream({
         return;
       }
 
-      // New message — play sound + dispatch (unless muted)
-      const muted = mutedRef.current.has(payload.senderId);
+      // New message — play sound + dispatch (unless per-contact OR all muted)
+      const muted = mutedRef.current.has(payload.senderId) || muteAllRef.current;
       if (!muted) {
         playTing();
         toast.push({

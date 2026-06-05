@@ -403,6 +403,47 @@ export async function toggleFolioReaction(
 }
 
 // ---------------------------------------------------------------------------
+// Archive: post owner hides their post from feed/profile without deleting it.
+// ---------------------------------------------------------------------------
+
+const archiveSchema = z.object({
+  postId: z.number().int().positive(),
+  archive: z.boolean(),
+});
+
+export async function toggleArchiveFolioPost(
+  raw: unknown,
+): Promise<ActionResult<{ archived: boolean }>> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const parsed = archiveSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const post = await prisma.folioPost.findUnique({
+    where: { id: parsed.data.postId },
+    select: { id: true, authorId: true, archivedAt: true, isRepost: true },
+  });
+  if (!post) return { ok: false, error: "Pos tidak wujud." };
+  if (post.authorId !== session.user.id) {
+    return { ok: false, error: "Anda hanya boleh arkib pos anda sendiri." };
+  }
+  if (post.isRepost) {
+    return { ok: false, error: "Repost tidak boleh diarkib — padam sahaja." };
+  }
+
+  await prisma.folioPost.update({
+    where: { id: post.id },
+    data: { archivedAt: parsed.data.archive ? new Date() : null },
+  });
+
+  bumpCaches();
+  return { ok: true, data: { archived: parsed.data.archive } };
+}
+
+// ---------------------------------------------------------------------------
 // Moderation: report a post (anyone) → admin can delete or dismiss
 // ---------------------------------------------------------------------------
 

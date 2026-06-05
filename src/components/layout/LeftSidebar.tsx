@@ -15,7 +15,6 @@ import {
   Megaphone,
   Menu,
   Upload,
-  User,
   Users,
   X,
 } from "lucide-react";
@@ -31,7 +30,6 @@ const STUDENT_TABS: Tab[] = [
   { href: "/student/tugasan", label: "Tugasan", Icon: Upload },
   { href: "/folio", label: "Folio Connect", Icon: Hash },
   { href: "/student/kalendar", label: "Kalendar", Icon: Calendar },
-  { href: "/student/profil", label: "Profil", Icon: User },
 ];
 
 const LECTURER_TABS: Tab[] = [
@@ -42,7 +40,6 @@ const LECTURER_TABS: Tab[] = [
   { href: "/lecturer/pemantauan", label: "Progress Monitoring", Icon: BarChart3 },
   { href: "/folio", label: "Folio Connect", Icon: Hash },
   { href: "/lecturer/kalendar", label: "Kalendar", Icon: Calendar },
-  { href: "/lecturer/profil", label: "Profil", Icon: User },
 ];
 
 const ADMIN_TABS: Tab[] = [
@@ -73,6 +70,30 @@ export function LeftSidebar({ role, courses }: Props) {
   const courseHrefBase = role === "STUDENT" ? "/student/kursus/" : "/lecturer/kursus/";
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Compact mode hides the dashboard nav tabs but keeps the course list
+  // visible. Toggled by clicking the hamburger inside the desktop sidebar.
+  const [compact, setCompact] = useState(false);
+
+  // Restore compact preference from localStorage on first mount.
+  useEffect(() => {
+    try {
+      setCompact(localStorage.getItem("ukmfolio-sidebar-compact") === "1");
+    } catch {
+      /* private mode */
+    }
+  }, []);
+
+  function toggleCompact() {
+    setCompact((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("ukmfolio-sidebar-compact", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   // Close drawer on navigation
   useEffect(() => {
@@ -103,11 +124,13 @@ export function LeftSidebar({ role, courses }: Props) {
 
   const body = (
     <>
-      <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider sidebar-section">
-        Papan Pemuka
-      </p>
-      <nav className="mb-6 space-y-1">
-        {tabs.map((tab) => {
+      {!compact && (
+        <>
+          <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider sidebar-section">
+            Papan Pemuka
+          </p>
+          <nav className="mb-6 space-y-1">
+            {tabs.map((tab) => {
           const active = isActive(tab);
           const Icon = tab.Icon;
           return (
@@ -133,6 +156,8 @@ export function LeftSidebar({ role, courses }: Props) {
           );
         })}
       </nav>
+        </>
+      )}
 
       {courses.length > 0 && (
         <>
@@ -187,9 +212,19 @@ export function LeftSidebar({ role, courses }: Props) {
       {/* Desktop sidebar — uses .glass so it follows the active theme */}
       <aside className="glass hidden w-72 shrink-0 border-r border-l-0 border-t-0 border-b-0 md:block">
         <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto p-4">
-          <div className="mb-6 flex items-center gap-2 sidebar-header">
-            <Menu size={18} />
-            <span className="text-sm font-bold">Navigasi</span>
+          <div className="mb-6 flex items-center justify-between sidebar-header">
+            <button
+              type="button"
+              onClick={toggleCompact}
+              aria-label={compact ? "Tunjuk navigasi" : "Sembunyikan navigasi"}
+              title={compact ? "Tunjuk navigasi" : "Sembunyikan navigasi"}
+              className="flex items-center gap-2 rounded-lg p-1 transition hover:bg-[color-mix(in_oklab,var(--text)_8%,transparent)]"
+            >
+              <Menu size={18} />
+              <span className="text-sm font-bold">
+                {compact ? "Kursus" : "Navigasi"}
+              </span>
+            </button>
           </div>
           {body}
         </div>

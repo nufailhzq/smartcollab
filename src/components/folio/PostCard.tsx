@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   Flag,
   Globe2,
   MessageCircle,
@@ -21,6 +23,7 @@ import { CommentSection, type CommentRow } from "./CommentSection";
 import {
   deleteFolioPost,
   reportFolioPost,
+  toggleArchiveFolioPost,
   toggleRepost,
 } from "@/server/actions/folio";
 
@@ -48,6 +51,8 @@ export type PostCardData = {
   content: string;
   visibility: "PUBLIC" | "FACULTY" | "FRIENDS";
   isRepost: boolean;
+  /** Set when the owner archives the post. Profile-archive view shows these. */
+  archivedAt?: string | null;
   createdAt: string;
   author: Author;
   images: Image[];
@@ -158,6 +163,17 @@ export function PostCard({
     });
   }
 
+  function onToggleArchive() {
+    const archiving = !post.archivedAt;
+    startTransition(async () => {
+      const res = await toggleArchiveFolioPost({
+        postId: post.id,
+        archive: archiving,
+      });
+      if (!res.ok) alert(res.error);
+    });
+  }
+
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportSent, setReportSent] = useState(false);
@@ -254,6 +270,29 @@ export function PostCard({
               </button>
               {openMenu && (
                 <div className="absolute right-0 z-10 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lift">
+                  {isOwn && !post.isRepost && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(false);
+                        onToggleArchive();
+                      }}
+                      disabled={isPending}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      {post.archivedAt ? (
+                        <>
+                          <ArchiveRestore size={14} className="text-emerald-600" />
+                          Buka arkib
+                        </>
+                      ) : (
+                        <>
+                          <Archive size={14} className="text-slate-500" />
+                          Arkibkan pos
+                        </>
+                      )}
+                    </button>
+                  )}
                   {isOwn || (reposter && reposter.id === currentUserId) ? (
                     <button
                       type="button"
