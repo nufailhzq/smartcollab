@@ -64,13 +64,13 @@ export function LoginForm() {
             />
           </div>
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-sm">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight text-white drop-shadow-sm">
           <span className="text-white">Smart</span>
           <span className="bg-gradient-to-r from-ukm-orange to-orange-400 bg-clip-text text-transparent">
             Collab
           </span>
         </h1>
-        <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.32em] text-white/70">
+        <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.32em] text-white/70">
           <Sparkles size={11} className="text-ukm-cyan" />
           UKMFolio Enhancement
         </p>

@@ -6,7 +6,7 @@
   "Login": {
     "title": "Log Masuk",
     "matric": "No. Matrik",
-    "matricPlaceholder": "Cth: A201762",
+    "matricPlaceholder": "Cth: A123456",
     "password": "Kata laluan",
     "passwordPlaceholder": "Masukkan kata laluan anda",
     "remember": "Ingatan saya",

@@ -20,6 +20,7 @@ import {
   createTimetableEntry,
   deleteCalendarEvent,
   deleteTimetableEntry,
+  updateEventReminder,
 } from "@/server/actions/calendar";
 import { formatDate } from "@/lib/utils";
 
@@ -188,6 +189,7 @@ export function CalendarView({
   }
 
   function onDelete(eventId: number) {
+    if (!confirm("Padam acara ini?")) return;
     startTransition(async () => {
       const res = await deleteCalendarEvent({ eventId });
       if (!res.ok) {
@@ -195,6 +197,24 @@ export function CalendarView({
         return;
       }
       toast.push({ kind: "success", message: "Acara dipadam." });
+      router.refresh();
+    });
+  }
+
+  // Inline reminder editor — open one popover at a time, keyed by event id.
+  const [reminderOpenFor, setReminderOpenFor] = useState<number | null>(null);
+  function onChangeReminder(eventId: number, minutes: number) {
+    startTransition(async () => {
+      const res = await updateEventReminder(eventId, minutes);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({
+        kind: "success",
+        message: minutes > 0 ? "Peringatan dikemas kini." : "Peringatan dipadam.",
+      });
+      setReminderOpenFor(null);
       router.refresh();
     });
   }
@@ -371,7 +391,7 @@ export function CalendarView({
 
                 {showTooltip && (
                   <div
-                    className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 w-64 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-lift-lg animate-fade-in"
+                    className="absolute left-1/2 top-full z-20 mt-1 w-72 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-lift-lg animate-fade-in"
                     role="tooltip"
                   >
                     <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-ukm-navy">
@@ -379,20 +399,40 @@ export function CalendarView({
                     </p>
                     <ul className="space-y-1.5">
                       {dayEvents.map((e) => (
-                        <li key={`tt-e-${e.id}`} className="text-xs">
-                          <p className="font-semibold text-ukm-teal">
-                            {e.time.slice(0, 5)} · {e.title}
-                          </p>
-                          {e.courseCode && (
-                            <p className="text-[10px] text-slate-500">
-                              [{e.courseCode}]
+                        <li
+                          key={`tt-e-${e.id}`}
+                          className="flex items-start justify-between gap-2 text-xs"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-ukm-teal">
+                              {e.time.slice(0, 5)} · {e.title}
                             </p>
-                          )}
-                          {e.description && (
-                            <p className="text-[10px] text-slate-500">
-                              {e.description.slice(0, 80)}
-                              {e.description.length > 80 ? "…" : ""}
-                            </p>
+                            {e.courseCode && (
+                              <p className="text-[10px] text-slate-500">
+                                [{e.courseCode}]
+                              </p>
+                            )}
+                            {e.description && (
+                              <p className="text-[10px] text-slate-500">
+                                {e.description.slice(0, 80)}
+                                {e.description.length > 80 ? "…" : ""}
+                              </p>
+                            )}
+                          </div>
+                          {e.isMine && (
+                            <button
+                              type="button"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                onDelete(e.id);
+                              }}
+                              disabled={isPending}
+                              title="Padam acara"
+                              aria-label="Padam acara"
+                              className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-ukm-red"
+                            >
+                              <Trash2 size={11} />
+                            </button>
                           )}
                         </li>
                       ))}
@@ -439,23 +479,24 @@ export function CalendarView({
             {upcomingEvents.map((e) => (
               <li
                 key={e.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                className="relative flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
               >
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium">{e.title}</p>
                     {e.courseCode && (
                       <span className="rounded bg-ukm-orange/15 px-1.5 py-0.5 font-mono text-[10px] text-ukm-orange">
                         {e.courseCode}
                       </span>
                     )}
-                    {e.notifyBeforeMinutes != null && (
-                      <span
-                        title={`Peringatan ${formatMinutes(e.notifyBeforeMinutes)} sebelum`}
-                        className="inline-flex items-center gap-0.5 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700"
-                      >
+                    {e.notifyBeforeMinutes != null ? (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">
                         <Bell size={9} />
                         {formatMinutes(e.notifyBeforeMinutes)}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">
+                        Tiada peringatan
                       </span>
                     )}
                   </div>
@@ -467,14 +508,68 @@ export function CalendarView({
                   )}
                 </div>
                 {e.isMine && (
-                  <button
-                    onClick={() => onDelete(e.id)}
-                    disabled={isPending}
-                    className="rounded-md p-1.5 text-slate-500 hover:bg-red-500/20 hover:text-ukm-red"
-                    aria-label="Padam acara"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() =>
+                        setReminderOpenFor((cur) => (cur === e.id ? null : e.id))
+                      }
+                      disabled={isPending}
+                      title="Set peringatan"
+                      aria-label="Set peringatan"
+                      className="rounded-md p-1.5 text-slate-500 hover:bg-purple-100 hover:text-purple-700"
+                    >
+                      <Bell size={14} />
+                    </button>
+                    <button
+                      onClick={() => onDelete(e.id)}
+                      disabled={isPending}
+                      title="Padam acara"
+                      aria-label="Padam acara"
+                      className="rounded-md p-1.5 text-slate-500 hover:bg-red-500/20 hover:text-ukm-red"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {reminderOpenFor === e.id && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setReminderOpenFor(null)}
+                      aria-hidden
+                    />
+                    <div className="absolute right-3 top-full z-40 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lift animate-fade-in">
+                      <p className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Set peringatan
+                      </p>
+                      <ul>
+                        {NOTIFY_PRESETS.map((p) => {
+                          const isActive =
+                            (e.notifyBeforeMinutes ?? 0) === p.minutes;
+                          return (
+                            <li key={p.minutes}>
+                              <button
+                                type="button"
+                                onClick={() => onChangeReminder(e.id, p.minutes)}
+                                disabled={isPending}
+                                className={`flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs transition hover:bg-purple-50 ${
+                                  isActive
+                                    ? "font-bold text-purple-700"
+                                    : "text-slate-700"
+                                }`}
+                              >
+                                {isActive && (
+                                  <span className="text-purple-600">✓</span>
+                                )}
+                                <span>{p.label}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </>
                 )}
               </li>
             ))}

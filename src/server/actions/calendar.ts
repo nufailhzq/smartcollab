@@ -119,6 +119,65 @@ export async function deleteCalendarEvent(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
+/**
+ * Change the reminder on an existing event. Pass null to clear it.
+ * Resets `notifiedAt` if the new cutoff is still in the future so the
+ * dispatcher can fire on the new schedule.
+ */
+export async function updateEventReminder(
+  rawEventId: unknown,
+  rawMinutes: unknown,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const eventId = Number(rawEventId);
+  if (!Number.isInteger(eventId) || eventId <= 0) {
+    return { ok: false, error: "Input tidak sah." };
+  }
+  const raw = Number(rawMinutes);
+  const minutes = Number.isInteger(raw) && raw > 0 ? raw : null;
+
+  const event = await prisma.calendarEvent.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      createdById: true,
+      date: true,
+      time: true,
+    },
+  });
+  if (!event) return { ok: false, error: "Acara tidak wujud." };
+  if (event.createdById !== session.user.id && session.user.role !== "ADMIN") {
+    return { ok: false, error: "Tidak dibenarkan." };
+  }
+
+  // Compute whether the new cutoff has already passed — if so, mark
+  // `notifiedAt` to suppress a stale ping; otherwise clear it so the
+  // dispatcher gets a fresh shot.
+  let notifiedAt: Date | null = null;
+  if (minutes !== null) {
+    const eventInstant = new Date(event.date);
+    const [hh, mm] = (event.time || "00:00").split(":").map(Number);
+    eventInstant.setHours(hh ?? 0, mm ?? 0, 0, 0);
+    const cutoff = new Date(eventInstant.getTime() - minutes * 60_000);
+    if (cutoff < new Date()) notifiedAt = new Date();
+  }
+
+  await prisma.calendarEvent.update({
+    where: { id: eventId },
+    data: {
+      notifyBeforeMinutes: minutes,
+      reminder: minutes !== null,
+      notifiedAt,
+    },
+  });
+
+  revalidatePath("/student/kalendar");
+  revalidatePath("/lecturer/kalendar");
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Per-student weekly timetable (private to the student who created it)
 // ---------------------------------------------------------------------------

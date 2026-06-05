@@ -6,7 +6,7 @@
   "Login": {
     "title": "Sign in",
     "matric": "Matric No.",
-    "matricPlaceholder": "e.g. A201762",
+    "matricPlaceholder": "e.g. A123456",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
     "remember": "Remember me",
