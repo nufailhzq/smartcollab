@@ -71,6 +71,27 @@ services:
       - app_uploads:/app/public/uploads
 
   # ---------------------------------------------------------------------------
+  # phpMyAdmin — bound to the droplet's loopback only. Reach it from Windows
+  # by opening an SSH tunnel:
+  #   ssh -L 8081:127.0.0.1:8081 root@<droplet-ip>
+  # then browse to http://localhost:8081
+  # ---------------------------------------------------------------------------
+  pma:
+    image: phpmyadmin/phpmyadmin:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      # 30 MB upload so we can import/export SmartCollab seed dumps without
+      # tripping the default 2 MB cap.
+      UPLOAD_LIMIT: 30M
+    ports:
+      - "127.0.0.1:8081:80"
+
+  # ---------------------------------------------------------------------------
   # Caddy — HTTPS reverse proxy with automatic Let's Encrypt certificates
   # ---------------------------------------------------------------------------
   caddy:
