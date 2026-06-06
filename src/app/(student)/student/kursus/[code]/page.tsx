@@ -225,6 +225,25 @@ export default async function CourseDetailPage({
                     {n.fileSize ? ` · ${n.fileSize}` : ""} · {formatDate(n.postedAt)}
                   </p>
                 </div>
+                {n.filePath && (
+                  <div className="flex gap-1">
+                    <a
+                      href={n.filePath}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-ukm-teal px-3 py-1.5 text-xs font-semibold text-white shadow-soft hover:bg-sky-600"
+                    >
+                      Lihat
+                    </a>
+                    <a
+                      href={n.filePath}
+                      download={n.fileName ?? undefined}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
+                    >
+                      Muat turun
+                    </a>
+                  </div>
+                )}
               </article>
             ))
           )}

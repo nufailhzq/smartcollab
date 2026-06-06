@@ -77,15 +77,16 @@ export function CourseAuthoring({ courseId, mode }: Props) {
               defaultType="NOTES"
               showFileName={true}
               pending={pending}
-              onSubmit={(values, type) =>
+              onSubmit={(values, type, file) =>
                 startTransition(async () => {
-                  const res = await createCourseContent({
-                    courseId,
-                    type,
-                    title: values.title,
-                    content: values.content,
-                    fileName: values.fileName,
-                  });
+                  const fd = new FormData();
+                  fd.set("courseId", String(courseId));
+                  fd.set("type", type);
+                  fd.set("title", values.title);
+                  fd.set("content", values.content);
+                  if (values.fileName) fd.set("fileName", values.fileName);
+                  if (file) fd.set("file", file);
+                  const res = await createCourseContent(fd);
                   if (!res.ok) {
                     toast.push({ kind: "error", message: res.error });
                     return;
@@ -143,18 +144,22 @@ function ContentForm({
   onSubmit: (
     values: { title: string; content: string; fileName?: string },
     type: "GENERAL" | "NOTES" | "ANNOUNCEMENT" | "FILE" | "FORUM",
+    file: File | null,
   ) => void;
 }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [type, setType] = useState<"GENERAL" | "NOTES" | "ANNOUNCEMENT" | "FILE" | "FORUM">(
     defaultType,
   );
 
   const handle = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit({ title, content, fileName }, type);
+    // Auto-fill label from real file when both are empty
+    const label = fileName || file?.name || "";
+    onSubmit({ title, content, fileName: label }, type, file);
   };
 
   return (
@@ -207,17 +212,39 @@ function ContentForm({
         />
       </div>
       {showFileName && (
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-ukm-navy">
-            Nama Fail (opsyenal)
-          </label>
-          <input
-            value={fileName}
-            onChange={(e) => setFileName(e.target.value)}
-            maxLength={200}
-            className="input-base"
-            placeholder="contoh: Bab1_Pengenalan.pdf"
-          />
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+              Fail (PDF / DOC / DOCX, maks 25MB)
+            </label>
+            <input
+              type="file"
+              accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.doc,.docx"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setFile(f);
+                if (f && !fileName) setFileName(f.name);
+              }}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-ukm-teal file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-sky-600"
+            />
+            {file && (
+              <p className="mt-1 text-[10px] text-slate-500">
+                📎 {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+              Nama paparan (opsyenal — diisi automatik dari nama fail)
+            </label>
+            <input
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              maxLength={200}
+              className="input-base"
+              placeholder="contoh: Bab1_Pengenalan.pdf"
+            />
+          </div>
         </div>
       )}
       <div className="flex justify-end gap-2">

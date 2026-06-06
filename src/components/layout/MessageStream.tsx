@@ -75,8 +75,21 @@ export function MessageStream({
         return;
       }
 
-      // New message — play sound + dispatch (unless per-contact OR all muted)
-      const muted = mutedRef.current.has(payload.senderId) || muteAllRef.current;
+      // New message — play sound + dispatch (unless per-contact, all muted,
+      // or the receiver is already looking at this DM right now).
+      const activePartner =
+        typeof window !== "undefined"
+          ? Number(
+              (window as unknown as { __ukmfolioActivePartner?: number })
+                .__ukmfolioActivePartner ?? 0,
+            )
+          : 0;
+      const viewingThisChat = activePartner === payload.senderId;
+
+      const muted =
+        viewingThisChat ||
+        mutedRef.current.has(payload.senderId) ||
+        muteAllRef.current;
       if (!muted) {
         playTing();
         toast.push({

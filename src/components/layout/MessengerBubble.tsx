@@ -37,6 +37,7 @@ import {
   acceptChatRequest,
   deleteMessage,
   loadConversation,
+  markMessagesRead,
   rejectChatRequest,
   sendMessage,
   type ConversationPayload,
@@ -279,7 +280,9 @@ export function MessengerBubble({
       if (!detail) return;
 
       // If the existing conversation with this sender is already open,
-      // append the new message in place so the user sees it without a refresh.
+      // append the new message in place AND mark it read server-side so the
+      // notification bell + sender's ticks update. No banner, no sound — the
+      // user is already looking at the chat.
       if (
         view === "conversation" &&
         conversation?.partner.id === detail.senderId
@@ -307,6 +310,8 @@ export function MessengerBubble({
               }
             : prev,
         );
+        // Persist read state asynchronously.
+        void markMessagesRead({ fromUserId: detail.senderId });
         return;
       }
 
@@ -372,6 +377,21 @@ export function MessengerBubble({
       cancelled = true;
     };
   }, [view, conversation?.partner.id]);
+
+  // Expose the active DM partner ID + bubble-open flag on window so the live
+  // stream can suppress sound / toast when the user is already looking here.
+  useEffect(() => {
+    const activeId =
+      open && view === "conversation" && conversation
+        ? conversation.partner.id
+        : 0;
+    (window as unknown as { __ukmfolioActivePartner?: number })
+      .__ukmfolioActivePartner = activeId;
+    return () => {
+      (window as unknown as { __ukmfolioActivePartner?: number })
+        .__ukmfolioActivePartner = 0;
+    };
+  }, [open, view, conversation?.partner.id]);
 
   // Debounce friend search.
   useEffect(() => {

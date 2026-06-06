@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Clock,
   MapPin,
+  Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   createTimetableEntry,
   deleteCalendarEvent,
   deleteTimetableEntry,
+  updateCalendarEvent,
   updateEventReminder,
 } from "@/server/actions/calendar";
 import { formatDate } from "@/lib/utils";
@@ -117,6 +119,7 @@ export function CalendarView({
   const [openCreate, setOpenCreate] = useState(false);
   const [openTimetable, setOpenTimetable] = useState(false);
   const [createDateISO, setCreateDateISO] = useState<string | null>(null);
+  const [editing, setEditing] = useState<EventItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [hoverKey, setHoverKey] = useState<string | null>(null);
 
@@ -197,6 +200,30 @@ export function CalendarView({
         return;
       }
       toast.push({ kind: "success", message: "Acara dipadam." });
+      router.refresh();
+    });
+  }
+
+  function onEditSubmit(formData: FormData) {
+    if (!editing) return;
+    const title = String(formData.get("title") ?? "").trim();
+    const description = String(formData.get("description") ?? "").trim() || null;
+    const date = String(formData.get("date") ?? "");
+    const time = String(formData.get("time") ?? "00:00");
+    startTransition(async () => {
+      const res = await updateCalendarEvent({
+        eventId: editing.id,
+        title,
+        description,
+        date,
+        time: time.length === 5 ? `${time}:00` : time,
+      });
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({ kind: "success", message: "Acara dikemas kini." });
+      setEditing(null);
       router.refresh();
     });
   }
@@ -510,6 +537,15 @@ export function CalendarView({
                 {e.isMine && (
                   <div className="flex shrink-0 items-center gap-1">
                     <button
+                      onClick={() => setEditing(e)}
+                      disabled={isPending}
+                      title="Edit acara"
+                      aria-label="Edit acara"
+                      className="rounded-md p-1.5 text-slate-500 hover:bg-sky-100 hover:text-ukm-teal"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
                       onClick={() =>
                         setReminderOpenFor((cur) => (cur === e.id ? null : e.id))
                       }
@@ -668,6 +704,90 @@ export function CalendarView({
             </p>
           </div>
         </form>
+      </Modal>
+
+      {/* --- Edit existing event --- */}
+      <Modal
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title="Edit Acara"
+        footer={
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setEditing(null)} className="btn-secondary text-sm">
+              Batal
+            </button>
+            <button
+              type="submit"
+              form="edit-event-form"
+              disabled={isPending}
+              className="btn-primary inline-flex items-center gap-2 text-sm"
+            >
+              {isPending && <LoadingSpinner />}
+              Simpan
+            </button>
+          </div>
+        }
+      >
+        {editing && (
+          <form
+            id="edit-event-form"
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onEditSubmit(new FormData(e.currentTarget));
+            }}
+          >
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-wider text-slate-500">
+                Tajuk
+              </label>
+              <input
+                name="title"
+                required
+                defaultValue={editing.title}
+                maxLength={255}
+                className="input-base"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs uppercase tracking-wider text-slate-500">
+                  Tarikh
+                </label>
+                <input
+                  name="date"
+                  type="date"
+                  required
+                  defaultValue={editing.date.slice(0, 10)}
+                  className="input-base"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs uppercase tracking-wider text-slate-500">
+                  Masa
+                </label>
+                <input
+                  name="time"
+                  type="time"
+                  defaultValue={editing.time.slice(0, 5)}
+                  className="input-base"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-wider text-slate-500">
+                Penerangan (pilihan)
+              </label>
+              <textarea
+                name="description"
+                rows={3}
+                defaultValue={editing.description ?? ""}
+                maxLength={1000}
+                className="input-base"
+              />
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* --- Timetable manager (students only) --- */}

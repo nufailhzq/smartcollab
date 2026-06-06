@@ -296,6 +296,8 @@ model CourseContent {
   content    String?     @db.Text @map("fld_content")
   fileName   String?     @map("fld_file_name")
   fileSize   String?     @map("fld_file_size")
+  /// Public path to the uploaded note/material (e.g. /uploads/materials/abc.pdf).
+  filePath   String?     @map("fld_file_path")
   postedBy   User?       @relation("PostedBy", fields: [postedById], references: [id])
   postedById Int?        @map("fld_posted_by")
   postedAt   DateTime    @default(now()) @map("fld_posted_at")

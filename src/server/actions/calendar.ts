@@ -8,6 +8,7 @@ import {
   createTimetableEntrySchema,
   deleteEventSchema,
   deleteTimetableEntrySchema,
+  updateEventSchema,
 } from "@/schemas/calendar";
 import type { ActionResult } from "@/schemas/common";
 
@@ -170,6 +171,55 @@ export async function updateEventReminder(
       notifyBeforeMinutes: minutes,
       reminder: minutes !== null,
       notifiedAt,
+    },
+  });
+
+  revalidatePath("/student/kalendar");
+  revalidatePath("/lecturer/kalendar");
+  return { ok: true };
+}
+
+/**
+ * Edit an existing calendar event's title, description, date, and time.
+ * Owner-only (admins allowed). When the date/time changes we clear
+ * `notifiedAt` so the dispatcher gets a fresh shot if a reminder is set.
+ */
+export async function updateCalendarEvent(
+  raw: unknown,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const parsed = updateEventSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Input tidak sah.",
+    };
+  }
+
+  const event = await prisma.calendarEvent.findUnique({
+    where: { id: parsed.data.eventId },
+    select: { id: true, createdById: true, date: true, time: true },
+  });
+  if (!event) return { ok: false, error: "Acara tidak wujud." };
+  if (event.createdById !== session.user.id && session.user.role !== "ADMIN") {
+    return { ok: false, error: "Tidak dibenarkan." };
+  }
+
+  const dateChanged =
+    event.date.toISOString().slice(0, 10) !==
+      parsed.data.date.toISOString().slice(0, 10) ||
+    event.time !== parsed.data.time;
+
+  await prisma.calendarEvent.update({
+    where: { id: event.id },
+    data: {
+      title: parsed.data.title,
+      description: parsed.data.description ?? null,
+      date: parsed.data.date,
+      time: parsed.data.time,
+      ...(dateChanged ? { notifiedAt: null } : {}),
     },
   });
 

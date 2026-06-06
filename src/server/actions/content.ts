@@ -1,5 +1,8 @@
 "use server";
 
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +15,59 @@ import {
 } from "@/schemas/content";
 import type { ActionResult } from "@/schemas/common";
 
+// Allowed document types for course materials (Notes / Materials tabs).
+const ALLOWED_MATERIAL_TYPES = new Set<string>([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+const MAX_MATERIAL_BYTES = 25 * 1024 * 1024; // 25 MB
+const MATERIAL_DIR_REL = "public/uploads/materials";
+const MATERIAL_URL_BASE = "/uploads/materials";
+
+async function saveMaterial(file: File): Promise<
+  | { ok: true; filePath: string; fileName: string; fileSize: string }
+  | { ok: false; error: string }
+> {
+  if (!ALLOWED_MATERIAL_TYPES.has(file.type)) {
+    return {
+      ok: false,
+      error: "Format fail tidak disokong. Gunakan PDF, DOC, atau DOCX.",
+    };
+  }
+  if (file.size > MAX_MATERIAL_BYTES) {
+    return { ok: false, error: "Saiz fail melebihi 25MB." };
+  }
+  const ext = (file.name.split(".").pop() ?? "bin")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const safeExt = ["pdf", "doc", "docx"].includes(ext) ? ext : "bin";
+  const filename = `${Date.now()}-${randomBytes(6).toString("hex")}.${safeExt}`;
+  const abs = path.join(process.cwd(), MATERIAL_DIR_REL);
+  await fs.mkdir(abs, { recursive: true });
+  await fs.writeFile(
+    path.join(abs, filename),
+    Buffer.from(await file.arrayBuffer()),
+  );
+  return {
+    ok: true,
+    filePath: `${MATERIAL_URL_BASE}/${filename}`,
+    fileName: file.name,
+    fileSize: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+  };
+}
+
+async function deleteMaterialFile(publicPath: string) {
+  if (!publicPath.startsWith(MATERIAL_URL_BASE + "/")) return;
+  const filename = publicPath.slice(MATERIAL_URL_BASE.length + 1);
+  if (filename.includes("/") || filename.includes("..")) return;
+  try {
+    await fs.unlink(path.join(process.cwd(), MATERIAL_DIR_REL, filename));
+  } catch {
+    /* missing is fine */
+  }
+}
+
 async function ensureOwnsCourse(courseId: number, lecturerId: number) {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
@@ -21,10 +77,29 @@ async function ensureOwnsCourse(courseId: number, lecturerId: number) {
   return course;
 }
 
-export async function createCourseContent(raw: unknown): Promise<ActionResult> {
+export async function createCourseContent(
+  input: FormData | unknown,
+): Promise<ActionResult> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
   if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
+
+  // Accept both legacy object payload and new FormData (with file).
+  let raw: Record<string, unknown>;
+  let attachment: File | null = null;
+  if (input instanceof FormData) {
+    raw = {
+      courseId: Number(input.get("courseId")),
+      type: String(input.get("type") ?? "GENERAL"),
+      title: String(input.get("title") ?? ""),
+      content: String(input.get("content") ?? ""),
+      fileName: String(input.get("fileName") ?? ""),
+    };
+    const f = input.get("file");
+    if (f instanceof File && f.size > 0) attachment = f;
+  } else {
+    raw = input as Record<string, unknown>;
+  }
 
   const parsed = createCourseContentSchema.safeParse(raw);
   if (!parsed.success) {
@@ -35,13 +110,27 @@ export async function createCourseContent(raw: unknown): Promise<ActionResult> {
   const course = await ensureOwnsCourse(parsed.data.courseId, lecturerId);
   if (!course) return { ok: false, error: "Anda bukan pensyarah kursus ini." };
 
+  // Save the uploaded file (if any). Validates PDF/DOC/DOCX + 25 MB cap.
+  let filePath: string | null = null;
+  let storedFileName = parsed.data.fileName || null;
+  let storedFileSize: string | null = null;
+  if (attachment) {
+    const saved = await saveMaterial(attachment);
+    if (!saved.ok) return { ok: false, error: saved.error };
+    filePath = saved.filePath;
+    storedFileName = saved.fileName;
+    storedFileSize = saved.fileSize;
+  }
+
   await prisma.courseContent.create({
     data: {
       courseId: course.id,
       type: parsed.data.type,
       title: parsed.data.title,
       content: parsed.data.content || null,
-      fileName: parsed.data.fileName || null,
+      fileName: storedFileName,
+      fileSize: storedFileSize,
+      filePath,
       postedById: lecturerId,
     },
   });
@@ -81,6 +170,7 @@ export async function deleteCourseContent(raw: unknown): Promise<ActionResult> {
   }
 
   await prisma.courseContent.delete({ where: { id: content.id } });
+  if (content.filePath) await deleteMaterialFile(content.filePath);
   revalidatePath(`/student/kursus/${content.course.code}`);
   revalidatePath(`/lecturer/kursus/${content.course.code}`);
   return { ok: true };

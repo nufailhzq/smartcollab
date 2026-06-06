@@ -18,6 +18,17 @@ export const createEventSchema = z.object({
 
 export const deleteEventSchema = z.object({ eventId: idSchema });
 
+export const updateEventSchema = z.object({
+  eventId: idSchema,
+  title: z.string().trim().min(1, "Tajuk diperlukan.").max(255),
+  description: z.string().max(1000).optional().nullable(),
+  date: z.coerce.date(),
+  time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Format masa tidak sah.")
+    .default("00:00:00"),
+});
+
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const createTimetableEntrySchema = z
