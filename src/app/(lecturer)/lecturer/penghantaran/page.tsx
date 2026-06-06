@@ -3,6 +3,7 @@ import { getLecturerSubmissions, getTaughtCourses } from "@/server/queries/lectu
 import { EmptyState } from "@/components/common/EmptyState";
 import { GradingPanel } from "./grading-panel";
 import { FilterMenu } from "./filter-menu";
+import { CourseSelect } from "./course-select";
 import { FileCheck } from "lucide-react";
 import type { SubmissionStatus } from "@prisma/client";
 
@@ -71,19 +72,31 @@ export default async function LecturerSubmissionsPage({
         </div>
       </div>
 
-      <div className="card flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">
-          <span className="font-semibold text-ukm-navy">{submissions.length}</span>{" "}
-          penghantaran ditunjukkan
-        </p>
-        <FilterMenu
-          courseCode={courseCode ?? null}
-          assignmentId={assignmentId ?? null}
-          statuses={statuses}
-          type={typeFilter}
-          sort={sort}
-          courses={courses.map((c) => ({ code: c.code, title: c.title }))}
-        />
+      <div className="card flex flex-wrap items-center gap-3">
+        <div className="flex-1">
+          <label className="mb-1 block text-xs font-semibold text-ukm-navy">Kursus</label>
+          <CourseSelect
+            courseCode={courseCode ?? null}
+            assignmentId={assignmentId ?? null}
+            statuses={statuses}
+            type={typeFilter}
+            sort={sort}
+            courses={courses.map((c) => ({ code: c.code, title: c.title }))}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500">
+            <span className="font-semibold text-ukm-navy">{submissions.length}</span>{" "}
+            ditunjukkan
+          </p>
+          <FilterMenu
+            courseCode={courseCode ?? null}
+            assignmentId={assignmentId ?? null}
+            statuses={statuses}
+            type={typeFilter}
+            sort={sort}
+          />
+        </div>
       </div>
 
       {submissions.length === 0 ? (

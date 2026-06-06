@@ -25,30 +25,21 @@ type StatusValue = (typeof STATUS_ITEMS)[number]["value"];
 type TypeValue = (typeof TYPE_ITEMS)[number]["value"];
 type SortValue = (typeof SORT_ITEMS)[number]["value"];
 
-type CourseOption = { code: string; title: string };
-
 type Props = {
   courseCode: string | null;
   assignmentId: number | null;
   statuses: StatusValue[];
   type: TypeValue;
   sort: SortValue;
-  courses: CourseOption[];
 };
 
 /**
  * Single consolidated filter dropdown for the lecturer submissions page.
  * Status is multi-select (tick several at once); Jenis and Susun are single
- * choice. Each change pushes a new URL so the server re-queries.
+ * choice. The course selector is kept separate (its own select). Each change
+ * pushes a new URL so the server re-queries.
  */
-export function FilterMenu({
-  courseCode,
-  assignmentId,
-  statuses,
-  type,
-  sort,
-  courses,
-}: Props) {
+export function FilterMenu({ courseCode, assignmentId, statuses, type, sort }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -70,18 +61,17 @@ export function FilterMenu({
   }, [open]);
 
   function navigate(next: {
-    course?: string | null;
     statuses?: StatusValue[];
     type?: TypeValue;
     sort?: SortValue;
   }) {
-    const nextCourse = next.course !== undefined ? next.course : courseCode;
     const nextStatuses = next.statuses ?? statuses;
     const nextType = next.type ?? type;
     const nextSort = next.sort ?? sort;
 
     const params = new URLSearchParams();
-    if (nextCourse) params.set("course", nextCourse);
+    // Course is chosen via its own select — preserve whatever is active.
+    if (courseCode) params.set("course", courseCode);
     if (assignmentId) params.set("assignment", String(assignmentId));
     if (nextStatuses.length > 0) params.set("status", nextStatuses.join(","));
     if (nextType !== "ALL") params.set("type", nextType);
@@ -97,12 +87,10 @@ export function FilterMenu({
     navigate({ statuses: [...set] });
   }
 
-  // Count of active (non-default) filters for the button badge.
+  // Count of active (non-default) filters for the button badge. Course is
+  // excluded since it has its own select outside this menu.
   const activeCount =
-    (courseCode ? 1 : 0) +
-    statuses.length +
-    (type !== "ALL" ? 1 : 0) +
-    (sort !== "recent" ? 1 : 0);
+    statuses.length + (type !== "ALL" ? 1 : 0) + (sort !== "recent" ? 1 : 0);
 
   return (
     <div className="relative" ref={ref}>
@@ -129,26 +117,7 @@ export function FilterMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1.5 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lift-lg animate-fade-in">
-          <Section title="Kursus">
-            <li className="px-3 pb-2 pt-0.5">
-              <select
-                value={courseCode ?? "ALL"}
-                onChange={(e) =>
-                  navigate({ course: e.target.value === "ALL" ? null : e.target.value })
-                }
-                className="input-base w-full text-xs"
-              >
-                <option value="ALL">Semua kursus</option>
-                {courses.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} — {c.title}
-                  </option>
-                ))}
-              </select>
-            </li>
-          </Section>
-
+        <div className="absolute right-0 z-30 mt-1.5 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lift-lg animate-fade-in">
           <Section title="Status">
             {STATUS_ITEMS.map((it) => (
               <Row
@@ -187,9 +156,7 @@ export function FilterMenu({
           {activeCount > 0 && (
             <button
               type="button"
-              onClick={() =>
-                navigate({ course: null, statuses: [], type: "ALL", sort: "recent" })
-              }
+              onClick={() => navigate({ statuses: [], type: "ALL", sort: "recent" })}
               className="w-full border-t border-slate-100 bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-ukm-red hover:bg-red-50"
             >
               Set semula tapisan

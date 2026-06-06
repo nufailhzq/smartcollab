@@ -719,7 +719,9 @@ async function main() {
           create: {
             assignmentId: a.id,
             studentId,
-            filePath: `/uploads/sub-${a.id}-${studentId}.pdf`,
+            // Point at a real placeholder PDF served by the submissions API so
+            // lecturers can actually open seeded submissions.
+            filePath: "/api/uploads/submissions/sample-submission.pdf",
             status,
             grade,
           },

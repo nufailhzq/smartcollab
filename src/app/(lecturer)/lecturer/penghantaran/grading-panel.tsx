@@ -37,9 +37,16 @@ type Props = {
   submission: Submission;
 };
 
-/** Real uploads are served via the API route; legacy synthetic paths are not. */
-function isDownloadable(filePath: string): boolean {
-  return filePath.startsWith("/api/uploads/submissions/");
+/**
+ * Resolve any stored submission path to a URL the lecturer can open.
+ * - Real uploads already use /api/uploads/submissions/<file>.
+ * - Legacy synthetic paths (/uploads/sub-*.pdf) are routed through the same API
+ *   by their filename; the API falls back to a sample PDF if the file is gone.
+ */
+function downloadHref(filePath: string): string {
+  if (filePath.startsWith("/api/uploads/submissions/")) return filePath;
+  const filename = filePath.split(/[\\/]/).pop() ?? filePath;
+  return `/api/uploads/submissions/${filename}`;
 }
 
 /** Recover the original filename from a stored submission path for display. */
@@ -159,23 +166,16 @@ export function GradingPanel({ submission }: Props) {
       </header>
 
       {submission.filePath && (
-        isDownloadable(submission.filePath) ? (
-          <a
-            href={submission.filePath}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-ukm-teal/30 bg-sky-50 px-3 py-1.5 text-xs font-medium text-ukm-teal transition hover:bg-sky-100"
-          >
-            <FileText size={12} className="shrink-0" />
-            <span className="truncate">{fileDisplayName(submission.filePath)}</span>
-            <Download size={12} className="shrink-0" />
-          </a>
-        ) : (
-          <p className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
-            <FileText size={12} className="text-slate-400" /> {submission.filePath}
-            <span className="ml-1 italic text-slate-400">(fail lama — tiada muat naik)</span>
-          </p>
-        )
+        <a
+          href={downloadHref(submission.filePath)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-ukm-teal/30 bg-sky-50 px-3 py-1.5 text-xs font-medium text-ukm-teal transition hover:bg-sky-100"
+        >
+          <FileText size={12} className="shrink-0" />
+          <span className="truncate">{fileDisplayName(submission.filePath)}</span>
+          <Download size={12} className="shrink-0" />
+        </a>
       )}
 
       {submission.feedback.length > 0 && (
