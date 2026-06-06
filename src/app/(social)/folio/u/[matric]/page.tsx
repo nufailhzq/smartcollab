@@ -48,11 +48,15 @@ export default async function FolioProfilePage({ params }: Props) {
       id: p.author.id,
       name: p.author.name,
       matricNum: p.author.matricNum,
-      avatarPath: p.author.avatarPath,
+      avatarPath: p.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
       faculty: p.author.faculty,
       program: p.author.program,
     },
-    images: p.images.map((i) => ({ id: i.id, imagePath: i.imagePath, position: i.position })),
+    images: p.images.map((i) => ({ 
+      id: i.id, 
+      imagePath: i.imagePath?.replace("/uploads/posts", "/api/uploads/posts") ?? null, 
+      position: i.position 
+    })),
     mentions: p.mentions.map((m) => ({
       id: m.id,
       matricNum: m.matricNum,
@@ -73,13 +77,13 @@ export default async function FolioProfilePage({ params }: Props) {
             id: p.parent.author.id,
             name: p.parent.author.name,
             matricNum: p.parent.author.matricNum,
-            avatarPath: p.parent.author.avatarPath,
+            avatarPath: p.parent.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
             faculty: p.parent.author.faculty,
             program: p.parent.author.program,
           },
           images: p.parent.images.map((i) => ({
             id: i.id,
-            imagePath: i.imagePath,
+            imagePath: i.imagePath?.replace("/uploads/posts", "/api/uploads/posts") ?? null,
             position: i.position,
           })),
           mentions: p.parent.mentions.map((m) => ({
@@ -119,7 +123,7 @@ export default async function FolioProfilePage({ params }: Props) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <Avatar
               name={profile.name}
-              avatarPath={profile.avatarPath}
+              avatarPath={profile.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null}
               size="xl"
               ring
               className="border-4 border-white"
