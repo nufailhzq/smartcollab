@@ -16,10 +16,10 @@ export async function GET(
   
   // Scans all possible Next.js standard paths AND the explicit Docker volume mount
   const pathsToTry = [
-    "/app/public/uploads/avatars/" + filename, // Direct volume target inside container
-    path.join(rootDir, "public/uploads/avatars", filename),
-    path.join(rootDir, "../public/uploads/avatars", filename),
-    path.join(rootDir, ".next/standalone/public/uploads/avatars", filename)
+    "/app/public/uploads/chat/" + filename, // Direct volume target inside container
+    path.join(rootDir, "public/uploads/chat", filename),
+    path.join(rootDir, "../public/uploads/chat", filename),
+    path.join(rootDir, ".next/standalone/public/uploads/chat", filename)
   ];
 
   for (const filePath of pathsToTry) {
@@ -27,9 +27,13 @@ export async function GET(
       const buffer = await fs.readFile(filePath);
       const ext = filename.split(".").pop()?.toLowerCase();
       
-      let mimeType = "image/jpeg";
+      let mimeType = "application/octet-stream";
       if (ext === "png") mimeType = "image/png";
+      else if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
       else if (ext === "webp") mimeType = "image/webp";
+      else if (ext === "gif") mimeType = "image/gif";
+      else if (ext === "mp4") mimeType = "video/mp4";
+      else if (ext === "pdf") mimeType = "application/pdf";
 
       return new NextResponse(buffer, {
         headers: {
@@ -42,5 +46,5 @@ export async function GET(
     }
   }
 
-  return new NextResponse("Avatar not found on storage disk", { status: 404 });
+  return new NextResponse("Chat file not found on storage disk", { status: 404 });
 }
