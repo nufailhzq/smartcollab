@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, Pencil, Plus, Search, Trash2, Users2 } from "lucide-react";
 import { useToast } from "@/components/common/Toast";
 import { Modal } from "@/components/common/Modal";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -230,6 +231,13 @@ export function CourseManager({ courses, lecturers }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <Link
+                          href={`/admin/pemberian?course=${c.id}`}
+                          title="Urus pelajar & pensyarah"
+                          className="rounded p-1.5 text-slate-500 hover:bg-purple-50 hover:text-purple-700"
+                        >
+                          <Users2 size={14} />
+                        </Link>
                         <button
                           type="button"
                           title="Kemaskini"

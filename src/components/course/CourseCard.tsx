@@ -255,9 +255,16 @@ export function CourseCard({
             </div>
           </div>
 
-          {/* Footer: message button */}
-          {lecturerId && (
-            <div className="border-t border-slate-100 bg-slate-50 px-4 py-2.5">
+          {/* Footer: view course + message buttons */}
+          <div className="flex items-center gap-2 border-t border-slate-100 bg-slate-50 px-4 py-2.5">
+            <Link
+              href={href}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r ${theme.button} px-3 py-2 text-xs font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift`}
+            >
+              {ctaLabel}
+              <ArrowRight size={13} />
+            </Link>
+            {lecturerId && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -269,12 +276,12 @@ export function CourseCard({
                     }),
                   );
                 }}
-                className={`flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r ${theme.button} px-3 py-2 text-xs font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift`}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-ukm-navy shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
               >
-                <MessageSquare size={13} /> Mesej Pensyarah
+                <MessageSquare size={13} /> Mesej
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Link>
     );

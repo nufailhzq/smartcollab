@@ -4,23 +4,29 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyMany, notifyUser } from "@/lib/notifications";
-import { submitAssignmentSchema } from "@/schemas/assignment";
+import { saveSubmissionFile } from "@/lib/submission-uploads";
+import { idSchema } from "@/schemas/common";
 import type { ActionResult } from "@/schemas/common";
 
-export async function submitAssignment(raw: unknown): Promise<ActionResult> {
+export async function submitAssignment(formData: FormData): Promise<ActionResult> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
   if (session.user.role !== "STUDENT") {
     return { ok: false, error: "Hanya pelajar boleh menghantar tugasan." };
   }
 
-  const parsed = submitAssignmentSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  const assignmentIdParsed = idSchema.safeParse(Number(formData.get("assignmentId")));
+  if (!assignmentIdParsed.success) {
+    return { ok: false, error: "Tugasan tidak sah." };
+  }
+  const assignmentId = assignmentIdParsed.data;
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Sila lampirkan fail." };
   }
 
   const submitterId = session.user.id;
-  const { assignmentId, filePath } = parsed.data;
 
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
@@ -39,6 +45,11 @@ export async function submitAssignment(raw: unknown): Promise<ActionResult> {
   if (assignment.course.enrollments.length === 0) {
     return { ok: false, error: "Anda tidak berdaftar dalam kursus ini." };
   }
+
+  // Save the uploaded file only after we've confirmed the student may submit.
+  const saved = await saveSubmissionFile(file);
+  if (!saved.ok) return { ok: false, error: saved.error };
+  const filePath = saved.data.path;
 
   const isLate = assignment.dueDate ? new Date() > assignment.dueDate : false;
   const status = isLate ? "LATE" : "SUBMITTED";

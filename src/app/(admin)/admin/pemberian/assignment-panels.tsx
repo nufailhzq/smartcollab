@@ -45,18 +45,22 @@ export function AssignmentPanels({
   students,
   lecturers,
   enrollmentMap,
+  initialCourseId = null,
 }: {
   courses: CourseRow[];
   students: StudentRow[];
   lecturers: LecturerRow[];
   enrollmentMap: Record<number, number[]>;
+  initialCourseId?: number | null;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
 
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(
-    courses[0]?.id ?? null,
+    (initialCourseId && courses.some((c) => c.id === initialCourseId)
+      ? initialCourseId
+      : courses[0]?.id) ?? null,
   );
   const [studentSearch, setStudentSearch] = useState("");
   const [picked, setPicked] = useState<Set<number>>(new Set());
