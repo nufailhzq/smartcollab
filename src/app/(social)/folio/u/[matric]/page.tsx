@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, GraduationCap, Hash } from "lucide-react";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma"; // Imported directly to fetch live data
 import { Avatar } from "@/components/common/Avatar";
 import { PostCard, type PostCardData } from "@/components/folio/PostCard";
 import { FriendButton } from "@/components/folio/FriendButton";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   getFolioPostsByAuthor,
-  getFolioProfile,
   getViewerRepostedParentIds,
 } from "@/server/queries/folio";
 import { getFriendshipStatus } from "@/server/queries/friends";
@@ -22,7 +22,23 @@ export default async function FolioProfilePage({ params }: Props) {
   const viewerId = session!.user.id;
   const matric = params.matric.toUpperCase();
 
-  const profile = await getFolioProfile(matric);
+  // Bypassed getFolioProfile to query core SmartCollab user tables in real-time
+  const profile = await prisma.user.findFirst({
+    where: { matricNum: matric },
+    select: {
+      id: true,
+      name: true,
+      matricNum: true,
+      avatarPath: true, // This now reflects the live main app avatar instantly
+      bio: true,
+      faculty: true,
+      program: true,
+      _count: {
+        select: { folioPosts: true },
+      },
+    },
+  });
+
   if (!profile) notFound();
 
   const [posts, friendStatus] = await Promise.all([
