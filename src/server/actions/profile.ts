@@ -10,7 +10,7 @@ import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES, updateContactSchema } from "@/s
 import type { ActionResult } from "@/schemas/common";
 
 const UPLOAD_DIR_REL = "public/uploads/avatars";
-const PUBLIC_URL_BASE = "/uploads/avatars";
+const PUBLIC_URL_BASE = "/api/uploads/avatars"; // Pointing to our new API endpoint
 
 async function safeDeleteOldAvatar(publicPath: string | null) {
   if (!publicPath) return;
@@ -52,10 +52,6 @@ export async function uploadAvatar(formData: FormData): Promise<ActionResult<{ a
   const abs = path.join(process.cwd(), UPLOAD_DIR_REL);
   
   await fs.mkdir(abs, { recursive: true });
-  
-  // DIAGNOSTIC LOG: This will force the server to print exactly where it is saving the file
-  console.log("!!! SAVING FILE TO THIS EXACT LOCATION !!! ->", path.join(abs, filename));
-  
   await fs.writeFile(path.join(abs, filename), buffer);
 
   const publicPath = `${PUBLIC_URL_BASE}/${filename}`;
