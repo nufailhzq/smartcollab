@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, GraduationCap, Hash } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma"; // Imported directly to fetch live data
+import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/common/Avatar";
 import { PostCard, type PostCardData } from "@/components/folio/PostCard";
 import { FriendButton } from "@/components/folio/FriendButton";
@@ -17,34 +17,54 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: { matric: string } };
 
+// Universal helper to ensure avatars route through the proxy api no matter how they are saved
+function formatAvatarPath(path: string | null | undefined): string | null {
+  if (!path) return null;
+  // If it's already an API route or external link, leave it
+  if (path.startsWith("/api/")) return path;
+  // If it has the old upload path prefix, rewrite it
+  if (path.startsWith("/uploads/")) {
+    return path.replace("/uploads/", "/api/uploads/");
+  }
+  // Catch-all: If it's just a filename or missing a slash, route it correctly
+  if (!path.startsWith("/")) {
+    return `/api/uploads/avatars/${path}`;
+  }
+  return `/api${path}`;
+}
+
 export default async function FolioProfilePage({ params }: Props) {
   const session = await auth();
   const viewerId = session!.user.id;
   const matric = params.matric.toUpperCase();
 
-  // Bypassed getFolioProfile to query core SmartCollab user tables in real-time
+  // Query core User details directly
   const profile = await prisma.user.findFirst({
     where: { matricNum: matric },
     select: {
       id: true,
       name: true,
       matricNum: true,
-      avatarPath: true, // This now reflects the live main app avatar instantly
+      avatarPath: true, 
       bio: true,
       faculty: true,
       program: true,
-      _count: {
-        select: { folioPosts: true },
-      },
     },
   });
 
   if (!profile) notFound();
 
-  const [posts, friendStatus] = await Promise.all([
+  // Safely fetch post counts and timelines independently to prevent relation naming conflicts
+  const [posts, friendStatus, postCount] = await Promise.all([
     getFolioPostsByAuthor(viewerId, profile.id, 100),
     getFriendshipStatus(viewerId, profile.id),
+    prisma.folioPost.count({ where: { authorId: profile.id, archivedAt: null } })
   ]);
+
+  // Debug log in your terminal to see exactly what string your database is holding
+  console.log("=== DEBUG AVATAR SYNC ===");
+  console.log("Raw DB path:", profile.avatarPath);
+  console.log("Formatted path:", formatAvatarPath(profile.avatarPath));
 
   const parentIds = new Set<number>();
   for (const p of posts) {
@@ -64,7 +84,7 @@ export default async function FolioProfilePage({ params }: Props) {
       id: p.author.id,
       name: p.author.name,
       matricNum: p.author.matricNum,
-      avatarPath: p.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
+      avatarPath: formatAvatarPath(p.author.avatarPath),
       faculty: p.author.faculty,
       program: p.author.program,
     },
@@ -93,7 +113,7 @@ export default async function FolioProfilePage({ params }: Props) {
             id: p.parent.author.id,
             name: p.parent.author.name,
             matricNum: p.parent.author.matricNum,
-            avatarPath: p.parent.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
+            avatarPath: formatAvatarPath(p.parent.author.avatarPath),
             faculty: p.parent.author.faculty,
             program: p.parent.author.program,
           },
@@ -139,7 +159,7 @@ export default async function FolioProfilePage({ params }: Props) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <Avatar
               name={profile.name}
-              avatarPath={profile.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null}
+              avatarPath={formatAvatarPath(profile.avatarPath)}
               size="xl"
               ring
               className="border-4 border-white"
@@ -174,7 +194,7 @@ export default async function FolioProfilePage({ params }: Props) {
                 </span>
               )}
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 font-semibold text-ukm-orange">
-                <Hash size={12} /> {profile._count.folioPosts} pos
+                <Hash size={12} /> {postCount} pos
               </span>
             </div>
           </div>
