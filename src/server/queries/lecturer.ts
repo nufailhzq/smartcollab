@@ -48,11 +48,13 @@ export async function getLecturerSubmissions(
   filters: {
     courseId?: number;
     assignmentId?: number;
-    status?: SubmissionStatus | "ALL";
+    /** One or more statuses; empty/undefined means all statuses. */
+    statuses?: SubmissionStatus[];
     sort?: "recent" | "name";
     assignmentType?: "INDIVIDUAL" | "GROUP" | "ALL";
   } = {},
 ) {
+  const statuses = filters.statuses?.filter(Boolean) ?? [];
   const where: Prisma.SubmissionWhereInput = {
     assignment: {
       course: { lecturerId },
@@ -62,7 +64,7 @@ export async function getLecturerSubmissions(
         : {}),
     },
     ...(filters.assignmentId ? { assignmentId: filters.assignmentId } : {}),
-    ...(filters.status && filters.status !== "ALL" ? { status: filters.status } : {}),
+    ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
   };
 
   return prisma.submission.findMany({

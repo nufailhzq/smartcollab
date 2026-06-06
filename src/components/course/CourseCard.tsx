@@ -380,6 +380,15 @@ export function CourseCard({
             </p>
           </div>
         </div>
+
+        {/* CTA inside the overlay so it stays clickable while hovering. */}
+        <Link
+          href={href}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-ukm-teal to-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+        >
+          {ctaLabel}
+          <ArrowRight size={14} />
+        </Link>
       </div>
     </article>
   );
