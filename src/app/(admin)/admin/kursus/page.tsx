@@ -26,6 +26,7 @@ export default async function AdminCoursesPage() {
           id: c.id,
           code: c.code,
           title: c.title,
+          faculty: c.faculty,
           description: c.description,
           semester: c.semester,
           creditHours: c.creditHours,

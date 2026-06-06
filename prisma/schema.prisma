@@ -140,6 +140,8 @@ model Course {
   description   String?  @db.Text
   lecturer      User?    @relation("LecturerCourses", fields: [lecturerId], references: [id])
   lecturerId    Int?     @map("fld_lecturer_id")
+  /// Owning faculty (FTSM, FSSK, FST, CITRA, …). Used to group courses in admin.
+  faculty       String   @default("FTSM") @map("fld_faculty")
   semester      String?  @map("fld_semester")
   creditHours   Int?     @map("fld_credit_hour")
   /// When true, students must request lecturer approval to join or leave a group.

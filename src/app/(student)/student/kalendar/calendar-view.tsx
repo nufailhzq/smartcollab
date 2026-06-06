@@ -5,8 +5,10 @@ import { useRouter, usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock,
   MapPin,
   Pencil,
@@ -289,6 +291,18 @@ export function CalendarView({
   const upcomingEvents = events
     .filter((e) => new Date(e.date) >= new Date(new Date().toDateString()))
     .slice(0, 6);
+
+  // Every event the viewer owns, newest first — so any event (past or future)
+  // can be removed, not just the six upcoming ones.
+  const myEvents = useMemo(
+    () =>
+      events
+        .filter((e) => e.isMine)
+        .slice()
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [events],
+  );
+  const [showAllEvents, setShowAllEvents] = useState(false);
 
   return (
     <div className="space-y-5">
@@ -613,6 +627,84 @@ export function CalendarView({
           </ul>
         )}
       </section>
+
+      {/* --- All my events: remove any event (past or future) --- */}
+      {myEvents.length > 0 && (
+        <section className="card">
+          <button
+            type="button"
+            onClick={() => setShowAllEvents((v) => !v)}
+            className="flex w-full items-center justify-between gap-2"
+          >
+            <h2 className="text-lg font-semibold">
+              Semua Acara Saya
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                {myEvents.length}
+              </span>
+            </h2>
+            {showAllEvents ? (
+              <ChevronUp size={18} className="text-slate-400" />
+            ) : (
+              <ChevronDown size={18} className="text-slate-400" />
+            )}
+          </button>
+          {showAllEvents && (
+            <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
+              {myEvents.map((e) => {
+                const isPast =
+                  new Date(e.date) < new Date(new Date().toDateString());
+                return (
+                  <li
+                    key={`all-${e.id}`}
+                    className={`flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 ${
+                      isPast ? "bg-slate-50 opacity-80" : "bg-white"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium">{e.title}</p>
+                        {e.courseCode && (
+                          <span className="rounded bg-ukm-orange/15 px-1.5 py-0.5 font-mono text-[10px] text-ukm-orange">
+                            {e.courseCode}
+                          </span>
+                        )}
+                        {isPast && (
+                          <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">
+                            Lepas
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {formatDate(e.date)} · {e.time.slice(0, 5)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => setEditing(e)}
+                        disabled={isPending}
+                        title="Edit acara"
+                        aria-label="Edit acara"
+                        className="rounded-md p-1.5 text-slate-500 hover:bg-sky-100 hover:text-ukm-teal"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => onDelete(e.id)}
+                        disabled={isPending}
+                        title="Padam acara"
+                        aria-label="Padam acara"
+                        className="rounded-md p-1.5 text-slate-500 hover:bg-red-500/20 hover:text-ukm-red"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* --- Create Event --- */}
       <Modal

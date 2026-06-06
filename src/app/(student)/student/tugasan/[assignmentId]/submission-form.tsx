@@ -28,29 +28,40 @@ type Props = {
   currentUserId: number;
 };
 
+/** Recover the original filename from a stored submission path for display. */
+function displayName(p: string): string {
+  const tail = p.split(/[\\/]/).pop() ?? p;
+  const idx = tail.indexOf("__");
+  return idx >= 0 ? tail.slice(idx + 2) : tail;
+}
+
 export function SubmissionForm({ assignmentId, existing, isGroupAssignment, currentUserId }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!fileName) {
+    if (!file) {
       toast.push({ kind: "error", message: "Sila pilih fail terlebih dahulu." });
       return;
     }
-    // NOTE: Real file upload is deferred to UploadThing/S3 integration.
-    // For now we record a synthetic path so the persistence test passes.
-    const filePath = `/uploads/sub-${assignmentId}-${Date.now()}-${fileName}`;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.push({ kind: "error", message: "Saiz fail melebihi 10MB." });
+      return;
+    }
+    const formData = new FormData();
+    formData.set("assignmentId", String(assignmentId));
+    formData.set("file", file);
     startTransition(async () => {
-      const res = await submitAssignment({ assignmentId, filePath });
+      const res = await submitAssignment(formData);
       if (!res.ok) {
         toast.push({ kind: "error", message: res.error });
         return;
       }
       toast.push({ kind: "success", message: "Tugasan berjaya dihantar." });
-      setFileName(null);
+      setFile(null);
       router.refresh();
     });
   }
@@ -102,7 +113,15 @@ export function SubmissionForm({ assignmentId, existing, isGroupAssignment, curr
             </p>
           )}
           {existing.filePath && (
-            <p className="mt-1 truncate text-xs text-slate-500">Fail: {existing.filePath}</p>
+            <a
+              href={existing.filePath}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex max-w-full items-center gap-1.5 truncate text-xs font-medium text-ukm-teal hover:underline"
+            >
+              <FileCheck size={12} className="shrink-0" />
+              <span className="truncate">{displayName(existing.filePath)}</span>
+            </a>
           )}
           {existing.feedback.length > 0 && (
             <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
@@ -133,28 +152,24 @@ export function SubmissionForm({ assignmentId, existing, isGroupAssignment, curr
           <Upload className="text-ukm-teal" size={20} />
           <div className="flex-1">
             <p className="text-sm font-medium">
-              {fileName ? fileName : "Klik untuk pilih fail"}
+              {file ? file.name : "Klik untuk pilih fail"}
             </p>
             <p className="text-xs text-slate-500">PDF, DOCX, ZIP — sehingga 10 MB</p>
           </div>
           <input
             type="file"
             className="sr-only"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
         </label>
         <button
           type="submit"
-          disabled={isPending || !fileName}
+          disabled={isPending || !file}
           className="btn-primary inline-flex items-center gap-2"
         >
           {isPending && <LoadingSpinner />}
           {existing ? "Hantar Semula" : "Hantar"}
         </button>
-        <p className="text-[11px] text-slate-400">
-          Nota: muat naik sebenar (UploadThing/S3) akan diintegrasikan kemudian. Buat masa ini, fail
-          direkod sebagai laluan rujukan.
-        </p>
       </form>
     </div>
   );

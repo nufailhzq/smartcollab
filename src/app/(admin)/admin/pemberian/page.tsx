@@ -4,7 +4,11 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { GraduationCap, Layers, Users2 } from "lucide-react";
 import { AssignmentPanels } from "./assignment-panels";
 
-export default async function AdminAssignmentsPage() {
+export default async function AdminAssignmentsPage({
+  searchParams,
+}: {
+  searchParams: { course?: string };
+}) {
   const session = await auth();
   if (session?.user.role !== "ADMIN") {
     return <EmptyState title="Hanya admin dibenarkan." />;
@@ -16,6 +20,7 @@ export default async function AdminAssignmentsPage() {
         id: true,
         code: true,
         title: true,
+        faculty: true,
         lecturerId: true,
         lecturer: { select: { name: true } },
         _count: { select: { enrollments: true } },
@@ -107,6 +112,7 @@ export default async function AdminAssignmentsPage() {
           id: c.id,
           code: c.code,
           title: c.title,
+          faculty: c.faculty,
           lecturerId: c.lecturerId,
           lecturerName: c.lecturer?.name ?? null,
           enrollmentCount: c._count.enrollments,
@@ -124,6 +130,7 @@ export default async function AdminAssignmentsPage() {
           matricNum: l.matricNum,
         }))}
         enrollmentMap={enrollmentMap}
+        initialCourseId={searchParams.course ? Number(searchParams.course) : null}
       />
     </div>
   );

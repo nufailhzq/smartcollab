@@ -46,9 +46,15 @@ export function IdleLogout() {
     // Hard logout exactly at the timeout.
     idleTimerRef.current = setTimeout(() => {
       // Build a hidden form to POST /logout (matches existing LogoutButton).
+      // reason=idle lets the login page show the bilingual timeout notice.
       const form = document.createElement("form");
       form.method = "POST";
       form.action = "/logout";
+      const reason = document.createElement("input");
+      reason.type = "hidden";
+      reason.name = "reason";
+      reason.value = "idle";
+      form.appendChild(reason);
       document.body.appendChild(form);
       form.submit();
     }, IDLE_TIMEOUT_MS);

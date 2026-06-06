@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
+  ChevronDown,
   GraduationCap,
   Search,
   UserMinus,
@@ -16,15 +17,20 @@ import {
   bulkEnrollStudents,
   bulkUnenrollStudents,
 } from "@/server/actions/admin-assignments";
+import { FACULTIES, facultyLabel } from "@/lib/faculties";
 
 type CourseRow = {
   id: number;
   code: string;
   title: string;
+  faculty: string;
   lecturerId: number | null;
   lecturerName: string | null;
   enrollmentCount: number;
 };
+
+/** Filter for the student list: show all, only enrolled, or only not-enrolled. */
+type StudentFilter = "all" | "enrolled" | "unenrolled";
 
 type StudentRow = {
   id: number;
@@ -45,38 +51,83 @@ export function AssignmentPanels({
   students,
   lecturers,
   enrollmentMap,
+  initialCourseId = null,
 }: {
   courses: CourseRow[];
   students: StudentRow[];
   lecturers: LecturerRow[];
   enrollmentMap: Record<number, number[]>;
+  initialCourseId?: number | null;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
 
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(
-    courses[0]?.id ?? null,
+    (initialCourseId && courses.some((c) => c.id === initialCourseId)
+      ? initialCourseId
+      : courses[0]?.id) ?? null,
   );
   const [studentSearch, setStudentSearch] = useState("");
+  const [studentFilter, setStudentFilter] = useState<StudentFilter>("all");
   const [picked, setPicked] = useState<Set<number>>(new Set());
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null;
-  const enrolled = new Set(
-    selectedCourseId ? enrollmentMap[selectedCourseId] ?? [] : [],
+  const enrolled = useMemo(
+    () => new Set(selectedCourseId ? enrollmentMap[selectedCourseId] ?? [] : []),
+    [selectedCourseId, enrollmentMap],
   );
+
+  // Group courses by faculty, in the canonical faculty order, with any unknown
+  // faculty appended at the end so nothing is hidden.
+  const coursesByFaculty = useMemo(() => {
+    const groups = new Map<string, CourseRow[]>();
+    for (const c of courses) {
+      const f = c.faculty || "Lain-lain";
+      if (!groups.has(f)) groups.set(f, []);
+      groups.get(f)!.push(c);
+    }
+    const ordered: { faculty: string; rows: CourseRow[] }[] = [];
+    for (const f of FACULTIES) {
+      if (groups.has(f)) {
+        ordered.push({ faculty: f, rows: groups.get(f)! });
+        groups.delete(f);
+      }
+    }
+    for (const [f, rows] of groups) ordered.push({ faculty: f, rows });
+    return ordered;
+  }, [courses]);
+
+  // Collapsed faculty sections; the section holding the selected course starts open.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  function toggleFaculty(f: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(f)) next.delete(f);
+      else next.add(f);
+      return next;
+    });
+  }
 
   const filteredStudents = useMemo(() => {
     const q = studentSearch.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(
-      (s) =>
+    return students.filter((s) => {
+      if (studentFilter === "enrolled" && !enrolled.has(s.id)) return false;
+      if (studentFilter === "unenrolled" && enrolled.has(s.id)) return false;
+      if (!q) return true;
+      return (
         s.name.toLowerCase().includes(q) ||
-        s.matricNum?.toLowerCase().includes(q) ||
-        s.program?.toLowerCase().includes(q) ||
-        s.faculty?.toLowerCase().includes(q),
-    );
-  }, [students, studentSearch]);
+        Boolean(s.matricNum?.toLowerCase().includes(q)) ||
+        Boolean(s.program?.toLowerCase().includes(q)) ||
+        Boolean(s.faculty?.toLowerCase().includes(q))
+      );
+    });
+  }, [students, studentSearch, studentFilter, enrolled]);
+
+  const enrolledCount = useMemo(
+    () => students.filter((s) => enrolled.has(s.id)).length,
+    [students, enrolled],
+  );
 
   function toggle(id: number) {
     setPicked((prev) => {
@@ -147,49 +198,79 @@ export function AssignmentPanels({
         <header className="border-b border-slate-200 bg-slate-50 px-4 py-2.5">
           <h3 className="text-sm font-bold text-ukm-navy">Pilih Kursus</h3>
         </header>
-        <ul className="max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto">
           {courses.length === 0 ? (
-            <li className="px-4 py-6 text-center text-xs italic text-slate-400">
+            <p className="px-4 py-6 text-center text-xs italic text-slate-400">
               Tiada kursus.
-            </li>
+            </p>
           ) : (
-            courses.map((c) => {
-              const active = c.id === selectedCourseId;
+            coursesByFaculty.map(({ faculty, rows }) => {
+              const isCollapsed = collapsed.has(faculty);
               return (
-                <li key={c.id}>
+                <div key={faculty} className="border-b border-slate-100 last:border-b-0">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedCourseId(c.id);
-                      setPicked(new Set());
-                    }}
-                    className={`flex w-full items-center justify-between gap-2 border-l-4 px-3 py-2.5 text-left transition ${
-                      active
-                        ? "border-ukm-orange bg-orange-50/60"
-                        : "border-transparent hover:bg-slate-50"
-                    }`}
+                    onClick={() => toggleFaculty(faculty)}
+                    className="flex w-full items-center justify-between gap-2 bg-slate-50/80 px-3 py-2 text-left transition hover:bg-slate-100"
+                    title={facultyLabel(faculty)}
                   >
-                    <div className="min-w-0">
-                      <p
-                        className={`font-mono text-xs font-bold ${
-                          active ? "text-ukm-orange" : "text-ukm-navy"
+                    <span className="flex items-center gap-1.5">
+                      <ChevronDown
+                        size={14}
+                        className={`text-slate-400 transition-transform ${
+                          isCollapsed ? "-rotate-90" : ""
                         }`}
-                      >
-                        {c.code}
-                      </p>
-                      <p className="truncate text-[11px] text-slate-500">
-                        {c.title}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
-                      {c.enrollmentCount}
+                      />
+                      <span className="text-xs font-bold text-ukm-navy">{faculty}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                      {rows.length}
                     </span>
                   </button>
-                </li>
+                  {!isCollapsed && (
+                    <ul>
+                      {rows.map((c) => {
+                        const active = c.id === selectedCourseId;
+                        return (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCourseId(c.id);
+                                setPicked(new Set());
+                              }}
+                              className={`flex w-full items-center justify-between gap-2 border-l-4 px-3 py-2.5 text-left transition ${
+                                active
+                                  ? "border-ukm-orange bg-orange-50/60"
+                                  : "border-transparent hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <p
+                                  className={`font-mono text-xs font-bold ${
+                                    active ? "text-ukm-orange" : "text-ukm-navy"
+                                  }`}
+                                >
+                                  {c.code}
+                                </p>
+                                <p className="truncate text-[11px] text-slate-500">
+                                  {c.title}
+                                </p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                                {c.enrollmentCount}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               );
             })
           )}
-        </ul>
+        </div>
       </aside>
 
       {/* Right panel: lecturer assignment + student multi-select */}
@@ -284,6 +365,36 @@ export function AssignmentPanels({
                     Kosongkan
                   </button>
                 )}
+              </div>
+
+              {/* Filter: separate already-enrolled from not-yet-enrolled students. */}
+              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-semibold">
+                {(
+                  [
+                    { key: "all", label: `Semua (${students.length})` },
+                    { key: "enrolled", label: `Sudah Daftar (${enrolledCount})` },
+                    {
+                      key: "unenrolled",
+                      label: `Belum Daftar (${students.length - enrolledCount})`,
+                    },
+                  ] as { key: StudentFilter; label: string }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => {
+                      setStudentFilter(opt.key);
+                      setPicked(new Set());
+                    }}
+                    className={`rounded-md px-3 py-1.5 transition ${
+                      studentFilter === opt.key
+                        ? "bg-white text-ukm-navy shadow-soft"
+                        : "text-slate-500 hover:text-ukm-navy"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
 
               <ul className="max-h-[55vh] overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">

@@ -1,13 +1,14 @@
-import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getLecturerSubmissions, getTaughtCourses } from "@/server/queries/lecturer";
 import { EmptyState } from "@/components/common/EmptyState";
 import { GradingPanel } from "./grading-panel";
+import { FilterMenu } from "./filter-menu";
+import { CourseSelect } from "./course-select";
 import { FileCheck } from "lucide-react";
 import type { SubmissionStatus } from "@prisma/client";
 
-const STATUS_OPTIONS = ["ALL", "SUBMITTED", "LATE", "GRADED"] as const;
-type StatusFilter = (typeof STATUS_OPTIONS)[number];
+const STATUS_VALUES = ["SUBMITTED", "LATE", "GRADED"] as const;
+type StatusValue = (typeof STATUS_VALUES)[number];
 const SORT_OPTIONS = ["recent", "name"] as const;
 type SortBy = (typeof SORT_OPTIONS)[number];
 const TYPE_OPTIONS = ["ALL", "INDIVIDUAL", "GROUP"] as const;
@@ -31,9 +32,11 @@ export default async function LecturerSubmissionsPage({
   const courseCode = searchParams.course?.toUpperCase();
   const selectedCourse = courseCode ? courses.find((c) => c.code === courseCode) : null;
   const assignmentId = searchParams.assignment ? Number(searchParams.assignment) : undefined;
-  const status: StatusFilter = STATUS_OPTIONS.includes(searchParams.status as StatusFilter)
-    ? (searchParams.status as StatusFilter)
-    : "ALL";
+  // Status is multi-select: a comma-separated list in ?status=. Empty = all.
+  const statuses: StatusValue[] = (searchParams.status ?? "")
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter((s): s is StatusValue => STATUS_VALUES.includes(s as StatusValue));
   const sort: SortBy = SORT_OPTIONS.includes(searchParams.sort as SortBy)
     ? (searchParams.sort as SortBy)
     : "recent";
@@ -44,7 +47,7 @@ export default async function LecturerSubmissionsPage({
   const submissions = await getLecturerSubmissions(lecturerId, {
     courseId: selectedCourse?.id,
     assignmentId,
-    status: status as SubmissionStatus | "ALL",
+    statuses: statuses as SubmissionStatus[],
     sort,
     assignmentType: typeFilter,
   });
@@ -55,27 +58,6 @@ export default async function LecturerSubmissionsPage({
     sort === "name" &&
     (idx === 0 ||
       submissions[idx - 1]?.student.name !== submissions[idx]?.student.name);
-
-  function withSort(next: SortBy): string {
-    const params = new URLSearchParams();
-    if (courseCode) params.set("course", courseCode);
-    if (assignmentId) params.set("assignment", String(assignmentId));
-    if (status !== "ALL") params.set("status", status);
-    if (typeFilter !== "ALL") params.set("type", typeFilter);
-    if (next !== "recent") params.set("sort", next);
-    const qs = params.toString();
-    return `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
-  }
-  function withType(next: TypeFilter): string {
-    const params = new URLSearchParams();
-    if (courseCode) params.set("course", courseCode);
-    if (assignmentId) params.set("assignment", String(assignmentId));
-    if (status !== "ALL") params.set("status", status);
-    if (sort !== "recent") params.set("sort", sort);
-    if (next !== "ALL") params.set("type", next);
-    const qs = params.toString();
-    return `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
-  }
 
   return (
     <div className="space-y-6">
@@ -90,107 +72,30 @@ export default async function LecturerSubmissionsPage({
         </div>
       </div>
 
-      <div className="card flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
+      <div className="card flex flex-wrap items-center gap-3">
+        <div className="flex-1">
           <label className="mb-1 block text-xs font-semibold text-ukm-navy">Kursus</label>
-          <form>
-            <select
-              name="course"
-              defaultValue={courseCode ?? "ALL"}
-              className="input-base"
-            >
-              <option value="ALL">Semua kursus</option>
-              {courses.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.title}
-                </option>
-              ))}
-            </select>
-            <noscript>
-              <button type="submit" className="btn-secondary mt-2 text-xs">
-                Tapis
-              </button>
-            </noscript>
-          </form>
+          <CourseSelect
+            courseCode={courseCode ?? null}
+            assignmentId={assignmentId ?? null}
+            statuses={statuses}
+            type={typeFilter}
+            sort={sort}
+            courses={courses.map((c) => ({ code: c.code, title: c.title }))}
+          />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {STATUS_OPTIONS.map((s) => {
-            const params = new URLSearchParams();
-            if (courseCode) params.set("course", courseCode);
-            if (assignmentId) params.set("assignment", String(assignmentId));
-            if (s !== "ALL") params.set("status", s);
-            if (sort !== "recent") params.set("sort", sort);
-            const qs = params.toString();
-            const href = `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
-            return (
-              <Link
-                key={s}
-                href={href}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                  status === s
-                    ? "bg-ukm-orange text-white"
-                    : "border border-slate-200 bg-white text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
-                }`}
-              >
-                {s === "ALL"
-                  ? "Semua"
-                  : s === "SUBMITTED"
-                    ? "Dihantar"
-                    : s === "LATE"
-                      ? "Lewat"
-                      : "Dimarkah"}
-              </Link>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Jenis:
-          </span>
-          {TYPE_OPTIONS.map((opt) => (
-            <Link
-              key={opt}
-              href={withType(opt)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                typeFilter === opt
-                  ? opt === "GROUP"
-                    ? "bg-purple-600 text-white"
-                    : "bg-ukm-teal text-white"
-                  : "border border-slate-200 bg-white text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
-              }`}
-            >
-              {opt === "ALL"
-                ? "Semua"
-                : opt === "INDIVIDUAL"
-                  ? "🧑 Individu"
-                  : "👥 Kumpulan"}
-            </Link>
-          ))}
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Susun:
-          </span>
-          {(
-            [
-              { id: "recent", label: "Terbaru" },
-              { id: "name", label: "Nama Pelajar" },
-            ] as const
-          ).map((opt) => (
-            <Link
-              key={opt.id}
-              href={withSort(opt.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                sort === opt.id
-                  ? "bg-ukm-teal text-white"
-                  : "border border-slate-200 bg-white text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
-              }`}
-            >
-              {opt.label}
-            </Link>
-          ))}
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500">
+            <span className="font-semibold text-ukm-navy">{submissions.length}</span>{" "}
+            ditunjukkan
+          </p>
+          <FilterMenu
+            courseCode={courseCode ?? null}
+            assignmentId={assignmentId ?? null}
+            statuses={statuses}
+            type={typeFilter}
+            sort={sort}
+          />
         </div>
       </div>
 

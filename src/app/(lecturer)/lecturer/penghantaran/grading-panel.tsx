@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, ClipboardCheck, FileText, MessageSquare, UserCheck } from "lucide-react";
+import { CheckCircle, ClipboardCheck, Download, FileText, MessageSquare, UserCheck } from "lucide-react";
 import { useToast } from "@/components/common/Toast";
 import { gradeSubmission } from "@/server/actions/grading";
 import { formatDateTime } from "@/lib/utils";
@@ -36,6 +36,25 @@ type Submission = {
 type Props = {
   submission: Submission;
 };
+
+/**
+ * Resolve any stored submission path to a URL the lecturer can open.
+ * - Real uploads already use /api/uploads/submissions/<file>.
+ * - Legacy synthetic paths (/uploads/sub-*.pdf) are routed through the same API
+ *   by their filename; the API falls back to a sample PDF if the file is gone.
+ */
+function downloadHref(filePath: string): string {
+  if (filePath.startsWith("/api/uploads/submissions/")) return filePath;
+  const filename = filePath.split(/[\\/]/).pop() ?? filePath;
+  return `/api/uploads/submissions/${filename}`;
+}
+
+/** Recover the original filename from a stored submission path for display. */
+function fileDisplayName(filePath: string): string {
+  const tail = filePath.split(/[\\/]/).pop() ?? filePath;
+  const idx = tail.indexOf("__");
+  return idx >= 0 ? tail.slice(idx + 2) : tail;
+}
 
 const STATUS_BADGE: Record<Submission["status"], string> = {
   PENDING: "bg-slate-100 text-slate-700",
@@ -147,9 +166,16 @@ export function GradingPanel({ submission }: Props) {
       </header>
 
       {submission.filePath && (
-        <p className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-          <FileText size={12} className="text-ukm-teal" /> {submission.filePath}
-        </p>
+        <a
+          href={downloadHref(submission.filePath)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-ukm-teal/30 bg-sky-50 px-3 py-1.5 text-xs font-medium text-ukm-teal transition hover:bg-sky-100"
+        >
+          <FileText size={12} className="shrink-0" />
+          <span className="truncate">{fileDisplayName(submission.filePath)}</span>
+          <Download size={12} className="shrink-0" />
+        </a>
       )}
 
       {submission.feedback.length > 0 && (

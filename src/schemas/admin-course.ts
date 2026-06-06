@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { idSchema } from "./common";
+import { FACULTIES, DEFAULT_FACULTY } from "@/lib/faculties";
 
 const baseCourseFields = {
   code: z
@@ -10,6 +11,7 @@ const baseCourseFields = {
     .regex(/^[A-Za-z0-9]+$/, "Kod kursus hanya boleh mengandungi huruf dan nombor.")
     .transform((v) => v.toUpperCase()),
   title: z.string().trim().min(2, "Tajuk kursus diperlukan.").max(160),
+  faculty: z.enum(FACULTIES).default(DEFAULT_FACULTY),
   description: z
     .string()
     .trim()

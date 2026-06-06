@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { loginAction } from "./actions";
 import { SmartCollabLoader } from "@/components/common/SmartCollabLoader";
+import { IdleLogoutNotice } from "@/components/layout/IdleLogoutNotice";
 
 export function LoginForm() {
   const t = useTranslations("Login");
@@ -82,6 +83,8 @@ export function LoginForm() {
         <div className="relative rounded-2xl border border-white/20 bg-white/95 p-6 shadow-lift-lg backdrop-blur-xl transition-all duration-300 ease-spring group-hover/card:-translate-y-1 group-hover/card:shadow-glow group-hover/card:border-ukm-teal/30 sm:p-7">
           <h2 className="text-xl font-bold text-ukm-navy">{t("title")}</h2>
           <p className="mb-6 mt-1 text-sm text-slate-500">Sila log masuk untuk meneruskan.</p>
+
+          <IdleLogoutNotice />
 
           <form
             className="space-y-4"

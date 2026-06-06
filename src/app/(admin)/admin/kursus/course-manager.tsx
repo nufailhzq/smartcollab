@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, Pencil, Plus, Search, Trash2, Users2 } from "lucide-react";
 import { useToast } from "@/components/common/Toast";
 import { Modal } from "@/components/common/Modal";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -11,6 +12,7 @@ import {
   deleteCourse,
   updateCourse,
 } from "@/server/actions/admin-courses";
+import { FACULTIES, DEFAULT_FACULTY, facultyLabel } from "@/lib/faculties";
 
 type Lecturer = { id: number; name: string; matricNum: string | null };
 
@@ -18,6 +20,7 @@ type AdminCourseVM = {
   id: number;
   code: string;
   title: string;
+  faculty: string;
   description: string | null;
   semester: string | null;
   creditHours: number | null;
@@ -28,6 +31,7 @@ type AdminCourseVM = {
 type FormState = {
   code: string;
   title: string;
+  faculty: string;
   description: string;
   semester: string;
   creditHours: number;
@@ -37,6 +41,7 @@ type FormState = {
 const blankForm: FormState = {
   code: "",
   title: "",
+  faculty: DEFAULT_FACULTY,
   description: "",
   semester: "",
   creditHours: 3,
@@ -78,6 +83,7 @@ export function CourseManager({ courses, lecturers }: Props) {
     setForm({
       code: c.code,
       title: c.title,
+      faculty: c.faculty ?? DEFAULT_FACULTY,
       description: c.description ?? "",
       semester: c.semester ?? "",
       creditHours: c.creditHours ?? 3,
@@ -92,6 +98,7 @@ export function CourseManager({ courses, lecturers }: Props) {
       const res = await createCourse({
         code: form.code,
         title: form.title,
+        faculty: form.faculty,
         description: form.description,
         semester: form.semester,
         creditHours: form.creditHours,
@@ -113,6 +120,7 @@ export function CourseManager({ courses, lecturers }: Props) {
         courseId: editing.id,
         code: form.code,
         title: form.title,
+        faculty: form.faculty,
         description: form.description,
         semester: form.semester,
         creditHours: form.creditHours,
@@ -187,6 +195,7 @@ export function CourseManager({ courses, lecturers }: Props) {
                 <tr>
                   <th className="px-4 py-3">Kod</th>
                   <th className="px-4 py-3">Tajuk</th>
+                  <th className="px-4 py-3">Fakulti</th>
                   <th className="px-4 py-3">Pensyarah</th>
                   <th className="px-4 py-3">Semester</th>
                   <th className="px-4 py-3">Kredit</th>
@@ -205,6 +214,11 @@ export function CourseManager({ courses, lecturers }: Props) {
                       {c.description && (
                         <p className="line-clamp-1 text-xs text-slate-500">{c.description}</p>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                        {c.faculty}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {c.lecturer ? (
@@ -230,6 +244,13 @@ export function CourseManager({ courses, lecturers }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <Link
+                          href={`/admin/pemberian?course=${c.id}`}
+                          title="Urus pelajar & pensyarah"
+                          className="rounded p-1.5 text-slate-500 hover:bg-purple-50 hover:text-purple-700"
+                        >
+                          <Users2 size={14} />
+                        </Link>
                         <button
                           type="button"
                           title="Kemaskini"
@@ -336,6 +357,19 @@ function CourseForm({
             maxLength={160}
             className="input-base sm:col-span-2"
           />
+        </Field>
+        <Field label="Fakulti" required>
+          <select
+            value={form.faculty}
+            onChange={(e) => setForm({ ...form, faculty: e.target.value })}
+            className="input-base"
+          >
+            {FACULTIES.map((f) => (
+              <option key={f} value={f}>
+                {f} — {facultyLabel(f)}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Semester">
           <input
