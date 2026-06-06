@@ -18,7 +18,7 @@ import {
 import type { ActionResult } from "@/schemas/common";
 
 const UPLOAD_DIR_REL = "public/uploads/bulletins";
-const PUBLIC_URL_BASE = "/uploads/bulletins";
+const PUBLIC_URL_BASE = "/api/uploads/bulletins"; // Rerouted to pass through our API route handler
 
 async function ensureAdmin(): Promise<{ ok: true; userId: number } | { ok: false; error: string }> {
   const session = await auth();
@@ -47,7 +47,6 @@ async function notifyBulletinPublished(bulletin: { title: string; body: string }
       link: "bulletin",
     });
   } catch (err) {
-    // Notification failure shouldn't abort the publish — log and continue.
     console.error("Failed to fan-out bulletin notifications:", err);
   }
 }
@@ -94,7 +93,7 @@ async function deleteImageFile(publicPath: string | null) {
   try {
     await fs.unlink(abs);
   } catch {
-    // Silently ignore — file may have been removed externally.
+    // Silently ignore
   }
 }
 
@@ -179,7 +178,6 @@ export async function updateBulletin(formData: FormData): Promise<ActionResult> 
     select: { title: true, body: true },
   });
 
-  // Fan out a notification only when the bulletin transitions from hidden → visible.
   if (!existing.isActive && parsed.data.isActive) {
     await notifyBulletinPublished(updated);
   }
@@ -226,7 +224,6 @@ export async function toggleBulletinFlag(raw: unknown): Promise<ActionResult> {
     data: { [parsed.data.field]: parsed.data.value },
   });
 
-  // Treat toggling Active off → on as a re-publish: notify recipients again.
   if (parsed.data.field === "isActive" && !exists.isActive && parsed.data.value) {
     await notifyBulletinPublished({ title: exists.title, body: exists.body });
   }
