@@ -254,6 +254,8 @@ type SeedCourse = {
   semester: string;
   credits: number;
   description: string;
+  /** Owning faculty for admin grouping. Defaults to FTSM when omitted. */
+  faculty?: string;
 };
 
 const COURSES: SeedCourse[] = [
@@ -352,6 +354,43 @@ const COURSES: SeedCourse[] = [
     semester: "Sem 2 26/27",
     credits: 3,
     description: "Algoritma pembelajaran mesin diselia dan tidak diselia.",
+  },
+  // Cross-faculty / elective courses any student may join.
+  {
+    code: "ZZZT1014",
+    title: "Tamadun Islam dan Tamadun Asia (TITAS)",
+    lecturerMatric: "K456789",
+    semester: "Sem 1 26/27",
+    credits: 2,
+    description: "Kursus citra wajib merentas fakulti.",
+    faculty: "CITRA",
+  },
+  {
+    code: "ZZZE2023",
+    title: "Keusahawanan Asas",
+    lecturerMatric: "K789012",
+    semester: "Sem 2 26/27",
+    credits: 3,
+    description: "Pengenalan keusahawanan dan inovasi untuk semua pelajar.",
+    faculty: "CITRA",
+  },
+  {
+    code: "SKPD3013",
+    title: "Psikologi Sosial",
+    lecturerMatric: "K890123",
+    semester: "Sem 1 26/27",
+    credits: 3,
+    description: "Kursus elektif Fakulti Sains Sosial dan Kemanusiaan.",
+    faculty: "FSSK",
+  },
+  {
+    code: "STQS2043",
+    title: "Statistik Asas",
+    lecturerMatric: "K678901",
+    semester: "Sem 2 26/27",
+    credits: 3,
+    description: "Kursus elektif Fakulti Sains dan Teknologi.",
+    faculty: "FST",
   },
 ];
 
@@ -464,6 +503,7 @@ async function main() {
       where: { code: c.code },
       update: {
         title: c.title,
+        faculty: c.faculty ?? "FTSM",
         semester: c.semester,
         creditHours: c.credits,
         description: c.description,
@@ -472,6 +512,7 @@ async function main() {
       create: {
         code: c.code,
         title: c.title,
+        faculty: c.faculty ?? "FTSM",
         semester: c.semester,
         creditHours: c.credits,
         description: c.description,

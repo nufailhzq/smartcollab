@@ -65,6 +65,7 @@ export async function createCourse(raw: unknown): Promise<ActionResult> {
       data: {
         code: parsed.data.code,
         title: parsed.data.title,
+        faculty: parsed.data.faculty,
         description: parsed.data.description,
         semester: parsed.data.semester,
         creditHours: parsed.data.creditHours,
@@ -104,6 +105,7 @@ export async function updateCourse(raw: unknown): Promise<ActionResult> {
       data: {
         code: parsed.data.code,
         title: parsed.data.title,
+        faculty: parsed.data.faculty,
         description: parsed.data.description,
         semester: parsed.data.semester,
         creditHours: parsed.data.creditHours,
