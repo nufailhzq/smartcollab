@@ -11,7 +11,7 @@ import {
 } from "@/schemas/chat";
 
 export const CHAT_UPLOAD_DIR_REL = "public/uploads/chat";
-export const CHAT_PUBLIC_URL_BASE = "/uploads/chat";
+export const CHAT_PUBLIC_URL_BASE = "/api/uploads/chat"; // Kept matching our new API route setup
 
 export type ChatAttachment = {
   path: string;
@@ -66,6 +66,8 @@ export async function saveChatAttachment(
 
   const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
   const filename = `${Date.now()}-${randomBytes(6).toString("hex")}.${ext || "bin"}`;
+  
+  // Save using Next.js runtime process tracking directory configurations
   const abs = path.join(process.cwd(), CHAT_UPLOAD_DIR_REL);
   await fs.mkdir(abs, { recursive: true });
   await fs.writeFile(path.join(abs, filename), Buffer.from(await file.arrayBuffer()));
