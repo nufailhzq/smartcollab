@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import { useRef, useState, useTransition, type ChangeEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/components/common/Toast";
@@ -17,31 +17,39 @@ export function AvatarUploader({ name, initialAvatarPath, badge }: Props) {
   const router = useRouter();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  
+  const [override, setOverride] = useState<string | null | undefined>(undefined);
   const [pending, startTransition] = useTransition();
-  const [committed, setCommitted] = useState<string | null>(initialAvatarPath);
+
+  const [cacheBuster, setCacheBuster] = useState("");
+  useEffect(() => {
+    setCacheBuster(`?v=${Date.now()}`);
+  }, [initialAvatarPath]);
 
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const preliminary = URL.createObjectURL(file);
-    setPreview(preliminary);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      setOverride(base64String);
+    };
+    reader.readAsDataURL(file);
 
     const fd = new FormData();
     fd.append("avatar", file);
+    
     startTransition(async () => {
       const res = await uploadAvatar(fd);
       if (!res.ok) {
         toast.push({ kind: "error", message: res.error });
-        setPreview(null);
-        URL.revokeObjectURL(preliminary);
+        setOverride(undefined); 
         if (fileRef.current) fileRef.current.value = "";
         return;
       }
+      
       toast.push({ kind: "success", message: "Gambar profil dikemaskini." });
-      setCommitted(res.data.avatarPath);
-      URL.revokeObjectURL(preliminary);
-      setPreview(null);
       if (fileRef.current) fileRef.current.value = "";
       router.refresh();
     });
@@ -49,16 +57,24 @@ export function AvatarUploader({ name, initialAvatarPath, badge }: Props) {
 
   const onRemove = () => {
     if (!confirm("Buang gambar profil?")) return;
+    
+    setOverride(null); 
+    
     startTransition(async () => {
       const res = await removeAvatar();
-      if (!res.ok) return toast.push({ kind: "error", message: res.error });
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        setOverride(undefined); 
+        return;
+      }
+      
       toast.push({ kind: "success", message: "Gambar profil dibuang." });
-      setCommitted(null);
       router.refresh();
     });
   };
 
-  const shown = preview ?? committed;
+  const serverPath = initialAvatarPath ? `${initialAvatarPath}${cacheBuster}` : null;
+  const shown = override !== undefined ? override : serverPath;
 
   return (
     <div className="flex items-start gap-5">
@@ -69,15 +85,23 @@ export function AvatarUploader({ name, initialAvatarPath, badge }: Props) {
             src={shown}
             alt={name}
             className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-lift"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+            onLoad={(e) => {
+              e.currentTarget.style.display = 'block';
+            }}
           />
         ) : (
           <Avatar name={name} size="2xl" ring />
         )}
+        
         {pending && (
           <div className="absolute inset-0 grid place-items-center rounded-full bg-slate-900/50">
             <Loader2 size={20} className="animate-spin text-white" />
           </div>
         )}
+        
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -87,6 +111,7 @@ export function AvatarUploader({ name, initialAvatarPath, badge }: Props) {
         >
           <Camera size={16} />
         </button>
+        
         <input
           ref={fileRef}
           type="file"
@@ -101,7 +126,7 @@ export function AvatarUploader({ name, initialAvatarPath, badge }: Props) {
         <p className="text-xs text-slate-500">
           Klik ikon kamera untuk muat naik gambar baharu. Format PNG/JPG/WEBP sehingga 3MB.
         </p>
-        {committed && (
+        {shown && (
           <button
             type="button"
             onClick={onRemove}

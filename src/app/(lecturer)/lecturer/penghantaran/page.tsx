@@ -10,6 +10,8 @@ const STATUS_OPTIONS = ["ALL", "SUBMITTED", "LATE", "GRADED"] as const;
 type StatusFilter = (typeof STATUS_OPTIONS)[number];
 const SORT_OPTIONS = ["recent", "name"] as const;
 type SortBy = (typeof SORT_OPTIONS)[number];
+const TYPE_OPTIONS = ["ALL", "INDIVIDUAL", "GROUP"] as const;
+type TypeFilter = (typeof TYPE_OPTIONS)[number];
 
 export default async function LecturerSubmissionsPage({
   searchParams,
@@ -19,6 +21,7 @@ export default async function LecturerSubmissionsPage({
     assignment?: string;
     status?: string;
     sort?: string;
+    type?: string;
   };
 }) {
   const session = await auth();
@@ -34,12 +37,16 @@ export default async function LecturerSubmissionsPage({
   const sort: SortBy = SORT_OPTIONS.includes(searchParams.sort as SortBy)
     ? (searchParams.sort as SortBy)
     : "recent";
+  const typeFilter: TypeFilter = TYPE_OPTIONS.includes(searchParams.type as TypeFilter)
+    ? (searchParams.type as TypeFilter)
+    : "ALL";
 
   const submissions = await getLecturerSubmissions(lecturerId, {
     courseId: selectedCourse?.id,
     assignmentId,
     status: status as SubmissionStatus | "ALL",
     sort,
+    assignmentType: typeFilter,
   });
 
   // When sorting by name, the server already groups them; pre-compute the
@@ -54,7 +61,18 @@ export default async function LecturerSubmissionsPage({
     if (courseCode) params.set("course", courseCode);
     if (assignmentId) params.set("assignment", String(assignmentId));
     if (status !== "ALL") params.set("status", status);
+    if (typeFilter !== "ALL") params.set("type", typeFilter);
     if (next !== "recent") params.set("sort", next);
+    const qs = params.toString();
+    return `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
+  }
+  function withType(next: TypeFilter): string {
+    const params = new URLSearchParams();
+    if (courseCode) params.set("course", courseCode);
+    if (assignmentId) params.set("assignment", String(assignmentId));
+    if (status !== "ALL") params.set("status", status);
+    if (sort !== "recent") params.set("sort", sort);
+    if (next !== "ALL") params.set("type", next);
     const qs = params.toString();
     return `/lecturer/penghantaran${qs ? `?${qs}` : ""}`;
   }
@@ -124,6 +142,31 @@ export default async function LecturerSubmissionsPage({
               </Link>
             );
           })}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Jenis:
+          </span>
+          {TYPE_OPTIONS.map((opt) => (
+            <Link
+              key={opt}
+              href={withType(opt)}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                typeFilter === opt
+                  ? opt === "GROUP"
+                    ? "bg-purple-600 text-white"
+                    : "bg-ukm-teal text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
+              }`}
+            >
+              {opt === "ALL"
+                ? "Semua"
+                : opt === "INDIVIDUAL"
+                  ? "🧑 Individu"
+                  : "👥 Kumpulan"}
+            </Link>
+          ))}
         </div>
 
         <div className="ml-auto flex items-center gap-2">

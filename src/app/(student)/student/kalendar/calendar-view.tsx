@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
+import { SideDrawer } from "@/components/common/SideDrawer";
 import { useToast } from "@/components/common/Toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import {

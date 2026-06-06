@@ -40,11 +40,23 @@ export async function uploadAvatar(formData: FormData): Promise<ActionResult<{ a
     return { ok: false, error: "Saiz imej melebihi 3MB." };
   }
 
+  // Armor: Explicitly extract and verify the buffer BEFORE writing
+  const bytes = await file.arrayBuffer();
+  if (bytes.byteLength === 0) {
+    return { ok: false, error: "Imej kosong atau rosak semasa dimuat naik. Sila cuba lagi." };
+  }
+  const buffer = Buffer.from(bytes);
+
   const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
   const filename = `u${session.user.id}-${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
   const abs = path.join(process.cwd(), UPLOAD_DIR_REL);
+  
   await fs.mkdir(abs, { recursive: true });
-  await fs.writeFile(path.join(abs, filename), Buffer.from(await file.arrayBuffer()));
+  
+  // DIAGNOSTIC LOG: This will force the server to print exactly where it is saving the file
+  console.log("!!! SAVING FILE TO THIS EXACT LOCATION !!! ->", path.join(abs, filename));
+  
+  await fs.writeFile(path.join(abs, filename), buffer);
 
   const publicPath = `${PUBLIC_URL_BASE}/${filename}`;
 

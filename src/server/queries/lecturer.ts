@@ -50,12 +50,16 @@ export async function getLecturerSubmissions(
     assignmentId?: number;
     status?: SubmissionStatus | "ALL";
     sort?: "recent" | "name";
+    assignmentType?: "INDIVIDUAL" | "GROUP" | "ALL";
   } = {},
 ) {
   const where: Prisma.SubmissionWhereInput = {
     assignment: {
       course: { lecturerId },
       ...(filters.courseId ? { courseId: filters.courseId } : {}),
+      ...(filters.assignmentType && filters.assignmentType !== "ALL"
+        ? { type: filters.assignmentType }
+        : {}),
     },
     ...(filters.assignmentId ? { assignmentId: filters.assignmentId } : {}),
     ...(filters.status && filters.status !== "ALL" ? { status: filters.status } : {}),

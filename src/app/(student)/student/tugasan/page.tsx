@@ -31,12 +31,26 @@ export default async function StudentSubmissionsPage({
   );
   const filtered = filterType === "all" ? assignments : assignments.filter((a) => a.type === filterType);
 
-  // Group by course
-  const grouped = new Map<string, typeof filtered>();
-  for (const a of filtered) {
-    const key = a.course.code;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(a);
+  // Split + group: individual first, then group. Each pair is grouped by course
+  // so within a section you see assignments course by course in submission order.
+  function groupByCourse(list: typeof filtered): [string, typeof filtered][] {
+    const map = new Map<string, typeof filtered>();
+    for (const a of list) {
+      const key = a.course.code;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+    return [...map.entries()];
+  }
+  const individualByCourse = groupByCourse(filtered.filter((a) => a.type === "INDIVIDUAL"));
+  const groupByCourse2 = groupByCourse(filtered.filter((a) => a.type === "GROUP"));
+  // Most recent first within each course.
+  for (const [, list] of [...individualByCourse, ...groupByCourse2]) {
+    list.sort((a, b) => {
+      const at = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+      const bt = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+      return bt - at;
+    });
   }
 
   return (
@@ -90,15 +104,47 @@ export default async function StudentSubmissionsPage({
       {filtered.length === 0 ? (
         <EmptyState title="Tiada tugasan" Icon={ClipboardList} />
       ) : (
-        <div className="space-y-6">
-          {[...grouped.entries()].map(([code, list]) => (
-            <section key={code} className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-                <span className="font-mono text-ukm-orange">{code}</span> ·{" "}
-                {list[0]!.course.title}
+        <div className="space-y-8">
+          {([
+            {
+              key: "INDIVIDUAL" as const,
+              label: "Tugasan Individu",
+              icon: "🧑",
+              tint: "from-ukm-teal/15 to-sky-50/40",
+              accent: "border-l-ukm-teal",
+              data: individualByCourse,
+            },
+            {
+              key: "GROUP" as const,
+              label: "Tugasan Kumpulan",
+              icon: "👥",
+              tint: "from-purple-100/60 to-fuchsia-50/40",
+              accent: "border-l-purple-500",
+              data: groupByCourse2,
+            },
+          ]
+            .filter((s) => filterType === "all" || filterType === s.key)
+            .filter((s) => s.data.length > 0)
+          ).map((section) => (
+            <div
+              key={section.key}
+              className={`rounded-2xl border-l-4 ${section.accent} bg-gradient-to-r ${section.tint} p-4`}
+            >
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-ukm-navy">
+                <span className="text-xl">{section.icon}</span> {section.label}
+                <span className="ml-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                  {section.data.reduce((sum, [, l]) => sum + l.length, 0)}
+                </span>
               </h2>
-              <div className="space-y-2">
-                {list.map((a) => {
+              <div className="space-y-6">
+                {section.data.map(([code, list]) => (
+                  <section key={`${section.key}-${code}`} className="space-y-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                      <span className="font-mono text-ukm-orange">{code}</span> ·{" "}
+                      {list[0]!.course.title}
+                    </h3>
+                    <div className="space-y-2">
+                      {list.map((a) => {
                   const sub = a.submissions[0];
                   const due = a.dueDate ? new Date(a.dueDate) : null;
                   const isPast = due ? due < new Date() : false;
@@ -169,8 +215,11 @@ export default async function StudentSubmissionsPage({
                     </article>
                   );
                 })}
+                    </div>
+                  </section>
+                ))}
               </div>
-            </section>
+            </div>
           ))}
         </div>
       )}
