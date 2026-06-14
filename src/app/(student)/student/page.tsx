@@ -16,6 +16,9 @@ import { BulletinBoard } from "@/components/dashboard/BulletinBoard";
 import { WarningBanner } from "@/components/dashboard/WarningBanner";
 import { RecentAccessPanel } from "@/components/dashboard/RecentAccessPanel";
 import { UpcomingEventsPanel } from "@/components/dashboard/UpcomingEventsPanel";
+import { StatTile } from "@/components/dashboard/StatTile";
+import { ProgressRing } from "@/components/dashboard/ProgressRing";
+import { DeadlineTimeline } from "@/components/dashboard/DeadlineTimeline";
 import {
   ArrowRight,
   Bell,
@@ -96,31 +99,52 @@ export default async function StudentDashboard() {
       label: "Kursus Aktif",
       value: enrollmentsCount,
       Icon: BookOpen,
-      accent: "text-ukm-teal",
-      bg: "bg-sky-50",
+      gradient: "from-sky-500 to-cyan-400",
+      glow: "rgba(14,165,233,0.45)",
     },
     {
       label: "Kumpulan Aktif",
       value: groupMembershipsCount,
       Icon: Users,
-      accent: "text-purple-600",
-      bg: "bg-purple-50",
+      gradient: "from-violet-500 to-fuchsia-400",
+      glow: "rgba(168,85,247,0.45)",
     },
     {
       label: "Tugasan Akan Datang",
       value: upcomingAssignmentsCount,
       Icon: ClipboardList,
-      accent: "text-ukm-orange",
-      bg: "bg-orange-50",
+      gradient: "from-orange-500 to-amber-400",
+      glow: "rgba(249,115,22,0.45)",
     },
     {
       label: "Mesej Belum Baca",
       value: unreadMessages,
       Icon: MessageCircle,
-      accent: "text-pink-600",
-      bg: "bg-pink-50",
+      gradient: "from-pink-500 to-rose-400",
+      glow: "rgba(236,72,153,0.45)",
     },
   ];
+
+  // Map the already-fetched upcoming assignments into serializable timeline
+  // rows. No new queries — pure presentation transform.
+  const deadlineRows = upcoming.map((a) => ({
+    id: a.id,
+    title: a.title,
+    courseCode: a.course.code,
+    dueDate: a.dueDate ? a.dueDate.toISOString() : null,
+    state: (a.submissions[0]
+      ? a.submissions[0].status === "GRADED"
+        ? "GRADED"
+        : "SUBMITTED"
+      : "NONE") as "GRADED" | "SUBMITTED" | "NONE",
+    href: `/student/tugasan/${a.id}`,
+  }));
+
+  // Lightweight "momentum" reading derived from existing data only: share of
+  // upcoming assignments already submitted/graded. Drives the hero ring.
+  const handledUpcoming = upcoming.filter((a) => a.submissions[0]).length;
+  const momentum =
+    upcoming.length > 0 ? Math.round((handledUpcoming / upcoming.length) * 100) : 100;
 
   return (
     <div className="space-y-6">
@@ -133,117 +157,102 @@ export default async function StudentDashboard() {
         }))}
       />
 
-      <div className="gradient-hero relative overflow-hidden rounded-2xl px-6 py-8 text-white shadow-sm">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-white/10" />
-
-        <div className="relative z-10">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/80">SMARTCOLLAB</p>
-          <h1 className="mt-1 text-2xl font-bold text-white">
-            Selamat datang, {session.user.name}
-          </h1>
-          <p className="mt-1 text-sm text-white/90">Papan pemuka pelajar UKMFolio</p>
+      {/* Hero — glassy gradient with a momentum ring */}
+      <div className="gradient-hero tile-sheen relative overflow-hidden rounded-3xl px-6 py-8 text-white shadow-lift-lg animate-scale-in">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20 mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "radial-gradient(rgba(255,255,255,0.7) 1px, transparent 1px)",
+            backgroundSize: "18px 18px",
+          }}
+        />
+        <div className="relative z-10 flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-white/80">
+              SmartCollab
+            </p>
+            <h1 className="mt-1 truncate text-2xl font-extrabold text-white sm:text-3xl">
+              Selamat datang, {session.user.name} 👋
+            </h1>
+            <p className="mt-1 text-sm text-white/90">
+              Papan pemuka pelajar UKMFolio — teruskan momentum anda.
+            </p>
+          </div>
+          <div className="hidden shrink-0 flex-col items-center gap-1 sm:flex">
+            <ProgressRing value={momentum} size={92} from="#ffffff" to="#bae6fd" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+              Momentum
+            </span>
+          </div>
         </div>
       </div>
 
+      {/* KPI bento row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, Icon, accent, bg }, i) => (
-          <div
+        {stats.map(({ label, value, Icon, gradient, glow }, i) => (
+          <StatTile
             key={label}
-            className="card card-hover flex items-center gap-4 animate-slide-up"
-            style={{ animationDelay: `${i * 60}ms` }}
-          >
-            <div
-              className={`grid h-12 w-12 place-items-center rounded-xl ${bg} transition-transform duration-300 ease-spring`}
-            >
-              <Icon className={accent} size={22} />
-            </div>
-
-            <div>
-              <p className="text-3xl font-bold text-ukm-navy">{value}</p>
-              <p className="text-xs uppercase tracking-wider text-slate-500">{label}</p>
-            </div>
-          </div>
+            label={label}
+            value={value}
+            Icon={Icon}
+            gradient={gradient}
+            glow={glow}
+            delay={i * 70}
+          />
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
+      {/* Bento main grid */}
+      <div className="grid gap-5 xl:grid-cols-3">
+        <div className="space-y-5 xl:col-span-2">
           <BulletinBoard bulletins={bulletins} />
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="card">
-              <header className="mb-3 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-ukm-navy">
-                  <CalendarClock className="text-ukm-orange" size={18} />
-                  Tugasan Akan Datang
+          <div className="grid gap-5 lg:grid-cols-2">
+            {/* Deadlines — neon urgency timeline */}
+            <section className="glass-card bento-tile p-5">
+              <header className="mb-4 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-base font-extrabold text-ukm-navy">
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-soft">
+                    <CalendarClock size={16} />
+                  </span>
+                  Garis Masa Tugasan
                 </h2>
                 <Link
                   href="/student/tugasan"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal hover:underline"
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold text-ukm-teal transition hover:bg-sky-50"
                 >
-                  Lihat semua <ArrowRight size={12} />
+                  Semua <ArrowRight size={12} />
                 </Link>
               </header>
-
-              {upcoming.length === 0 ? (
-                <EmptyState
-                  title="Tiada tugasan akan datang"
-                  description="Tugasan dengan tarikh akhir akan muncul di sini."
-                />
-              ) : (
-                <ul className="space-y-2">
-                  {upcoming.map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ukm-navy">
-                          {a.title}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          <span className="rounded bg-orange-100 px-1.5 py-0.5 font-mono font-semibold text-ukm-orange">
-                            {a.course.code}
-                          </span>{" "}
-                          · {a.dueDate ? formatDate(a.dueDate) : "Tiada tarikh akhir"}
-                        </p>
-                      </div>
-
-                      {a.submissions[0] ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                          {a.submissions[0].status === "GRADED" ? "Dimarkah" : "Dihantar"}
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                          Belum mula
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <DeadlineTimeline rows={deadlineRows} />
             </section>
 
-            <section className="card">
-              <header className="mb-3 flex items-center gap-2">
-                <Bell className="text-ukm-teal" size={18} />
-                <h2 className="text-lg font-semibold text-ukm-navy">Aktiviti Terkini</h2>
+            {/* Activity feed */}
+            <section className="glass-card bento-tile p-5">
+              <header className="mb-4 flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white shadow-soft">
+                  <Bell size={16} />
+                </span>
+                <h2 className="text-base font-extrabold text-ukm-navy">Aktiviti Terkini</h2>
               </header>
 
               {notifications.length === 0 ? (
                 <EmptyState title="Tiada notifikasi" />
               ) : (
                 <ul className="space-y-2">
-                  {notifications.map((n) => (
+                  {notifications.map((n, i) => (
                     <li
                       key={n.id}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                      className="group rounded-xl border border-slate-100 bg-white/70 px-3 py-2 backdrop-blur-sm transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:border-sky-300/60 hover:shadow-soft animate-slide-up"
+                      style={{ animationDelay: `${i * 50}ms` }}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-ukm-navy">{n.title}</p>
+                        <p className="text-sm font-bold text-ukm-navy">{n.title}</p>
                         {!n.isRead && (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ukm-orange" />
+                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ukm-orange shadow-[0_0_8px_1px_rgba(249,115,22,0.7)]" />
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-slate-600">{n.message}</p>
@@ -262,11 +271,20 @@ export default async function StudentDashboard() {
         </aside>
       </div>
 
+      {/* Courses — showcase cards */}
       <section>
-        <header className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-ukm-navy">Kursus Saya</h2>
-          <Link href="/student/kursus" className="text-xs text-ukm-teal hover:underline">
-            Lihat semua
+        <header className="mb-4 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-extrabold text-ukm-navy">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-400 text-white shadow-soft">
+              <BookOpen size={16} />
+            </span>
+            Kursus Saya
+          </h2>
+          <Link
+            href="/student/kursus"
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-ukm-teal transition hover:bg-sky-50"
+          >
+            Lihat semua <ArrowRight size={12} />
           </Link>
         </header>
 
@@ -276,12 +294,14 @@ export default async function StudentDashboard() {
             description="Anda belum berdaftar dalam mana-mana kursus. Hubungi pentadbir."
           />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {courses.slice(0, 6).map((c) => (
               <CourseCard
                 key={c.id}
+                variant="showcase"
                 code={c.code}
                 title={c.title}
+                lecturerId={c.lecturer?.id ?? null}
                 lecturerName={c.lecturer?.name ?? null}
                 lecturerAvatarPath={c.lecturer?.avatarPath ?? null}
                 semester={c.semester}
