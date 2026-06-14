@@ -12,22 +12,26 @@ export async function GET(
   }
 
   const rootDir = process.cwd();
+  // Folio post/comment images are SAVED to public/uploads/folio (singular) by
+  // src/server/actions/folio.ts. This proxy route is /folios (plural), so read
+  // from the singular save dir here.
   const pathsToTry = [
-    "/app/public/uploads/folios/" + filename, // Change to /folio/ if your folder structure is singular
-    path.join(rootDir, "public/uploads/folios", filename),
-    path.join(rootDir, "../public/uploads/folios", filename),
-    path.join(rootDir, ".next/standalone/public/uploads/folios", filename)
+    "/app/public/uploads/folio/" + filename, // Direct volume target inside container
+    path.join(rootDir, "public/uploads/folio", filename),
+    path.join(rootDir, "../public/uploads/folio", filename),
+    path.join(rootDir, ".next/standalone/public/uploads/folio", filename)
   ];
 
   for (const filePath of pathsToTry) {
     try {
       const buffer = await fs.readFile(filePath);
       const ext = filename.split(".").pop()?.toLowerCase();
-      
+
       let mimeType = "application/octet-stream";
       if (ext === "png") mimeType = "image/png";
       else if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
       else if (ext === "webp") mimeType = "image/webp";
+      else if (ext === "gif") mimeType = "image/gif";
 
       return new NextResponse(buffer, {
         headers: {

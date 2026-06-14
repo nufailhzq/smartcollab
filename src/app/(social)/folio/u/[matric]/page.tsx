@@ -17,22 +17,6 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: { matric: string } };
 
-// Universal helper to ensure avatars route through the proxy api no matter how they are saved
-function formatAvatarPath(path: string | null | undefined): string | null {
-  if (!path) return null;
-  // If it's already an API route or external link, leave it
-  if (path.startsWith("/api/")) return path;
-  // If it has the old upload path prefix, rewrite it
-  if (path.startsWith("/uploads/")) {
-    return path.replace("/uploads/", "/api/uploads/");
-  }
-  // Catch-all: If it's just a filename or missing a slash, route it correctly
-  if (!path.startsWith("/")) {
-    return `/api/uploads/avatars/${path}`;
-  }
-  return `/api${path}`;
-}
-
 export default async function FolioProfilePage({ params }: Props) {
   const session = await auth();
   const viewerId = session!.user.id;
@@ -61,11 +45,6 @@ export default async function FolioProfilePage({ params }: Props) {
     prisma.folioPost.count({ where: { authorId: profile.id, archivedAt: null } })
   ]);
 
-  // Debug log in your terminal to see exactly what string your database is holding
-  console.log("=== DEBUG AVATAR SYNC ===");
-  console.log("Raw DB path:", profile.avatarPath);
-  console.log("Formatted path:", formatAvatarPath(profile.avatarPath));
-
   const parentIds = new Set<number>();
   for (const p of posts) {
     if (!p.isRepost) parentIds.add(p.id);
@@ -84,14 +63,14 @@ export default async function FolioProfilePage({ params }: Props) {
       id: p.author.id,
       name: p.author.name,
       matricNum: p.author.matricNum,
-      avatarPath: formatAvatarPath(p.author.avatarPath),
+      avatarPath: p.author.avatarPath,
       faculty: p.author.faculty,
       program: p.author.program,
     },
-    images: p.images.map((i) => ({ 
-      id: i.id, 
-      imagePath: i.imagePath?.replace("/uploads/posts", "/api/uploads/posts") ?? null, 
-      position: i.position 
+    images: p.images.map((i) => ({
+      id: i.id,
+      imagePath: i.imagePath,
+      position: i.position,
     })),
     mentions: p.mentions.map((m) => ({
       id: m.id,
@@ -113,13 +92,13 @@ export default async function FolioProfilePage({ params }: Props) {
             id: p.parent.author.id,
             name: p.parent.author.name,
             matricNum: p.parent.author.matricNum,
-            avatarPath: formatAvatarPath(p.parent.author.avatarPath),
+            avatarPath: p.parent.author.avatarPath,
             faculty: p.parent.author.faculty,
             program: p.parent.author.program,
           },
           images: p.parent.images.map((i) => ({
             id: i.id,
-            imagePath: i.imagePath?.replace("/uploads/posts", "/api/uploads/posts") ?? null,
+            imagePath: i.imagePath,
             position: i.position,
           })),
           mentions: p.parent.mentions.map((m) => ({
@@ -159,7 +138,7 @@ export default async function FolioProfilePage({ params }: Props) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <Avatar
               name={profile.name}
-              avatarPath={formatAvatarPath(profile.avatarPath)}
+              avatarPath={profile.avatarPath}
               size="xl"
               ring
               className="border-4 border-white"

@@ -47,6 +47,36 @@ export function relativeTime(d: Date | string | null | undefined): string {
   return formatDate(date);
 }
 
+/**
+ * Normalize a stored upload path to the URL the browser should load.
+ *
+ * Uploaded files are served through `/api/uploads/<type>/<file>` proxy routes
+ * (the Docker standalone build doesn't serve runtime-written files from the
+ * static `public/` folder). But the database holds a mix of formats:
+ *
+ *   - legacy rows:  `/uploads/avatars/x.jpg`, `/uploads/folio/x.jpg`
+ *   - newer rows:   `/api/uploads/avatars/x.jpg`
+ *
+ * This maps any of them to the canonical `/api/uploads/<type>/<file>` form.
+ * The folio save dir is singular (`/uploads/folio`) but its proxy route is
+ * `/api/uploads/folios` (plural) — handled explicitly below.
+ *
+ * Anything already absolute (http/https) or unrecognized is returned as-is.
+ */
+export function mediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//.test(path)) return path;
+  if (path.startsWith("/api/uploads/")) return path;
+  // Singular folio save dir → plural folios proxy route.
+  if (path.startsWith("/uploads/folio/")) {
+    return "/api/uploads/folios/" + path.slice("/uploads/folio/".length);
+  }
+  if (path.startsWith("/uploads/")) {
+    return "/api/uploads/" + path.slice("/uploads/".length);
+  }
+  return path;
+}
+
 export function initials(name: string): string {
   return name
     .split(/\s+/)
