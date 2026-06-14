@@ -19,15 +19,7 @@ import { UpcomingEventsPanel } from "@/components/dashboard/UpcomingEventsPanel"
 import { StatTile } from "@/components/dashboard/StatTile";
 import { ProgressRing } from "@/components/dashboard/ProgressRing";
 import { DeadlineTimeline } from "@/components/dashboard/DeadlineTimeline";
-import {
-  ArrowRight,
-  Bell,
-  BookOpen,
-  CalendarClock,
-  ClipboardList,
-  MessageCircle,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Bell, BookOpen, CalendarClock } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 type UpcomingAssignment = Awaited<ReturnType<typeof getUpcomingAssignments>>[number];
@@ -98,28 +90,28 @@ export default async function StudentDashboard() {
     {
       label: "Kursus Aktif",
       value: enrollmentsCount,
-      Icon: BookOpen,
+      icon: "courses" as const,
       gradient: "from-sky-500 to-cyan-400",
       glow: "rgba(14,165,233,0.45)",
     },
     {
       label: "Kumpulan Aktif",
       value: groupMembershipsCount,
-      Icon: Users,
+      icon: "groups" as const,
       gradient: "from-violet-500 to-fuchsia-400",
       glow: "rgba(168,85,247,0.45)",
     },
     {
       label: "Tugasan Akan Datang",
       value: upcomingAssignmentsCount,
-      Icon: ClipboardList,
+      icon: "assignments" as const,
       gradient: "from-orange-500 to-amber-400",
       glow: "rgba(249,115,22,0.45)",
     },
     {
       label: "Mesej Belum Baca",
       value: unreadMessages,
-      Icon: MessageCircle,
+      icon: "messages" as const,
       gradient: "from-pink-500 to-rose-400",
       glow: "rgba(236,72,153,0.45)",
     },
@@ -192,12 +184,12 @@ export default async function StudentDashboard() {
 
       {/* KPI bento row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, Icon, gradient, glow }, i) => (
+        {stats.map(({ label, value, icon, gradient, glow }, i) => (
           <StatTile
             key={label}
             label={label}
             value={value}
-            Icon={Icon}
+            icon={icon}
             gradient={gradient}
             glow={glow}
             delay={i * 70}

@@ -1,12 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import { BookOpen, ClipboardList, MessageCircle, Users, type LucideIcon } from "lucide-react";
+
+/**
+ * Icons are resolved here, inside the client component, by a string key. A
+ * Server Component cannot pass a component (function) across the RCC boundary
+ * — doing so throws "Functions cannot be passed directly to Client Components".
+ */
+export type StatIconKey = "courses" | "groups" | "assignments" | "messages";
+
+const ICONS: Record<StatIconKey, LucideIcon> = {
+  courses: BookOpen,
+  groups: Users,
+  assignments: ClipboardList,
+  messages: MessageCircle,
+};
 
 type Props = {
   label: string;
   value: number;
-  Icon: LucideIcon;
+  icon: StatIconKey;
   /** Tailwind gradient stops for the icon chip + accent, e.g. "from-sky-500 to-cyan-400". */
   gradient: string;
   /** rgba used for the hover glow shadow. */
@@ -20,7 +34,8 @@ type Props = {
  * Glassy KPI tile with a count-up value and a gradient icon chip that glows on
  * hover. Presentation only — the value is computed server-side and passed in.
  */
-export function StatTile({ label, value, Icon, gradient, glow, delay = 0 }: Props) {
+export function StatTile({ label, value, icon, gradient, glow, delay = 0 }: Props) {
+  const Icon = ICONS[icon];
   const [shown, setShown] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const started = useRef(false);
