@@ -48,14 +48,14 @@ export default async function FolioPostDetailPage({ params }: Props) {
       id: p.author.id,
       name: p.author.name,
       matricNum: p.author.matricNum,
-      avatarPath: p.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
+      avatarPath: p.author.avatarPath,
       faculty: p.author.faculty,
       program: p.author.program,
     },
-    images: p.images.map((i) => ({ 
-      id: i.id, 
-      imagePath: i.imagePath?.replace("/uploads/posts", "/api/uploads/posts") ?? null, 
-      position: i.position 
+    images: p.images.map((i) => ({
+      id: i.id,
+      imagePath: i.imagePath,
+      position: i.position,
     })),
     mentions: p.mentions.map((m) => ({
       id: m.id,
@@ -77,13 +77,13 @@ export default async function FolioPostDetailPage({ params }: Props) {
             id: p.parent.author.id,
             name: p.parent.author.name,
             matricNum: p.parent.author.matricNum,
-            avatarPath: p.parent.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
+            avatarPath: p.parent.author.avatarPath,
             faculty: p.parent.author.faculty,
             program: p.parent.author.program,
           },
           images: p.parent.images.map((i) => ({
             id: i.id,
-            imagePath: i.imagePath?.replace("/uploads/posts", "/api/uploads/posts") ?? null,
+            imagePath: i.imagePath,
             position: i.position,
           })),
           mentions: p.parent.mentions.map((m) => ({
@@ -111,13 +111,16 @@ export default async function FolioPostDetailPage({ params }: Props) {
   const commentRows: CommentRow[] = comments.map((c) => ({
     id: c.id,
     content: c.content,
-    imagePath: c.imagePath ? c.imagePath.replace("/uploads/posts", "/api/uploads/posts") : null,
+    // Raw path, served from public/uploads — same convention as the feed.
+    // (The earlier /api/uploads/posts rewrite was wrong: comment images live
+    // under /uploads/folio and there is no matching /api proxy route.)
+    imagePath: c.imagePath,
     createdAt: c.createdAt.toISOString(),
     author: {
       id: c.author.id,
       name: c.author.name,
       matricNum: c.author.matricNum,
-      avatarPath: c.author.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
+      avatarPath: c.author.avatarPath,
       role: c.author.role,
     },
   }));
@@ -140,7 +143,7 @@ export default async function FolioPostDetailPage({ params }: Props) {
           id: viewer.id,
           name: viewer.name,
           matricNum: viewer.matricNum,
-          avatarPath: viewer.avatarPath?.replace("/uploads/avatars", "/api/uploads/avatars") ?? null,
+          avatarPath: viewer.avatarPath,
           role: viewer.role,
         }}
       />
