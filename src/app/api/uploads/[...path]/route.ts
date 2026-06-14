@@ -6,24 +6,24 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { path: string[] } }
 ) {
-  // Safe resolution for Next.js standalone mode inside Docker containers
-  const baseUploadsDir = fs.existsSync("/app/uploads")
-    ? "/app/uploads"
-    : path.join(process.cwd(), "uploads");
+  const filePathArray = params.path;
 
-  // params.path arrives as an array, e.g., ["avatars", "filename.png"]
-  const fullPath = path.join(baseUploadsDir, ...params.path);
+  // Reject path-traversal before joining — no segment may be ".." or contain a
+  // slash that could escape the uploads root.
+  if (filePathArray.some((seg) => seg === ".." || seg.includes("/") || seg.includes("\\"))) {
+    return new NextResponse("File Not Found", { status: 404 });
+  }
+
+  // Exact target match for the app_uploads named volume mounted in Docker.
+  const baseUploadsDir = "/app/public/uploads";
+  const fullPath = path.join(baseUploadsDir, ...filePathArray);
 
   try {
     if (!fs.existsSync(fullPath)) {
-      console.error("== PROXY 404 == File missing at path:", fullPath);
       return new NextResponse("File Not Found", { status: 404 });
     }
 
-    // Read file stream data
     const fileBuffer = fs.readFileSync(fullPath);
-
-    // Dynamic Header Content-Type detection
     const ext = path.extname(fullPath).toLowerCase();
     let contentType = "image/png";
     if (ext === ".jpg" || ext === ".jpeg") contentType = "image/jpeg";
@@ -37,7 +37,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("== PROXY CRASH == Exception thrown:", error);
+    console.error("[PROXY CRASH]", error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
