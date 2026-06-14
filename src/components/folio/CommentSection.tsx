@@ -7,6 +7,7 @@ import { ImagePlus, Loader2, Send, Trash2, X } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { addFolioComment, deleteFolioComment } from "@/server/actions/folio";
 import { COMMENT_MAX_LENGTH } from "@/schemas/folio";
+import { mediaUrl } from "@/lib/utils";
 
 // Only image MIME types — videos are intentionally excluded for comments.
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set([
@@ -182,14 +183,14 @@ export function CommentSection({
                     )}
                     {c.imagePath && (
                       <a
-                        href={c.imagePath}
+                        href={mediaUrl(c.imagePath)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-1.5 block overflow-hidden rounded-lg"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={c.imagePath}
+                          src={mediaUrl(c.imagePath)!}
                           alt=""
                           loading="lazy"
                           className="max-h-72 max-w-full rounded-lg object-cover"

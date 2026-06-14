@@ -20,6 +20,7 @@ import { Avatar } from "@/components/common/Avatar";
 import { MentionText } from "./MentionText";
 import { ReactionsBar } from "./ReactionsBar";
 import { CommentSection, type CommentRow } from "./CommentSection";
+import { mediaUrl } from "@/lib/utils";
 import {
   deleteFolioPost,
   reportFolioPost,
@@ -345,7 +346,7 @@ export function PostCard({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={img.id}
-                  src={img.imagePath}
+                  src={mediaUrl(img.imagePath) ?? undefined}
                   alt=""
                   loading="lazy"
                   className={`h-full w-full object-cover ${

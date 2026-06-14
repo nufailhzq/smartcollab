@@ -4,7 +4,7 @@ export async function getGroupsForStudentInCourse(studentId: number, courseId: n
   const groups = await prisma.projectGroup.findMany({
     where: { courseId },
     include: {
-      members: { include: { student: { select: { id: true, name: true, matricNum: true } } } },
+      members: { include: { student: { select: { id: true, name: true, matricNum: true, avatarPath: true } } } },
       _count: { select: { members: true } },
     },
     orderBy: { name: "asc" },
@@ -28,7 +28,7 @@ export async function getCurrentGroupForStudent(studentId: number, courseId: num
     },
     include: {
       members: {
-        include: { student: { select: { id: true, name: true, matricNum: true } } },
+        include: { student: { select: { id: true, name: true, matricNum: true, avatarPath: true } } },
         orderBy: { role: "asc" },
       },
     },
@@ -53,7 +53,7 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
         where: { courseId },
         include: {
           members: {
-            include: { student: { select: { id: true, name: true, matricNum: true } } },
+            include: { student: { select: { id: true, name: true, matricNum: true, avatarPath: true } } },
             orderBy: { role: "asc" },
           },
           _count: { select: { members: true } },
@@ -90,7 +90,7 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
   const enrich = (member: {
     studentId: number;
     role: "LEADER" | "MEMBER";
-    student: { id: number; name: string; matricNum: string | null };
+    student: { id: number; name: string; matricNum: string | null; avatarPath: string | null };
   }) => {
     const submitted = submittedByStudent.get(member.studentId) ?? 0;
     const contributionPct =
@@ -101,19 +101,30 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
       studentId: member.studentId,
       name: member.student.name,
       matricNum: member.student.matricNum,
+      avatarPath: member.student.avatarPath ?? null,
       role: member.role,
       contributionPct,
       lastActivityAt: lastBySender.get(member.studentId) ?? null,
     };
   };
 
+  // Explicit type configuration introduced to bypass strict 'noUncheckedIndexedAccess' checks
   let currentGroup: {
     id: number;
     name: string;
     maxMembers: number;
     memberCount: number;
-    members: ReturnType<typeof enrich>[];
+    members: {
+      studentId: number;
+      name: string;
+      matricNum: string | null;
+      avatarPath: string | null;
+      role: "LEADER" | "MEMBER";
+      contributionPct: number;
+      lastActivityAt: Date | null;
+    }[];
   } | null = null;
+  
   const otherGroups: typeof groups = [];
 
   for (const g of groups) {
@@ -148,6 +159,7 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
         id: m.student.id,
         name: m.student.name,
         matricNum: m.student.matricNum,
+        avatarPath: m.student.avatarPath,
       })),
     })),
     pendingRequests: pendingMine.map((r) => ({

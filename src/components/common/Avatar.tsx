@@ -1,4 +1,4 @@
-import { cn, initials } from "@/lib/utils";
+import { cn, initials, mediaUrl } from "@/lib/utils";
 
 type Size = "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
 
@@ -28,12 +28,15 @@ type Props = {
 export function Avatar({ name, avatarPath, size = "md", className, ring = false }: Props) {
   const sizeCls = SIZE_CLASS[size];
   const ringCls = ring ? "ring-2 ring-white" : "";
+  // Normalize legacy raw /uploads/... paths to the /api proxy URL that works
+  // in the Docker build. Handles already-/api paths and external URLs too.
+  const src = mediaUrl(avatarPath);
 
-  if (avatarPath) {
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={avatarPath}
+        src={src}
         alt={name}
         loading="lazy"
         className={cn(

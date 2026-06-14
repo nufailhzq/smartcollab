@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
+import { Avatar } from "@/components/common/Avatar";
 import { useToast } from "@/components/common/Toast";
 import { joinGroup, leaveGroup } from "@/server/actions/groups";
 import {
@@ -33,6 +34,7 @@ type Member = {
   role: "LEADER" | "MEMBER";
   contributionPct: number;
   lastActivityAt: string | null;
+  avatarPath?: string | null;
 };
 
 type CurrentGroup = {
@@ -282,6 +284,7 @@ export function GroupBrowser({
                   {currentGroup.members.map((m, idx) => {
                     const isMe = m.studentId === studentId;
                     const activity = activityLabel(m.lastActivityAt);
+
                     return (
                       <div
                         key={m.studentId}
@@ -294,16 +297,17 @@ export function GroupBrowser({
                         )}
                       >
                         <div className="flex items-start gap-4">
-                          <div
+                          <Avatar
+                            name={m.name}
+                            avatarPath={m.avatarPath}
+                            size="lg"
+                            ring
                             className={cn(
-                              "grid h-14 w-14 shrink-0 place-items-center rounded-full text-base font-bold",
-                              isMe
-                                ? "bg-ukm-orange text-white"
-                                : "bg-sky-100 text-sky-700",
+                              "h-14 w-14 border-2",
+                              isMe ? "border-ukm-orange" : "border-slate-200",
                             )}
-                          >
-                            {initials(m.name)}
-                          </div>
+                          />
+
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <h5 className="font-semibold text-ukm-navy">{m.name}</h5>

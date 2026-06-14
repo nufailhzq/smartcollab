@@ -16,6 +16,11 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "ui-avatars.com" },
+      // Whitelist local development lookups
+      { protocol: "http", hostname: "localhost" },
+      // Whitelist your production VPS server to safely allow profile pics and comment image assets
+      { protocol: "http", hostname: "143.198.214.99" },
+      { protocol: "https", hostname: "143.198.214.99" },
     ],
   },
 };
