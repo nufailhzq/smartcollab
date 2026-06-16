@@ -94,12 +94,32 @@ export async function askAi(history: AiChatMessage[]): Promise<AskAiResult> {
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error("Gemini API error:", res.status, body);
+      console.error(`Gemini API error: ${res.status} (model=${model})`, body);
+      if (res.status === 400) {
+        // Usually a malformed request or an API-key-not-valid 400 from Google.
+        const keyIssue = /api[_ ]?key/i.test(body);
+        return {
+          ok: false,
+          error: keyIssue
+            ? "Kunci API Gemini tidak sah. Hubungi admin."
+            : "Permintaan AI tidak sah. Hubungi admin.",
+        };
+      }
       if (res.status === 401 || res.status === 403) {
-        return { ok: false, error: "Kunci API Gemini tidak sah. Hubungi admin." };
+        return { ok: false, error: "Kunci API Gemini tidak sah atau tiada kebenaran. Hubungi admin." };
+      }
+      if (res.status === 404) {
+        // The model name doesn't exist / isn't available to this key.
+        return {
+          ok: false,
+          error: `Model AI "${model}" tidak ditemui. Admin perlu semak tetapan GEMINI_MODEL.`,
+        };
       }
       if (res.status === 429) {
-        return { ok: false, error: "AI sibuk. Sila cuba lagi sekejap." };
+        return { ok: false, error: "AI sibuk (had penggunaan dicapai). Sila cuba lagi sekejap." };
+      }
+      if (res.status >= 500) {
+        return { ok: false, error: "Perkhidmatan AI Google sedang bermasalah. Cuba sebentar lagi." };
       }
       return { ok: false, error: "AI tidak dapat membalas. Sila cuba lagi." };
     }
@@ -119,12 +139,28 @@ export async function askAi(history: AiChatMessage[]): Promise<AskAiResult> {
       };
     }
 
-    const reply = data.candidates?.[0]?.content?.parts
+    const candidate = data.candidates?.[0];
+    const reply = candidate?.content?.parts
       ?.map((p) => p.text ?? "")
       .join("")
       .trim();
 
     if (!reply) {
+      const finish = candidate?.finishReason;
+      console.error("Gemini empty reply:", { finish, model });
+      if (finish === "MAX_TOKENS") {
+        // thinkingBudget burned the whole output budget before any text.
+        return {
+          ok: false,
+          error: "Jawapan AI terpotong. Cuba soalan yang lebih ringkas.",
+        };
+      }
+      if (finish === "SAFETY" || finish === "RECITATION") {
+        return {
+          ok: false,
+          error: "Balasan AI dihalang oleh penapis keselamatan. Cuba soalan lain.",
+        };
+      }
       return { ok: false, error: "AI tidak memberi balasan. Sila cuba lagi." };
     }
 
