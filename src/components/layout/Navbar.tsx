@@ -20,6 +20,7 @@ import { TranslateToggle } from "./TranslateToggle";
 import { MobileNavToggle } from "./MobileNavToggle";
 import { LogoutButton } from "./LogoutButton";
 import { MessageStream } from "./MessageStream";
+import { LiveRefresh } from "./LiveRefresh";
 import { ThemeToggle } from "./ThemeToggle";
 import { IdleLogout } from "./IdleLogout";
 import { dispatchDueEventReminders } from "@/server/actions/calendar";
@@ -110,6 +111,7 @@ export async function Navbar() {
         mutedIds={mutedIds}
         notificationsMuted={notificationsMuted}
       />
+      <LiveRefresh />
       <IdleLogout />
       <header className="glass sticky top-0 z-30 border-b border-slate-200/70 shadow-sm">
         <div className="flex h-16 items-center justify-between px-3 sm:px-6">

@@ -20,6 +20,11 @@ type StreamEvent =
       receiverId: number;
       senderId: number;
       messageId: number;
+    }
+  | {
+      kind: "refresh";
+      receiverId: number;
+      reason?: string;
     };
 
 /**
@@ -67,6 +72,14 @@ export function MessageStream({
         return;
       }
       if (payload.receiverId !== currentUserId) return;
+
+      if (payload.kind === "refresh") {
+        // Generic live-update signal — LiveRefresh debounces router.refresh().
+        window.dispatchEvent(
+          new CustomEvent("ukmfolio:refresh", { detail: payload }),
+        );
+        return;
+      }
 
       if (payload.kind === "message:deleted") {
         window.dispatchEvent(

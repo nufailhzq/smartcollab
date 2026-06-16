@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { emitRefresh } from "./message-events";
 
 export type NotificationPayload = {
   title: string;
@@ -7,7 +8,7 @@ export type NotificationPayload = {
 };
 
 export async function notifyUser(userId: number, n: NotificationPayload) {
-  return prisma.notification.create({
+  const created = await prisma.notification.create({
     data: {
       userId,
       title: n.title,
@@ -15,11 +16,14 @@ export async function notifyUser(userId: number, n: NotificationPayload) {
       link: n.link ?? "",
     },
   });
+  // Live: nudge the recipient's open tabs to re-fetch (bell + page data).
+  emitRefresh(userId, "notification");
+  return created;
 }
 
 export async function notifyMany(userIds: number[], n: NotificationPayload) {
   if (userIds.length === 0) return { count: 0 };
-  return prisma.notification.createMany({
+  const result = await prisma.notification.createMany({
     data: userIds.map((userId) => ({
       userId,
       title: n.title,
@@ -27,6 +31,8 @@ export async function notifyMany(userIds: number[], n: NotificationPayload) {
       link: n.link ?? "",
     })),
   });
+  emitRefresh(userIds, "notification");
+  return result;
 }
 
 export async function notifyEnrolledStudents(

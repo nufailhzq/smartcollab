@@ -17,6 +17,15 @@ export type MessageEvent =
       receiverId: number;
       senderId: number;
       messageId: number;
+    }
+  | {
+      // Generic "something changed for this user" signal. The client reacts by
+      // calling router.refresh() so the current page's Server Components
+      // re-fetch from the DB — no payload needed beyond the target user.
+      kind: "refresh";
+      receiverId: number;
+      /** Optional hint for what changed (telemetry/debug only). */
+      reason?: string;
     };
 
 /**
@@ -44,4 +53,17 @@ export const messageBus: EventEmitter = (() => {
 
 export function emitMessageEvent(event: MessageEvent) {
   messageBus.emit("event", event);
+}
+
+/**
+ * Push a live "refresh" signal to one or more users. Each connected client
+ * reacts by calling router.refresh(), so whatever page they're on re-fetches
+ * its server data. De-duplicates user IDs so a single change emits once per
+ * user even if helpers overlap.
+ */
+export function emitRefresh(userIds: number | number[], reason?: string) {
+  const ids = Array.isArray(userIds) ? userIds : [userIds];
+  for (const id of new Set(ids)) {
+    if (id > 0) messageBus.emit("event", { kind: "refresh", receiverId: id, reason });
+  }
 }
