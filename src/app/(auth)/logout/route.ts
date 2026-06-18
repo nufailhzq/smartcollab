@@ -37,7 +37,10 @@ export async function POST(request: Request) {
   const target = new URL("/login", base);
   // Only the idle timeout surfaces a notice on the login page.
   if (reason === "idle") target.searchParams.set("reason", reason);
-  const response = NextResponse.redirect(target);
+  // 303 See Other — NOT the default 307. A 307 preserves the POST method, so
+  // the browser would re-POST to /login (a GET-only page) and effectively just
+  // reload the current page without logging out. 303 forces a follow-up GET.
+  const response = NextResponse.redirect(target, 303);
 
   // Clear the session cookie on the response we actually return. We can't rely
   // on reading the cookie back from the store (signOut already deleted it
@@ -65,10 +68,18 @@ export async function POST(request: Request) {
     .getAll()
     .map((c) => c.name)
     .filter((n) => /authjs|next-auth/i.test(n));
+
   for (const name of new Set([...AUTH_COOKIE_NAMES, ...dynamicNames])) {
-    // delete() emits a Set-Cookie with empty value + Max-Age=0 — the canonical
-    // way to remove a cookie. Deleting a non-existent cookie is a harmless no-op.
-    response.cookies.delete(name);
+    // A bare delete() emits `Set-Cookie: name=; Max-Age=0` WITHOUT the Secure
+    // flag. Browsers REJECT any `__Secure-`/`__Host-`-prefixed Set-Cookie that
+    // lacks Secure — so the real production session cookie
+    // (`__Secure-authjs.session-token`) was never actually cleared, and logout
+    // appeared to do nothing. We therefore expire each name with explicit,
+    // prefix-valid attributes. We clear both a secure and a non-secure variant
+    // so it works over HTTPS (prod) and plain HTTP (local) alike.
+    const base = { path: "/", expires: new Date(0), maxAge: 0 as const };
+    response.cookies.set(name, "", { ...base, secure: true, httpOnly: true });
+    response.cookies.set(name, "", { ...base, secure: false, httpOnly: true });
   }
 
   return response;
