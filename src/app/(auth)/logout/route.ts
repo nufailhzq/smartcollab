@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { signOut } from "@/lib/auth";
 
@@ -14,6 +15,12 @@ export async function POST(request: Request) {
     /* no body — manual logout */
   }
 
+  // signOut mutates the session cookie (expires it) via next/headers' cookie
+  // store. Because we return our OWN NextResponse below instead of letting the
+  // framework emit its default response, those Set-Cookie headers would be
+  // dropped — leaving the JWT cookie alive and the user still "logged in".
+  // We therefore snapshot the cookie store after signOut and replay every
+  // auth/session cookie onto the redirect response so the clear actually lands.
   await signOut({ redirect: false });
 
   // Prefer the public URL the user came in on, fall back to NEXTAUTH_URL,
@@ -31,5 +38,21 @@ export async function POST(request: Request) {
   const target = new URL("/login", base);
   // Only the idle timeout surfaces a notice on the login page.
   if (reason === "idle") target.searchParams.set("reason", reason);
-  return NextResponse.redirect(target);
+  const response = NextResponse.redirect(target);
+
+  // Replay the (now-expired) auth cookies onto the response we actually return,
+  // so the browser drops the session. Auth.js v5 cookie names are prefixed
+  // `authjs.` (and `__Secure-authjs.` over HTTPS).
+  const store = cookies();
+  for (const cookie of store.getAll()) {
+    if (/authjs|next-auth/i.test(cookie.name)) {
+      response.cookies.set(cookie.name, cookie.value, {
+        path: "/",
+        expires: new Date(0),
+        maxAge: 0,
+      });
+    }
+  }
+
+  return response;
 }
