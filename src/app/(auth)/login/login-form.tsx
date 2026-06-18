@@ -60,8 +60,8 @@ export function LoginForm() {
           <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-ukm-teal/40 to-ukm-cyan/30 opacity-60 blur-xl transition-all duration-500 group-hover/logo:opacity-100 group-hover/logo:blur-2xl" />
           <div className="grid h-20 w-20 place-items-center rounded-2xl bg-white p-2.5 shadow-lift-lg transition-transform duration-500 ease-spring group-hover/logo:scale-105 group-hover/logo:-rotate-3">
             <Image
-              src="/images/logo/UKMOfficialLogo.png"
-              alt="UKM"
+              src="/images/logo/SmartCollabLogo.png"
+              alt="SmartCollab"
               width={72}
               height={72}
               priority

@@ -123,8 +123,8 @@ export async function Navbar() {
               className="group flex items-center gap-2 rounded-lg transition hover:opacity-90 sm:gap-3"
             >
               <Image
-                src="/images/navbar/UKMOfficialLogo.png"
-                alt="UKM"
+                src="/images/navbar/SmartCollabLogo.png"
+                alt="SmartCollab"
                 width={40}
                 height={40}
                 priority
