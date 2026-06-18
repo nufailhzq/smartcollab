@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +15,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
 import { SideDrawer } from "@/components/common/SideDrawer";
@@ -125,6 +127,10 @@ export function CalendarView({
   const [editing, setEditing] = useState<EventItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [hoverKey, setHoverKey] = useState<string | null>(null);
+  // Click-opened day panel. Unlike the hover tooltip, this stays open so the
+  // user can comfortably reach the delete buttons (hover popovers closed too
+  // fast to click "Padam" in time).
+  const [openDayKey, setOpenDayKey] = useState<string | null>(null);
 
   const monthGrid = useMemo(() => buildMonthGrid(year, monthIndex), [year, monthIndex]);
 
@@ -370,7 +376,10 @@ export function CalendarView({
             const isCurrentMonth = cell.date.getMonth() === monthIndex;
             const totalCount =
               dayEvents.length + dayDeadlines.length + dayTimetable.length;
-            const showTooltip = hoverKey === key && totalCount > 0;
+            // Suppress the read-only hover tooltip while the click panel for
+            // this day is open, so the two popovers don't overlap.
+            const showTooltip =
+              hoverKey === key && totalCount > 0 && openDayKey !== key;
             return (
               <div
                 key={i}
@@ -380,12 +389,20 @@ export function CalendarView({
               >
                 <button
                   onClick={() => {
-                    setCreateDateISO(key);
-                    setOpenCreate(true);
+                    // Click opens a persistent day panel. If the day has no
+                    // entries, jump straight to the create dialog instead.
+                    if (totalCount === 0) {
+                      setCreateDateISO(key);
+                      setOpenCreate(true);
+                    } else {
+                      setOpenDayKey((k) => (k === key ? null : key));
+                    }
                   }}
                   className={`flex min-h-20 w-full flex-col items-start gap-1 border-b border-r border-slate-100 p-1.5 text-left text-xs transition hover:bg-slate-50 ${
                     isCurrentMonth ? "" : "opacity-40"
-                  } ${isToday ? "bg-ukm-cyan/10" : ""}`}
+                  } ${isToday ? "bg-ukm-cyan/10" : ""} ${
+                    openDayKey === key ? "ring-2 ring-inset ring-ukm-teal" : ""
+                  }`}
                 >
                   <span
                     className={`text-[11px] font-semibold ${
@@ -408,7 +425,7 @@ export function CalendarView({
                         key={`a-${a.id}`}
                         className="truncate rounded bg-ukm-orange/20 px-1 py-0.5 text-[10px] text-ukm-orange"
                       >
-                        ⏰ {a.courseCode}
+                        {a.courseCode}
                       </span>
                     ))}
                     {dayTimetable.slice(0, 1).map((t) => (
@@ -420,7 +437,7 @@ export function CalendarView({
                           color: t.color ?? "#a855f7",
                         }}
                       >
-                        🪑 {t.title}
+                        {t.title}
                       </span>
                     ))}
                     {totalCount > 4 && (
@@ -443,45 +460,28 @@ export function CalendarView({
                       {dayEvents.map((e) => (
                         <li
                           key={`tt-e-${e.id}`}
-                          className="flex items-start justify-between gap-2 text-xs"
+                          className="text-xs"
                         >
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-ukm-teal">
-                              {e.time.slice(0, 5)} · {e.title}
+                          <p className="font-semibold text-ukm-teal">
+                            {e.time.slice(0, 5)} · {e.title}
+                          </p>
+                          {e.courseCode && (
+                            <p className="text-[10px] text-slate-500">
+                              [{e.courseCode}]
                             </p>
-                            {e.courseCode && (
-                              <p className="text-[10px] text-slate-500">
-                                [{e.courseCode}]
-                              </p>
-                            )}
-                            {e.description && (
-                              <p className="text-[10px] text-slate-500">
-                                {e.description.slice(0, 80)}
-                                {e.description.length > 80 ? "…" : ""}
-                              </p>
-                            )}
-                          </div>
-                          {e.isMine && (
-                            <button
-                              type="button"
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                onDelete(e.id);
-                              }}
-                              disabled={isPending}
-                              title="Padam acara"
-                              aria-label="Padam acara"
-                              className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-ukm-red"
-                            >
-                              <Trash2 size={11} />
-                            </button>
+                          )}
+                          {e.description && (
+                            <p className="text-[10px] text-slate-500">
+                              {e.description.slice(0, 80)}
+                              {e.description.length > 80 ? "…" : ""}
+                            </p>
                           )}
                         </li>
                       ))}
                       {dayDeadlines.map((a) => (
                         <li key={`tt-a-${a.id}`} className="text-xs">
-                          <p className="font-semibold text-ukm-orange">
-                            ⏰ {a.title}
+                          <p className="flex items-center gap-1 font-semibold text-ukm-orange">
+                            <Clock size={11} /> {a.title}
                           </p>
                           <p className="text-[10px] text-slate-500">
                             Tarikh akhir · {a.courseCode}
@@ -494,17 +494,121 @@ export function CalendarView({
                             className="font-semibold"
                             style={{ color: t.color ?? "#a855f7" }}
                           >
-                            🪑 {t.startTime}–{t.endTime} · {t.title}
+                            {t.startTime}–{t.endTime} · {t.title}
                           </p>
                           {t.location && (
-                            <p className="text-[10px] text-slate-500">
-                              📍 {t.location}
+                            <p className="flex items-center gap-1 text-[10px] text-slate-500">
+                              <MapPin size={10} /> {t.location}
                             </p>
                           )}
                         </li>
                       ))}
                     </ul>
+                    <p className="mt-2 border-t border-slate-100 pt-1.5 text-[10px] text-slate-400">
+                      Klik hari untuk urus / padam acara.
+                    </p>
                   </div>
+                )}
+
+                {/* Click-managed day panel — stays open so delete is reachable. */}
+                {openDayKey === key && (
+                  <>
+                    {/* Backdrop closes the panel on outside click. */}
+                    <button
+                      type="button"
+                      aria-label="Tutup panel hari"
+                      className="fixed inset-0 z-30 cursor-default"
+                      onClick={() => setOpenDayKey(null)}
+                    />
+                    <div className="absolute left-1/2 top-full z-40 mt-1 w-72 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-lift-lg animate-fade-in">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-ukm-navy">
+                          {formatDate(cell.date)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setOpenDayKey(null)}
+                          aria-label="Tutup"
+                          className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-ukm-navy"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {dayEvents.map((e) => (
+                          <li
+                            key={`dp-e-${e.id}`}
+                            className="flex items-start justify-between gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-ukm-teal">
+                                {e.time.slice(0, 5)} · {e.title}
+                              </p>
+                              {e.courseCode && (
+                                <p className="text-[10px] text-slate-500">
+                                  [{e.courseCode}]
+                                </p>
+                              )}
+                            </div>
+                            {e.isMine && (
+                              <button
+                                type="button"
+                                onClick={() => onDelete(e.id)}
+                                disabled={isPending}
+                                title="Padam acara"
+                                aria-label="Padam acara"
+                                className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-ukm-red disabled:opacity-50"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                        {dayDeadlines.map((a) => (
+                          <li
+                            key={`dp-a-${a.id}`}
+                            className="rounded-lg px-2 py-1.5 text-xs"
+                          >
+                            <p className="flex items-center gap-1 font-semibold text-ukm-orange">
+                              <Clock size={11} /> {a.title}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              Tarikh akhir · {a.courseCode}
+                            </p>
+                          </li>
+                        ))}
+                        {dayTimetable.map((t) => (
+                          <li
+                            key={`dp-t-${t.id}`}
+                            className="rounded-lg px-2 py-1.5 text-xs"
+                          >
+                            <p
+                              className="font-semibold"
+                              style={{ color: t.color ?? "#a855f7" }}
+                            >
+                              {t.startTime}–{t.endTime} · {t.title}
+                            </p>
+                            {t.location && (
+                              <p className="flex items-center gap-1 text-[10px] text-slate-500">
+                                <MapPin size={10} /> {t.location}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenDayKey(null);
+                          setCreateDateISO(key);
+                          setOpenCreate(true);
+                        }}
+                        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-ukm-teal/50 py-1.5 text-xs font-semibold text-ukm-teal transition hover:bg-ukm-teal/10"
+                      >
+                        <Plus size={13} /> Tambah acara
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             );
@@ -611,7 +715,7 @@ export function CalendarView({
                                 }`}
                               >
                                 {isActive && (
-                                  <span className="text-purple-600">✓</span>
+                                  <Check size={12} className="text-purple-600" />
                                 )}
                                 <span>{p.label}</span>
                               </button>

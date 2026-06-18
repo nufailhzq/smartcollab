@@ -163,6 +163,12 @@ export type ChatGroupSummary = {
   lastMessagePreview: string | null;
   lastSenderName: string | null;
   isAdmin: boolean;
+  /**
+   * "course" = auto-created chatroom paired with a ProjectGroup (course work).
+   * "created" = a chatroom a user made manually via "New Group".
+   * Drives the chat group filter dropdown.
+   */
+  origin: "course" | "created";
 };
 
 export async function getChatGroupsForUser(userId: number): Promise<ChatGroupSummary[]> {
@@ -172,6 +178,8 @@ export async function getChatGroupsForUser(userId: number): Promise<ChatGroupSum
       chatGroup: {
         include: {
           _count: { select: { members: true } },
+          // Presence of the paired projectGroup marks this as a course group.
+          projectGroup: { select: { id: true } },
           messages: {
             orderBy: { timestamp: "desc" },
             take: 1,
@@ -220,6 +228,7 @@ export async function getChatGroupsForUser(userId: number): Promise<ChatGroupSum
       lastMessagePreview: last ? last.content : null,
       lastSenderName: last ? last.sender.name : null,
       isAdmin: m.isAdmin,
+      origin: m.chatGroup.projectGroup ? "course" : "created",
     };
   });
 

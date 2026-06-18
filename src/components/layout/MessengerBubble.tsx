@@ -14,8 +14,10 @@ import {
   Ban,
   Bell,
   BellOff,
+  BookOpen,
   Check,
   CheckCheck,
+  ChevronDown,
   Download,
   File as FileIcon,
   LogOut,
@@ -96,6 +98,7 @@ export type BubbleChatGroup = {
   lastMessagePreview: string | null;
   lastSenderName: string | null;
   isAdmin: boolean;
+  origin: "course" | "created";
 };
 
 type Props = {
@@ -1114,7 +1117,7 @@ export function MessengerBubble({
 
               {listTab === "ai" && aiMessages.length === 0 && (
                 <div className="px-6 py-10 text-center">
-                  <p className="text-sm font-semibold text-ukm-navy">Pembantu Belajar AI ✨</p>
+                  <p className="text-sm font-semibold text-ukm-navy">Pembantu Belajar AI</p>
                   <p className="mt-1 text-xs text-slate-500">
                     Tekan FolioBot AI di atas untuk mula bertanya.
                   </p>
@@ -1706,7 +1709,7 @@ export function MessengerBubble({
                       <Sparkles size={26} />
                     </div>
                     <p className="text-sm font-bold text-ukm-navy">
-                      Hai! Saya FolioBot AI 👋
+                      Hai! Saya FolioBot AI
                     </p>
                     <p className="mt-1 max-w-[260px] text-xs text-slate-500">
                       Tanya saya apa-apa tentang kursus, tugasan, atau coding.
@@ -1724,7 +1727,6 @@ export function MessengerBubble({
                           onClick={() => onAiQuickPrompt(q)}
                           className="w-full rounded-lg border border-orange-200 bg-white px-3 py-2 text-left text-xs text-slate-600 transition hover:-translate-y-0.5 hover:border-ukm-orange hover:bg-orange-50 hover:text-ukm-navy hover:shadow-soft"
                         >
-                          <span className="mr-1">💡</span>
                           {q}
                         </button>
                       ))}
@@ -1801,7 +1803,7 @@ export function MessengerBubble({
                   </button>
                 </div>
                 <p className="mt-1 px-1 text-[10px] text-slate-400">
-                  ✨ Dijana oleh Gemini. Jawapan mungkin tidak tepat — sahkan
+                  Dijana oleh Gemini. Jawapan mungkin tidak tepat — sahkan
                   semula dengan pensyarah.
                 </p>
               </form>
@@ -2129,6 +2131,14 @@ function MessageAttachment({
   );
 }
 
+type GroupFilter = "all" | "course" | "created";
+
+const GROUP_FILTERS: { value: GroupFilter; label: string }[] = [
+  { value: "all", label: "Semua kumpulan" },
+  { value: "course", label: "Kumpulan kursus" },
+  { value: "created", label: "Kumpulan dicipta" },
+];
+
 function ChatGroupSection({
   groups,
   onOpen,
@@ -2136,41 +2146,131 @@ function ChatGroupSection({
   groups: BubbleChatGroup[];
   onOpen: (id: number) => void;
 }) {
+  const [filter, setFilter] = useState<GroupFilter>("all");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the filter dropdown when clicking outside it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  const visibleGroups =
+    filter === "all" ? groups : groups.filter((g) => g.origin === filter);
+  const activeLabel =
+    GROUP_FILTERS.find((f) => f.value === filter)?.label ?? "Semua kumpulan";
+
   return (
     <section className="border-b border-slate-100">
-      <p className="px-4 pt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-        Kumpulan Chat
-      </p>
-      <ul>
-        {groups.map((g) => (
-          <li key={g.id}>
-            <button
-              type="button"
-              onClick={() => onOpen(g.id)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-emerald-50/40"
+      <div className="flex items-center justify-between gap-2 px-4 pt-3">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          Kumpulan Chat
+        </p>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700"
+            aria-haspopup="listbox"
+            aria-expanded={menuOpen}
+          >
+            {activeLabel}
+            <ChevronDown
+              size={13}
+              className={cn("transition-transform", menuOpen && "rotate-180")}
+            />
+          </button>
+          {menuOpen && (
+            <ul
+              role="listbox"
+              className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lift-lg"
             >
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
-                <Users size={18} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-[15px] font-semibold text-ukm-navy">{g.name}</p>
-                  {g.unread > 0 && (
-                    <span className="grid min-h-[20px] min-w-[20px] place-items-center rounded-full bg-gradient-to-br from-ukm-orange to-amber-500 px-1.5 text-[11px] font-bold text-white shadow-soft">
-                      {g.unread}
-                    </span>
+              {GROUP_FILTERS.map((f) => {
+                const count =
+                  f.value === "all"
+                    ? groups.length
+                    : groups.filter((g) => g.origin === f.value).length;
+                return (
+                  <li key={f.value}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={filter === f.value}
+                      onClick={() => {
+                        setFilter(f.value);
+                        setMenuOpen(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition hover:bg-emerald-50",
+                        filter === f.value
+                          ? "font-bold text-emerald-700"
+                          : "text-slate-600",
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {f.value === "course" && <BookOpen size={13} />}
+                        {f.value === "created" && <Users size={13} />}
+                        {f.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{count}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+      {visibleGroups.length === 0 ? (
+        <p className="px-4 py-4 text-xs text-slate-400">
+          Tiada {filter === "course" ? "kumpulan kursus" : "kumpulan dicipta"}.
+        </p>
+      ) : (
+        <ul>
+          {visibleGroups.map((g) => (
+            <li key={g.id}>
+              <button
+                type="button"
+                onClick={() => onOpen(g.id)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-emerald-50/40"
+              >
+                <div
+                  className={cn(
+                    "grid h-10 w-10 shrink-0 place-items-center rounded-full text-white shadow-sm",
+                    g.origin === "course"
+                      ? "bg-gradient-to-br from-sky-500 to-indigo-600"
+                      : "bg-gradient-to-br from-emerald-500 to-teal-600",
                   )}
+                >
+                  {g.origin === "course" ? <BookOpen size={18} /> : <Users size={18} />}
                 </div>
-                <p className="truncate text-xs text-slate-500">
-                  {g.lastMessagePreview
-                    ? `${g.lastSenderName ?? ""}${g.lastSenderName ? ": " : ""}${g.lastMessagePreview}`
-                    : `${g.memberCount} ahli`}
-                </p>
-              </div>
-            </button>
-          </li>
-        ))}
-      </ul>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-[15px] font-semibold text-ukm-navy">{g.name}</p>
+                    {g.unread > 0 && (
+                      <span className="grid min-h-[20px] min-w-[20px] place-items-center rounded-full bg-gradient-to-br from-ukm-orange to-amber-500 px-1.5 text-[11px] font-bold text-white shadow-soft">
+                        {g.unread}
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-slate-500">
+                    {g.lastMessagePreview
+                      ? `${g.lastSenderName ?? ""}${g.lastSenderName ? ": " : ""}${g.lastMessagePreview}`
+                      : `${g.memberCount} ahli`}
+                  </p>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

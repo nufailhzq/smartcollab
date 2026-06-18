@@ -232,6 +232,7 @@ export async function Navbar() {
           lastMessagePreview: g.lastMessagePreview,
           lastSenderName: g.lastSenderName,
           isAdmin: g.isAdmin,
+          origin: g.origin,
         }))}
       />
     </>
