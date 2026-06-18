@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { loginAction } from "./actions";
@@ -12,7 +11,6 @@ import { IdleLogoutNotice } from "@/components/layout/IdleLogoutNotice";
 export function LoginForm() {
   const t = useTranslations("Login");
   const tApp = useTranslations("App");
-  const router = useRouter();
   const [matric, setMatric] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,9 +33,15 @@ export function LoginForm() {
       // Delay the navigation so the user sees the
       // "Connecting → Welcome <name>" narration before the page transitions.
       // SmartCollabLoader sequence: 1.8s connect → 1.4s welcome → 1.2s fade.
+      //
+      // Use a full-document navigation (not router.replace) so the freshly-set
+      // session cookie from the signIn server action is guaranteed to be sent
+      // on the request for "/". A soft (client) navigation can race the cookie
+      // write, landing on "/" with no session — which bounced the user back to
+      // /login and forced a second login. A hard nav makes the cookie + the
+      // navigation atomic.
       setTimeout(() => {
-        router.replace("/");
-        router.refresh();
+        window.location.href = "/";
       }, 3400);
     });
   }
