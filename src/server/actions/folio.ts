@@ -263,7 +263,7 @@ export async function addFolioComment(
   const parsed = addCommentSchema.safeParse({
     postId: postIdRaw,
     // Allow empty text when an image is present — re-check below.
-    content: attachment ? (contentRaw || "📷") : contentRaw,
+    content: attachment ? (contentRaw || "Imej") : contentRaw,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
@@ -573,7 +573,7 @@ export async function adminDeleteFolioPost(
 
   // No `link` — the post is gone, so the notification is purely informational.
   await notifyUser(post.authorId, {
-    title: "⚠️ Pos Anda Dipadam Oleh Admin",
+    title: "Pos Anda Dipadam Oleh Admin",
     message: `Pos: "${snippet}"\n\nSebab: ${parsed.data.reason}`,
   });
 

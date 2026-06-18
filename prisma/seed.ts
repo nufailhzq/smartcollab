@@ -201,7 +201,7 @@ const PROGRAM_BIOS: Record<string, readonly string[]> = {
     "Pelajar Civil yang suka outdoor.",
   ],
   "Kejuruteraan Elektrik": [
-    "Volt out loud ⚡",
+    "Volt out loud",
     "Antara litar & solder, ada saya.",
     "Power systems > everything.",
   ],
@@ -475,7 +475,7 @@ async function main() {
       },
     });
   }
-  console.warn(`✓ Users: ${1 + LECTURERS.length + allStudents.length}`);
+  console.warn(`Users: ${1 + LECTURERS.length + allStudents.length}`);
 
   const lecturerByMatric = new Map<string, number>();
   for (const l of LECTURERS) {
@@ -520,7 +520,7 @@ async function main() {
       },
     });
   }
-  console.warn(`✓ Courses: ${COURSES.length}`);
+  console.warn(`Courses: ${COURSES.length}`);
 
   const courseByCode = new Map<string, number>();
   for (const c of COURSES) {
@@ -561,7 +561,7 @@ async function main() {
       }
     }
   }
-  console.warn(`✓ Enrollments: ${enrollmentCount}`);
+  console.warn(`Enrollments: ${enrollmentCount}`);
 
   // Course content — every course gets 1 GENERAL, 4 NOTES, 2 ANNOUNCEMENT = 7 rows.
   // Skip the whole block if any content already exists (idempotent re-run).
@@ -610,7 +610,7 @@ async function main() {
       contentCount += 7;
     }
   }
-  console.warn(`✓ Course content: ${contentCount}`);
+  console.warn(`Course content: ${contentCount}`);
 
   // Project groups — 3 groups per course in first 10 courses = 30 groups.
   let groupRows = 0;
@@ -634,7 +634,7 @@ async function main() {
       groupRows++;
     }
   }
-  console.warn(`✓ Project groups: ${groupRows}`);
+  console.warn(`Project groups: ${groupRows}`);
 
   // Group memberships — for each group, enroll 2-4 students who are enrolled in that course.
   const allGroups = await prisma.projectGroup.findMany();
@@ -664,7 +664,7 @@ async function main() {
       }
     }
   }
-  console.warn(`✓ Group memberships: ${memberCount}`);
+  console.warn(`Group memberships: ${memberCount}`);
 
   // Assignments — 4 per course (mix of past/present/future, individual/group).
   const existingAssignmentCount = await prisma.assignment.count();
@@ -696,7 +696,7 @@ async function main() {
     });
     allAssignments = rows;
   }
-  console.warn(`✓ Assignments: ${allAssignments.length}`);
+  console.warn(`Assignments: ${allAssignments.length}`);
 
   // Submissions — for each past-deadline assignment, 60-80% of enrolled students submit.
   const STATUS_MIX: SubmissionStatus[] = ["SUBMITTED", "SUBMITTED", "GRADED", "GRADED", "LATE"];
@@ -732,7 +732,7 @@ async function main() {
       }
     }
   }
-  console.warn(`✓ Submissions: ${submissionCount}`);
+  console.warn(`Submissions: ${submissionCount}`);
 
   // Friendships — Sarah befriends 8 students (some accepted, some pending).
   const otherStudentIds = studentIds.filter((id) => id !== sarahId);
@@ -768,7 +768,7 @@ async function main() {
       /* skip */
     }
   }
-  console.warn(`✓ Friendships: ${friendCount}`);
+  console.warn(`Friendships: ${friendCount}`);
 
   // Messages — 50 between Sarah and her accepted friends.
   const sarahFriends = await prisma.friendship.findMany({
@@ -810,7 +810,7 @@ async function main() {
       messageCount++;
     }
   }
-  console.warn(`✓ Messages: ${messageCount}`);
+  console.warn(`Messages: ${messageCount}`);
 
   // Calendar events — 20 spread across courses & groups.
   const existingEventCount = await prisma.calendarEvent.count();
@@ -836,7 +836,7 @@ async function main() {
       eventCount++;
     }
   }
-  console.warn(`✓ Calendar events: ${eventCount}`);
+  console.warn(`Calendar events: ${eventCount}`);
 
   // Notifications — 20 for Sarah so the bell shows immediately.
   const notifTitles = [
@@ -847,7 +847,7 @@ async function main() {
     ["Permintaan Rakan Diterima", "Permintaan rakan anda telah diterima.", "chat"],
     ["Sertai Kumpulan", "Anda kini ahli Kumpulan Alpha (TTTK3000).", "groups"],
     ["Peringatan Acara", "Mesyuarat kumpulan esok jam 2 petang.", "calendar"],
-    ["⚠️ AMARAN", "Sila hantar tugasan anda sebelum tarikh akhir.", "submissions"],
+    ["AMARAN", "Sila hantar tugasan anda sebelum tarikh akhir.", "submissions"],
   ];
   const existingSarahNotifs = await prisma.notification.count({ where: { userId: sarahId } });
   let notifCount = existingSarahNotifs;
@@ -867,7 +867,7 @@ async function main() {
       notifCount++;
     }
   }
-  console.warn(`✓ Notifications: ${notifCount} for A201762`);
+  console.warn(`Notifications: ${notifCount} for A201762`);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Folio Connect — seed a handful of posts so the feed isn't empty on first run.
@@ -877,14 +877,14 @@ async function main() {
   let folioSeeded = folioCount;
   if (folioCount === 0) {
     const folioAuthors = [
-      { matric: "A201762", text: "Selamat datang ke Folio Connect! Drop your matric kalau dah jumpa feature ni 👋" },
+      { matric: "A201762", text: "Selamat datang ke Folio Connect! Drop your matric kalau dah jumpa feature ni" },
       { matric: "A230001", text: "Hari ni kelas struktur konkrit. Doakan tutorial saya tak runtuh." },
       { matric: "A230002", text: "Lab transmission lines dah siap. Next stop: kopi.", program: "Kejuruteraan Elektrik" },
       { matric: "A230201", text: "Reading week mood: 80% notes, 20% mental breakdown." },
-      { matric: "A230301", text: "Behind the mic in studio 2. Catch our morning show next week 📻" },
+      { matric: "A230301", text: "Behind the mic in studio 2. Catch our morning show next week" },
       { matric: "A230401", text: "Lautan tak pernah penat. Hari ke-3 sampling di Pulau Tioman." },
       { matric: "A230501", text: "Recycling drive @ Kolej Tun Dr Ismail esok. Jom turun!" },
-      { matric: "A230101", text: "Project final EE: mini-grid solar. Test run berjaya 🌞" },
+      { matric: "A230101", text: "Project final EE: mini-grid solar. Test run berjaya" },
     ];
 
     type MatricResolver = (m: string) => number | undefined;
@@ -923,7 +923,7 @@ async function main() {
       }
     }
   }
-  console.warn(`✓ Folio Connect posts: ${folioSeeded}`);
+  console.warn(`Folio Connect posts: ${folioSeeded}`);
 
   console.warn("Seed complete.");
 }

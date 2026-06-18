@@ -444,7 +444,7 @@ export function PostCard({
 
             {reportSent ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-6 text-center text-sm font-semibold text-emerald-700">
-                ✓ Laporan dihantar. Terima kasih.
+                Laporan dihantar. Terima kasih.
               </div>
             ) : (
               <form onSubmit={onSubmitReport} className="space-y-3">

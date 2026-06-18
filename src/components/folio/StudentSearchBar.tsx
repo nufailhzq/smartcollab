@@ -214,7 +214,7 @@ export function StudentSearchBar() {
                 </p>
               ) : suggestions.length === 0 ? (
                 <p className="px-4 py-6 text-center text-xs text-slate-500">
-                  Tiada cadangan buat masa ini. 🎉
+                  Tiada cadangan buat masa ini.
                 </p>
               ) : (
                 <ul className="max-h-96 overflow-y-auto py-1">

@@ -162,7 +162,7 @@ export function NotificationBell({
 
           {notificationsMuted && (
             <div className="border-b border-slate-200 bg-amber-50 px-4 py-2 text-[11px] text-amber-800">
-              🔕 Notifikasi disenyapkan. Buka di profil untuk aktifkan semula.
+              Notifikasi disenyapkan. Buka di profil untuk aktifkan semula.
             </div>
           )}
 

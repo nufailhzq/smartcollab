@@ -12,8 +12,8 @@ const STATUS_ITEMS = [
 
 const TYPE_ITEMS = [
   { value: "ALL", label: "Semua" },
-  { value: "INDIVIDUAL", label: "🧑 Individu" },
-  { value: "GROUP", label: "👥 Kumpulan" },
+  { value: "INDIVIDUAL", label: "Individu" },
+  { value: "GROUP", label: "Kumpulan" },
 ] as const;
 
 const SORT_ITEMS = [

@@ -167,7 +167,7 @@ export default async function StudentDashboard() {
               SmartCollab
             </p>
             <h1 className="mt-1 truncate text-2xl font-extrabold text-white sm:text-3xl">
-              Selamat datang, {session.user.name} 👋
+              Selamat datang, {session.user.name}
             </h1>
             <p className="mt-1 text-sm text-white/90">
               Papan pemuka pelajar UKMFolio — teruskan momentum anda.

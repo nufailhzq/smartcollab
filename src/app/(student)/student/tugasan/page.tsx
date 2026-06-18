@@ -109,7 +109,6 @@ export default async function StudentSubmissionsPage({
             {
               key: "INDIVIDUAL" as const,
               label: "Tugasan Individu",
-              icon: "🧑",
               tint: "from-ukm-teal/15 to-sky-50/40",
               accent: "border-l-ukm-teal",
               data: individualByCourse,
@@ -117,7 +116,6 @@ export default async function StudentSubmissionsPage({
             {
               key: "GROUP" as const,
               label: "Tugasan Kumpulan",
-              icon: "👥",
               tint: "from-purple-100/60 to-fuchsia-50/40",
               accent: "border-l-purple-500",
               data: groupByCourse2,
@@ -131,7 +129,7 @@ export default async function StudentSubmissionsPage({
               className={`rounded-2xl border-l-4 ${section.accent} bg-gradient-to-r ${section.tint} p-4`}
             >
               <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-ukm-navy">
-                <span className="text-xl">{section.icon}</span> {section.label}
+                {section.label}
                 <span className="ml-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600">
                   {section.data.reduce((sum, [, l]) => sum + l.length, 0)}
                 </span>

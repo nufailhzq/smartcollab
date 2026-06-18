@@ -153,7 +153,7 @@ export function ActivityOverview({ courseId, courseCode, rows }: Props) {
               className="input-base resize-none"
             />
             <p className="mt-1 text-[10px] text-slate-500">
-              Pelajar akan melihat tajuk &quot;⚠️ Amaran ({courseCode}): &lt;nama anda&gt;&quot;.
+              Pelajar akan melihat tajuk &quot;Amaran ({courseCode}): &lt;nama anda&gt;&quot;.
             </p>
           </div>
 

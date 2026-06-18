@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Clock } from "lucide-react";
 
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const WARN_BEFORE_MS = 60_000; // show countdown 60s before logout
@@ -149,7 +150,7 @@ export function IdleLogout() {
     <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in rounded-2xl border border-amber-300 bg-white px-5 py-3 shadow-lift-lg">
       <div className="flex items-center gap-4">
         <div className="grid h-9 w-9 place-items-center rounded-full bg-amber-100 text-amber-700">
-          ⏰
+          <Clock size={18} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-bold text-ukm-navy">

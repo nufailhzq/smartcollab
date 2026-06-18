@@ -103,7 +103,7 @@ export async function sendInactivityWarnings(
   }
 
   await notifyMany(validIds, {
-    title: `⚠️ Amaran (${course.code}): ${session.user.name}`,
+    title: `Amaran (${course.code}): ${session.user.name}`,
     message,
     link: WARNING_LINK_TAG,
   });

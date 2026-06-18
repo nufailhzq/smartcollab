@@ -359,7 +359,7 @@ export async function dispatchDueEventReminders(
     await prisma.notification.create({
       data: {
         userId,
-        title: `🔔 Acara: ${e.title}`,
+        title: `Acara: ${e.title}`,
         message: `${e.course?.code ? `[${e.course.code}] ` : ""}${when}`,
         link: "/student/kalendar",
       },

@@ -56,7 +56,7 @@ export default async function AdminReportsPage() {
       </div>
 
       {groups.length === 0 ? (
-        <EmptyState title="Tiada laporan tertunggak ☕" />
+        <EmptyState title="Tiada laporan tertunggak" />
       ) : (
         <div className="space-y-4">
           {groups.map((post) => (

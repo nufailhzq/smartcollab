@@ -107,7 +107,7 @@ export default async function LecturerCourseDetailPage({
               >
                 <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
                   {c.type === "ANNOUNCEMENT" ? (
-                    <span className="text-ukm-orange">📌 Pengumuman</span>
+                    <span className="text-ukm-orange">Pengumuman</span>
                   ) : (
                     <span>{c.type}</span>
                   )}

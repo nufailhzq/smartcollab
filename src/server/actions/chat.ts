@@ -101,9 +101,9 @@ function attachmentPreview(content: string, type: AttachmentType | null): string
   if (content && content.length > 0) {
     return content.length > 80 ? content.slice(0, 77) + "..." : content;
   }
-  if (type === "image") return "📷 Imej";
-  if (type === "video") return "🎬 Video";
-  if (type === "file") return "📎 Fail";
+  if (type === "image") return "Imej";
+  if (type === "video") return "Video";
+  if (type === "file") return "Fail";
   return "";
 }
 

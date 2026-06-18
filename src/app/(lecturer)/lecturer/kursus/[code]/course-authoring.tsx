@@ -229,7 +229,7 @@ function ContentForm({
             />
             {file && (
               <p className="mt-1 text-[10px] text-slate-500">
-                📎 {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+                {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
               </p>
             )}
           </div>

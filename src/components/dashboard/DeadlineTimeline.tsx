@@ -84,7 +84,7 @@ export function DeadlineTimeline({ rows }: Props) {
     return (
       <div className="flex flex-col items-center gap-2 py-8 text-center">
         <CalendarClock className="text-slate-300" size={30} />
-        <p className="text-sm font-semibold text-ukm-navy">Semua selesai 🎉</p>
+        <p className="text-sm font-semibold text-ukm-navy">Semua selesai</p>
         <p className="text-xs text-slate-500">Tiada tugasan dengan tarikh akhir akan datang.</p>
       </div>
     );

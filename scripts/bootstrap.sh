@@ -22,7 +22,7 @@ GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash}"
 
 if [ -z "$GEMINI_API_KEY" ]; then
-  echo "❌  GEMINI_API_KEY env var is required."
+  echo "GEMINI_API_KEY env var is required."
   echo "    Re-run with:  curl … | GEMINI_API_KEY=AQ.xxx bash"
   exit 1
 fi
@@ -110,7 +110,7 @@ docker compose up -d --build
 
 echo ""
 echo "==========================================================="
-echo "  ✅  SmartCollab is starting at http://$PUBLIC_IP:3000"
+echo "  SmartCollab is starting at http://$PUBLIC_IP:3000"
 echo "==========================================================="
 echo ""
 echo "Tail the app logs with:"
