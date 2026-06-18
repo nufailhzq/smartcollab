@@ -22,6 +22,7 @@ import { LogoutButton } from "./LogoutButton";
 import { MessageStream } from "./MessageStream";
 import { LiveRefresh } from "./LiveRefresh";
 import { ThemeToggle } from "./ThemeToggle";
+import { ThemeApplier } from "./ThemeApplier";
 import { IdleLogout } from "./IdleLogout";
 import { dispatchDueEventReminders } from "@/server/actions/calendar";
 
@@ -65,6 +66,7 @@ export async function Navbar() {
   let avatarPath: string | null = null;
   let mutedIds: number[] = [];
   let notificationsMuted = false;
+  let theme = "aurora";
 
   try {
     const [_n, _un, _c, _tu, _pr, _cg, userRow, mutes] = await Promise.all([
@@ -76,7 +78,7 @@ export async function Navbar() {
       getChatGroupsForUser(userId),
       prisma.user.findUnique({
         where: { id: userId },
-        select: { avatarPath: true, notificationsMuted: true },
+        select: { avatarPath: true, notificationsMuted: true, theme: true },
       }),
       prisma.userMute.findMany({
         where: { muterId: userId },
@@ -91,6 +93,7 @@ export async function Navbar() {
     chatGroups = _cg;
     avatarPath = userRow?.avatarPath ?? null;
     notificationsMuted = userRow?.notificationsMuted ?? false;
+    theme = userRow?.theme ?? "aurora";
     mutedIds = mutes.map((m) => m.mutedId);
   } catch (error) {
     console.error("Navbar database query failed:", error);
@@ -106,6 +109,7 @@ export async function Navbar() {
 
   return (
     <>
+      <ThemeApplier theme={theme} />
       <MessageStream
         currentUserId={userId}
         mutedIds={mutedIds}

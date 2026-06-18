@@ -4,6 +4,7 @@ import { formatDate } from "@/lib/utils";
 import { AvatarUploader } from "@/components/common/AvatarUploader";
 import { PhoneEditor } from "@/components/profile/PhoneEditor";
 import { MuteToggle } from "@/components/profile/MuteToggle";
+import { ThemePicker } from "@/components/profile/ThemePicker";
 import {
   Building2,
   Calendar,
@@ -88,6 +89,8 @@ export default async function LecturerProfilePage() {
           <p className="text-xs uppercase tracking-wider text-slate-500">Tugasan Dimarkah</p>
         </div>
       </div>
+
+      <ThemePicker initial={user.theme} />
 
       <MuteToggle initial={user.notificationsMuted} />
 

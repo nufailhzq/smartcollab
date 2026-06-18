@@ -90,6 +90,9 @@ model User {
   /// Master notification mute. When true: bell hides badges, no toast, no
   /// "ting" sound. Notification rows are still written for audit.
   notificationsMuted Boolean @default(false) @map("fld_notifications_muted")
+  /// Account-saved UI theme key (e.g. "aurora", "midnight", "ocean"). Drives
+  /// the [data-sb-theme] attribute on <html>. See src/lib/themes.ts.
+  theme        String   @default("aurora") @map("fld_theme")
   createdAt    DateTime @default(now())
 
   enrollments        ClassEnrollment[]

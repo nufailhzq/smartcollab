@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { AvatarUploader } from "@/components/common/AvatarUploader";
 import { MuteToggle } from "@/components/profile/MuteToggle";
+import { ThemePicker } from "@/components/profile/ThemePicker";
 import { FolioPanel } from "@/components/profile/FolioPanel";
 import { PostCard, type PostCardData } from "@/components/folio/PostCard";
 import { getFolioPostsByAuthor } from "@/server/queries/folio";
@@ -184,6 +185,8 @@ export default async function StudentProfilePage() {
           <p className="text-xs uppercase tracking-wider text-slate-500">Penghantaran</p>
         </div>
       </div>
+
+      <ThemePicker initial={user.theme} />
 
       <MuteToggle initial={user.notificationsMuted} />
 

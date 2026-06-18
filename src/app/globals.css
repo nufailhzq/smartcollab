@@ -10,7 +10,7 @@
     font-size: 16px;
     color-scheme: light;
   }
-  html[data-sb-theme="midnight"] {
+  html[data-sb-mode="dark"] {
     color-scheme: dark;
   }
   html,
@@ -238,19 +238,21 @@
   -webkit-backdrop-filter: blur(14px) saturate(170%);
   border: 1px solid rgba(236, 225, 255, 0.75);
 }
-:root[data-sb-theme="midnight"] .glass {
-  background: rgba(22, 16, 45, 0.72);
-  border-color: rgba(75, 50, 130, 0.55);
+/* Dark-mode glass + scrollbar. Token-driven so every dark theme (midnight,
+   ocean, forest, galaxy) gets a surface that matches its own palette. */
+:root[data-sb-mode="dark"] .glass {
+  background: color-mix(in srgb, var(--bg-surface) 72%, transparent);
+  border-color: var(--border-soft);
 }
-:root[data-sb-theme="midnight"] ::-webkit-scrollbar-track {
-  background: #0a061a;
+:root[data-sb-mode="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg-app);
 }
-:root[data-sb-theme="midnight"] ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #6d28d9, #a855f7);
-  border-color: #0a061a;
+:root[data-sb-mode="dark"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--ukm-purple, var(--ukm-teal)), var(--ukm-teal));
+  border-color: var(--bg-app);
 }
-:root[data-sb-theme="midnight"] ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #a855f7, #f472b6);
+:root[data-sb-mode="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--ukm-teal), var(--ukm-pink, var(--ukm-cyan)));
 }
 
 /* Skeleton shimmer (use w/ a sized div) */
@@ -324,6 +326,17 @@
     radial-gradient(700px circle at 78% 60%, rgba(244, 114, 182, 0.22), transparent 60%),
     /* Cream-to-lilac base */
     linear-gradient(135deg, #faf3ff 0%, #efe5ff 40%, #fff4dd 100%);
+  background-attachment: fixed;
+}
+
+/* Generic dark aurora-bg: token-driven glow so ocean/forest/galaxy get a
+   matching ambient background. Midnight overrides this with its own below. */
+:root[data-sb-mode="dark"] .aurora-bg {
+  background:
+    radial-gradient(950px circle at 18% 10%, color-mix(in srgb, var(--ukm-teal) 45%, transparent), transparent 55%),
+    radial-gradient(900px circle at 85% 85%, color-mix(in srgb, var(--ukm-pink, var(--ukm-cyan)) 38%, transparent), transparent 55%),
+    radial-gradient(700px circle at 50% 50%, color-mix(in srgb, var(--ukm-purple, var(--ukm-teal)) 28%, transparent), transparent 60%),
+    linear-gradient(135deg, var(--bg-app) 0%, var(--bg-muted) 60%, var(--bg-app) 100%);
   background-attachment: fixed;
 }
 

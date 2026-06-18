@@ -50,6 +50,69 @@
 }
 
 /* ============================================================
+   LIGHT — blush
+   Soft rose / pink wash, warm and gentle.
+   ============================================================ */
+:root[data-sb-theme="blush"] {
+  --bg-app: #fff5f6;
+  --bg-surface: #ffffff;
+  --bg-muted: #fde7ec;
+  --border-soft: #fbd3dd;
+  --text: #4a1d2b;
+  --text-muted: #8a5567;
+  --text-faint: #c294a4;
+
+  --ukm-navy: #9d174d;
+  --ukm-dark: #831843;
+  --ukm-orange: #fb7185;
+  --ukm-orange-soft: #fff1f2;
+  --ukm-teal: #e11d48;
+  --ukm-cyan: #fbcfe8;
+}
+
+/* ============================================================
+   LIGHT — sunset
+   Warm amber / peach / coral wash.
+   ============================================================ */
+:root[data-sb-theme="sunset"] {
+  --bg-app: #fff8ed;
+  --bg-surface: #ffffff;
+  --bg-muted: #fdecd3;
+  --border-soft: #fbdcb4;
+  --text: #4a2c12;
+  --text-muted: #8a5e34;
+  --text-faint: #c29b6e;
+
+  --ukm-navy: #c2410c;
+  --ukm-dark: #9a3412;
+  --ukm-orange: #f97316;
+  --ukm-orange-soft: #fff7ed;
+  --ukm-teal: #ea580c;
+  --ukm-cyan: #fed7aa;
+}
+
+/* ============================================================
+   LIGHT — mint
+   Fresh emerald / teal / aqua wash.
+   ============================================================ */
+:root[data-sb-theme="mint"] {
+  --bg-app: #f0fdf8;
+  --bg-surface: #ffffff;
+  --bg-muted: #d9f7ec;
+  --border-soft: #bbf0db;
+  --text: #103a30;
+  --text-muted: #3f6b5e;
+  --text-faint: #7aa99a;
+
+  --ukm-navy: #047857;
+  --ukm-dark: #065f46;
+  --ukm-orange: #0d9488;
+  --ukm-orange-soft: #ecfdf5;
+  --ukm-teal: #059669;
+  --ukm-cyan: #99f6e4;
+}
+
+/* ============================================================
    DARK — midnight
    Vibrant violet / magenta over near-black with glowy blobs.
    ============================================================ */
@@ -71,4 +134,73 @@
   --ukm-cyan: #e9d5ff;
   --ukm-pink: #f472b6;
   --ukm-purple: #c084fc;
+}
+
+/* ============================================================
+   DARK — ocean
+   Deep blue / cyan over near-black navy.
+   ============================================================ */
+:root[data-sb-theme="ocean"] {
+  --bg-app: #03121c;
+  --bg-surface: #0a2233;
+  --bg-muted: #103246;
+  --border-soft: #1b4a63;
+  --text: #e6f6ff;
+  --text-muted: #a9cfe2;
+  --text-faint: #6f9cb3;
+
+  --ukm-navy: #bae6fd;
+  --ukm-dark: #e0f2fe;
+  --ukm-orange: #38bdf8;
+  --ukm-orange-soft: #0a2233;
+  --ukm-teal: #22d3ee;
+  --ukm-cyan: #a5f3fc;
+  --ukm-pink: #67e8f9;
+  --ukm-purple: #38bdf8;
+}
+
+/* ============================================================
+   DARK — forest
+   Deep emerald / green over near-black.
+   ============================================================ */
+:root[data-sb-theme="forest"] {
+  --bg-app: #04140d;
+  --bg-surface: #0a2419;
+  --bg-muted: #103425;
+  --border-soft: #1c4d38;
+  --text: #e7fbf0;
+  --text-muted: #abd9c2;
+  --text-faint: #71a78d;
+
+  --ukm-navy: #bbf7d0;
+  --ukm-dark: #dcfce7;
+  --ukm-orange: #34d399;
+  --ukm-orange-soft: #0a2419;
+  --ukm-teal: #10b981;
+  --ukm-cyan: #a7f3d0;
+  --ukm-pink: #6ee7b7;
+  --ukm-purple: #34d399;
+}
+
+/* ============================================================
+   DARK — galaxy
+   Indigo / violet over true black with a cosmic feel.
+   ============================================================ */
+:root[data-sb-theme="galaxy"] {
+  --bg-app: #050510;
+  --bg-surface: #0e0e24;
+  --bg-muted: #181838;
+  --border-soft: #272a5c;
+  --text: #eceaff;
+  --text-muted: #bcb8e6;
+  --text-faint: #807bb5;
+
+  --ukm-navy: #c7d2fe;
+  --ukm-dark: #e0e7ff;
+  --ukm-orange: #818cf8;
+  --ukm-orange-soft: #0e0e24;
+  --ukm-teal: #a78bfa;
+  --ukm-cyan: #c4b5fd;
+  --ukm-pink: #f0abfc;
+  --ukm-purple: #a78bfa;
 }
