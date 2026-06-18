@@ -33,9 +33,11 @@ Dockerfile
 docker-compose*.yml
 .dockerignore
 README.md
-CHANGELOG.md
-MIGRATION.md
+docs
 
-# Legacy import scripts + SQL dumps
+# Build artifacts + local DB dumps that shouldn't enter the image
+tsconfig.tsbuildinfo
+*.sql
+backups
 prisma/dev.db*
 prisma/seed-data

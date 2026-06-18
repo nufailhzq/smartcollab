@@ -153,5 +153,5 @@ provider (e.g. UKM SSO) later without schema changes.
 
 ## See also
 
-- `MIGRATION.md` — step-by-step lift from the legacy `ukm_lms` database into the new schema.
+- `docs/MIGRATION.md` — step-by-step lift from the legacy `ukm_lms` database into the new schema.
 - `../smartcollab/` — original XAMPP/PHP source (kept as reference, not modified).

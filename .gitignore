@@ -7,6 +7,7 @@ node_modules
 out
 dist
 build
+tsconfig.tsbuildinfo
 *.log
 .DS_Store
 .vscode
@@ -19,5 +20,6 @@ test-results
 prisma/dev.db*
 
 # Local DB dumps used for one-off imports
-backup.sql
+*.sql
 *.sql.gz
+backups/

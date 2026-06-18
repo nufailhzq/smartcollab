@@ -3,7 +3,7 @@
 # SmartCollab — one-paste bootstrap for a fresh Ubuntu droplet.
 #
 # Usage on the droplet:
-#   curl -fsSL https://raw.githubusercontent.com/nufailhzq/smartcollab/main/bootstrap.sh \
+#   curl -fsSL https://raw.githubusercontent.com/nufailhzq/smartcollab/main/scripts/bootstrap.sh \
 #     | GEMINI_API_KEY=your_key_here bash
 #
 # What it does:

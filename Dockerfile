@@ -79,7 +79,7 @@ RUN npm install --omit=dev --no-save sharp@0.33.5 && \
 
 # Tiny entrypoint that waits for MySQL, applies pending migrations, then
 # launches the Next.js server.
-COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --chown=nextjs:nodejs scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
 USER nextjs
