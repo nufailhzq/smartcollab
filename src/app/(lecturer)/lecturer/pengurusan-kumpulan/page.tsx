@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getTaughtCourses, getCourseGroups } from "@/server/queries/lecturer";
+import { getPendingGroupRequests } from "@/server/queries/groups";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Users } from "lucide-react";
 import { GroupManager } from "./group-manager";
+import { PendingGroupRequests } from "./pending-group-requests";
 
 export default async function LecturerGroupsPage({
   searchParams,
@@ -18,6 +20,9 @@ export default async function LecturerGroupsPage({
   const selectedCourse = selectedCode ? courses.find((c) => c.code === selectedCode) : null;
 
   const data = selectedCourse ? await getCourseGroups(lecturerId, selectedCourse.id) : null;
+  const pendingGroups = selectedCourse
+    ? await getPendingGroupRequests(selectedCourse.id)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -59,6 +64,8 @@ export default async function LecturerGroupsPage({
               );
             })}
           </nav>
+
+          {selectedCourse && <PendingGroupRequests groups={pendingGroups} />}
 
           {data ? (
             <GroupManager

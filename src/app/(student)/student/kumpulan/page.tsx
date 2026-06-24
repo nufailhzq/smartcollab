@@ -1,9 +1,19 @@
 import { auth } from "@/lib/auth";
 import { getEnrolledCourses } from "@/server/queries/courses";
-import { getKumpulanContext } from "@/server/queries/groups";
+import {
+  getKumpulanContext,
+  getRequestGroupContext,
+} from "@/server/queries/groups";
 import { EmptyState } from "@/components/common/EmptyState";
 import { GroupBrowser } from "./group-browser";
+import { RequestGroupForm } from "./request-group-form";
 import { Users } from "lucide-react";
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: "Menunggu Kelulusan", cls: "bg-amber-100 text-amber-700" },
+  APPROVED: { label: "Diluluskan", cls: "bg-emerald-100 text-emerald-700" },
+  REJECTED: { label: "Ditolak", cls: "bg-red-100 text-red-700" },
+};
 
 export default async function StudentGroupsPage({
   searchParams,
@@ -20,6 +30,9 @@ export default async function StudentGroupsPage({
   const ctx = selectedCourse
     ? await getKumpulanContext(studentId, selectedCourse.id)
     : null;
+  const reqCtx = selectedCourse
+    ? await getRequestGroupContext(studentId, selectedCourse.id)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -33,6 +46,31 @@ export default async function StudentGroupsPage({
           </p>
         </div>
       </div>
+
+      {reqCtx?.myGroup && (
+        <div className="card flex items-center justify-between gap-3">
+          <p className="text-sm text-slate-600">
+            Permohonan kumpulan anda:{" "}
+            <span className="font-semibold text-ukm-navy">{reqCtx.myGroup.name}</span>
+          </p>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              STATUS_BADGE[reqCtx.myGroup.status]?.cls ?? "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {STATUS_BADGE[reqCtx.myGroup.status]?.label ?? reqCtx.myGroup.status}
+          </span>
+        </div>
+      )}
+
+      {selectedCourse &&
+        reqCtx &&
+        (!reqCtx.myGroup || reqCtx.myGroup.status === "REJECTED") && (
+          <RequestGroupForm
+            courseId={selectedCourse.id}
+            classmates={reqCtx.eligibleClassmates}
+          />
+        )}
 
       {courses.length === 0 ? (
         <EmptyState

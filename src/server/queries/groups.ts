@@ -1,5 +1,47 @@
 import { prisma } from "@/lib/prisma";
 
+/**
+ * For the "Request group" form: classmates in the course who are not already in
+ * a standing group (PENDING/APPROVED), plus the requesting student's own
+ * standing-group status (so the UI can show a Pending/Approved/Rejected badge).
+ */
+export async function getRequestGroupContext(studentId: number, courseId: number) {
+  const [enrollments, takenMembers, myGroup] = await Promise.all([
+    prisma.classEnrollment.findMany({
+      where: { courseId },
+      select: { student: { select: { id: true, name: true, matricNum: true } } },
+    }),
+    prisma.groupMember.findMany({
+      where: {
+        group: { courseId, assignmentId: null, status: { in: ["PENDING", "APPROVED"] } },
+      },
+      select: { studentId: true },
+    }),
+    prisma.projectGroup.findFirst({
+      where: {
+        courseId,
+        assignmentId: null,
+        status: { in: ["PENDING", "APPROVED", "REJECTED"] },
+        members: { some: { studentId } },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, status: true },
+    }),
+  ]);
+
+  const taken = new Set(takenMembers.map((m) => m.studentId));
+  const eligibleClassmates = enrollments
+    .map((e) => e.student)
+    .filter((s) => s.id !== studentId && !taken.has(s.id));
+
+  return {
+    eligibleClassmates,
+    myGroup: myGroup
+      ? { id: myGroup.id, name: myGroup.name, status: myGroup.status }
+      : null,
+  };
+}
+
 export async function getGroupsForStudentInCourse(studentId: number, courseId: number) {
   const groups = await prisma.projectGroup.findMany({
     where: { courseId },
@@ -18,6 +60,33 @@ export async function getGroupsForStudentInCourse(studentId: number, courseId: n
       hasCapacity: g._count.members < g.maxMembers,
     };
   });
+}
+
+/**
+ * Pending standing-group requests for a course, for the lecturer approval list.
+ */
+export async function getPendingGroupRequests(courseId: number) {
+  const groups = await prisma.projectGroup.findMany({
+    where: { courseId, assignmentId: null, status: "PENDING" },
+    include: {
+      members: {
+        include: { student: { select: { id: true, name: true, matricNum: true } } },
+        orderBy: { role: "asc" },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    members: g.members.map((m) => ({
+      id: m.student.id,
+      name: m.student.name,
+      matricNum: m.student.matricNum,
+      role: m.role,
+    })),
+  }));
 }
 
 export async function getCurrentGroupForStudent(studentId: number, courseId: number) {

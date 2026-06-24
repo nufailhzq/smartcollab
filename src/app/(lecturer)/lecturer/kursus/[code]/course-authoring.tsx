@@ -109,6 +109,8 @@ export function CourseAuthoring({ courseId, mode }: Props) {
                     title: values.title,
                     description: values.description,
                     type: values.type,
+                    groupingMode: values.groupingMode,
+                    groupSize: values.groupSize,
                     dueDate: values.dueDate,
                     maxGrade: values.maxGrade,
                   });
@@ -266,6 +268,8 @@ function AssignmentForm({
     title: string;
     description: string;
     type: "INDIVIDUAL" | "GROUP";
+    groupingMode: "INHERIT" | "RANDOM" | "INDIVIDUAL";
+    groupSize?: number;
     dueDate: string;
     maxGrade: number;
   }) => void;
@@ -273,12 +277,24 @@ function AssignmentForm({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"INDIVIDUAL" | "GROUP">("INDIVIDUAL");
+  const [groupingMode, setGroupingMode] = useState<
+    "INHERIT" | "RANDOM" | "INDIVIDUAL"
+  >("INHERIT");
+  const [groupSize, setGroupSize] = useState(4);
   const [dueDate, setDueDate] = useState("");
   const [maxGrade, setMaxGrade] = useState(100);
 
   const handle = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit({ title, description, type, dueDate, maxGrade });
+    onSubmit({
+      title,
+      description,
+      type,
+      groupingMode,
+      groupSize: groupingMode === "RANDOM" ? groupSize : undefined,
+      dueDate,
+      maxGrade,
+    });
   };
 
   return (
@@ -338,6 +354,39 @@ function AssignmentForm({
             className="input-base"
           />
         </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+            Mod Pengumpulan
+          </label>
+          <select
+            value={groupingMode}
+            onChange={(e) =>
+              setGroupingMode(e.target.value as "INHERIT" | "RANDOM" | "INDIVIDUAL")
+            }
+            className="input-base"
+          >
+            <option value="INHERIT">Ikut kumpulan kursus</option>
+            <option value="INDIVIDUAL">Individu (tiada kumpulan)</option>
+            <option value="RANDOM">Rawak (auto-bahagi)</option>
+          </select>
+        </div>
+        {groupingMode === "RANDOM" && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+              Saiz Kumpulan
+            </label>
+            <input
+              type="number"
+              min={2}
+              max={20}
+              value={groupSize}
+              onChange={(e) => setGroupSize(Number(e.target.value))}
+              className="input-base"
+            />
+          </div>
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <button type="submit" disabled={pending} className="btn-primary">
