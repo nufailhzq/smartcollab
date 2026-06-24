@@ -326,10 +326,6 @@ export function GroupBrowser({
                               {m.matricNum ?? "—"}
                             </p>
                             <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                              <div className="inline-flex items-center gap-1">
-                                <BarChart3 size={12} className="text-ukm-teal" />
-                                <span>Sumbangan: {m.contributionPct}%</span>
-                              </div>
                               <div className="inline-flex items-center gap-1.5">
                                 <span className={cn("h-2 w-2 rounded-full", activity.dot)} />
                                 <span>{activity.text}</span>
@@ -341,6 +337,37 @@ export function GroupBrowser({
                     );
                   })}
                 </div>
+
+                {/* Contribution is DEMOTED to a collapsed indicator. Raw activity
+                    counts are gameable, so this is an engagement hint — never a
+                    grade. Completion status (the Progress tab) is the real spine. */}
+                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                  <summary className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600">
+                    <BarChart3 size={14} className="text-ukm-teal" />
+                    Lihat keseimbangan sumbangan
+                  </summary>
+                  <ul className="mt-3 space-y-2">
+                    {currentGroup.members.map((m) => (
+                      <li key={m.studentId} className="text-xs">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="truncate text-slate-700">{m.name}</span>
+                          <span className="tabular-nums text-slate-500">
+                            {m.contributionPct}%
+                          </span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-2 rounded-full bg-ukm-teal"
+                            style={{ width: `${Math.min(100, m.contributionPct)}%` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-[11px] italic text-slate-400">
+                    Petunjuk penglibatan, bukan markah.
+                  </p>
+                </details>
               </div>
             </article>
           ) : (
