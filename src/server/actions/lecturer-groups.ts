@@ -247,28 +247,31 @@ export async function setGroupStatus(raw: unknown): Promise<ActionResult> {
     });
   } else {
     // Approve this group, and auto-reject any OTHER pending standing group in
-    // the same course that shares a member (so a student can't be in two).
-    const bumped = await prisma.projectGroup.findMany({
-      where: {
-        courseId: group.courseId,
-        assignmentId: null,
-        status: "PENDING",
-        id: { not: group.id },
-        members: { some: { studentId: { in: memberIds } } },
-      },
-      include: { members: { select: { studentId: true } } },
-    });
-
-    await prisma.$transaction([
-      prisma.projectGroup.update({
+    // the same course that shares a member — a student can't have two competing
+    // pending memberships in one context. Finding the overlaps and rejecting
+    // them must be ATOMIC with the approval, otherwise a concurrent request
+    // could slip a new overlapping pending group in between the read and write.
+    const bumped = await prisma.$transaction(async (tx) => {
+      const overlaps = await tx.projectGroup.findMany({
+        where: {
+          courseId: group.courseId,
+          assignmentId: null,
+          status: "PENDING",
+          id: { not: group.id },
+          members: { some: { studentId: { in: memberIds } } },
+        },
+        include: { members: { select: { studentId: true } } },
+      });
+      await tx.projectGroup.update({
         where: { id: group.id },
         data: { status: "APPROVED" },
-      }),
-      prisma.projectGroup.updateMany({
-        where: { id: { in: bumped.map((g) => g.id) } },
+      });
+      await tx.projectGroup.updateMany({
+        where: { id: { in: overlaps.map((g) => g.id) } },
         data: { status: "REJECTED" },
-      }),
-    ]);
+      });
+      return overlaps;
+    });
 
     await notifyMany(memberIds, {
       title: "Kumpulan Diluluskan",
