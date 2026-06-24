@@ -4,11 +4,20 @@ import { auth } from "@/lib/auth";
 import { getTaughtCourseByCode } from "@/server/queries/lecturer";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TrackAccess } from "@/components/dashboard/TrackAccess";
-import { ArrowLeft, ClipboardList, FileText, Megaphone, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  ClipboardList,
+  FileText,
+  LineChart,
+  Megaphone,
+  Users,
+} from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CourseAuthoring } from "./course-authoring";
+import { getCourseProgress } from "@/server/queries/progress";
+import { ProgressGrid } from "@/components/progress/ProgressGrid";
 
-type Tab = "general" | "notes" | "tugasan" | "kumpulan";
+type Tab = "general" | "notes" | "tugasan" | "kumpulan" | "progress";
 
 export default async function LecturerCourseDetailPage({
   params,
@@ -21,11 +30,16 @@ export default async function LecturerCourseDetailPage({
   const course = await getTaughtCourseByCode(session!.user.id, params.code.toUpperCase());
   if (!course) notFound();
 
-  const tab: Tab = (["general", "notes", "tugasan", "kumpulan"] as const).includes(
-    searchParams.tab as Tab,
-  )
+  const tab: Tab = (
+    ["general", "notes", "tugasan", "kumpulan", "progress"] as const
+  ).includes(searchParams.tab as Tab)
     ? (searchParams.tab as Tab)
     : "general";
+
+  const progress =
+    tab === "progress"
+      ? await getCourseProgress(course.id, session!.user.id, "LECTURER")
+      : null;
 
   const generalContent = course.content.filter(
     (c) => c.type === "GENERAL" || c.type === "ANNOUNCEMENT" || c.type === "FORUM",
@@ -37,6 +51,7 @@ export default async function LecturerCourseDetailPage({
     { key: "notes", label: "Nota & Bahan", Icon: FileText },
     { key: "tugasan", label: "Tugasan", Icon: ClipboardList },
     { key: "kumpulan", label: "Kumpulan", Icon: Users },
+    { key: "progress", label: "Progress", Icon: LineChart },
   ] as const;
 
   return (
@@ -239,6 +254,21 @@ export default async function LecturerCourseDetailPage({
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {tab === "progress" && progress && (
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-base font-semibold text-ukm-navy">
+              Status Penyiapan
+            </h3>
+            <p className="text-xs text-slate-500">
+              Status diterbitkan terus daripada penghantaran &amp; tarikh akhir —
+              tiada data dimasukkan secara manual.
+            </p>
+          </div>
+          <ProgressGrid data={progress} />
         </section>
       )}
     </div>
