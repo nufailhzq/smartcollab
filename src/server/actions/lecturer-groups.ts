@@ -11,7 +11,8 @@ import {
   removeStudentSchema,
   updateGroupSchema,
 } from "@/schemas/lecturer-group";
-import { setGroupStatusSchema } from "@/schemas/group";
+import { setGroupStatusSchema, reshuffleRandomSchema } from "@/schemas/group";
+import { randomGroupsWithSeed } from "@/lib/random-groups";
 import type { ActionResult } from "@/schemas/common";
 
 async function ensureLecturerOwnsCourse(courseId: number, lecturerId: number) {
@@ -287,5 +288,72 @@ export async function setGroupStatus(raw: unknown): Promise<ActionResult> {
   revalidatePath("/lecturer/pengurusan-kumpulan");
   revalidatePath(`/lecturer/kursus/${group.course.code}`);
   revalidatePath("/student/kumpulan");
+  return { ok: true };
+}
+
+/**
+ * Re-run RANDOM grouping for an assignment: clear THIS assignment's existing
+ * ad-hoc groups and rebuild from the live enrolled roster, all in one
+ * transaction. This is idempotent and intentional — re-running cannot leave a
+ * student in two groups or in none. Standing groups (assignmentId null) are
+ * filtered out of every read/write, so they are never touched.
+ */
+export async function reshuffleRandomGroups(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
+
+  const parsed = reshuffleRandomSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: parsed.data.assignmentId },
+    include: { course: { select: { id: true, code: true, lecturerId: true } } },
+  });
+  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
+  if (assignment.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+  if (assignment.groupingMode !== "RANDOM") {
+    return { ok: false, error: "Hanya tugasan mod RAWAK boleh dikocok semula." };
+  }
+
+  const roster = (
+    await prisma.classEnrollment.findMany({
+      where: { courseId: assignment.course.id },
+      select: { studentId: true },
+    })
+  ).map((r) => r.studentId);
+
+  const { seed, groups } = randomGroupsWithSeed(
+    roster,
+    parsed.data.groupSize ?? 4,
+    assignment.title,
+  );
+  console.warn(
+    `RANDOM reshuffle for ${assignment.course.code} "${assignment.title}": seed=${seed}, ${roster.length} students -> ${groups.length} groups`,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    // Clear only THIS assignment's ad-hoc groups (cascade removes their members).
+    await tx.projectGroup.deleteMany({ where: { assignmentId: assignment.id } });
+    for (const g of groups) {
+      await tx.projectGroup.create({
+        data: {
+          courseId: assignment.course.id,
+          name: g.name,
+          status: "APPROVED",
+          createdById: session.user.id,
+          assignmentId: assignment.id,
+          members: {
+            create: g.memberIds.map((studentId) => ({ studentId, role: "MEMBER" })),
+          },
+        },
+      });
+    }
+  });
+
+  revalidatePath(`/lecturer/kursus/${assignment.course.code}`);
+  revalidatePath("/lecturer/penghantaran");
   return { ok: true };
 }

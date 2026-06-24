@@ -15,6 +15,11 @@ export const setGroupStatusSchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
 });
 
+export const reshuffleRandomSchema = z.object({
+  assignmentId: idSchema,
+  groupSize: z.coerce.number().int().min(2).max(20).optional(),
+});
+
 export type JoinGroupInput = z.infer<typeof joinGroupSchema>;
 export type LeaveGroupInput = z.infer<typeof leaveGroupSchema>;
 export type RequestGroupInput = z.infer<typeof requestGroupSchema>;

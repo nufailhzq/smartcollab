@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyEnrolledStudents, notifyMany } from "@/lib/notifications";
 import { recipientsFor } from "@/lib/recipients";
-import { randomGroups } from "@/lib/random-groups";
+import { randomGroupsWithSeed } from "@/lib/random-groups";
 import {
   createAssignmentSchema,
   createCourseContentSchema,
@@ -231,7 +231,16 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
       };
     }
   } else if (groupingMode === "RANDOM") {
-    adHocGroups = randomGroups(roster, parsed.data.groupSize ?? 4, parsed.data.title);
+    const result = randomGroupsWithSeed(
+      roster,
+      parsed.data.groupSize ?? 4,
+      parsed.data.title,
+    );
+    adHocGroups = result.groups;
+    // Log the seed so the random assignment is auditable/reproducible.
+    console.warn(
+      `RANDOM grouping for course ${course.code} "${parsed.data.title}": seed=${result.seed}, ${roster.length} students -> ${adHocGroups.length} groups`,
+    );
   }
 
   // Create the assignment and its ad-hoc groups in ONE transaction so a partial

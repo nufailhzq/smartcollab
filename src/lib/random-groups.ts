@@ -21,6 +21,20 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * Returns the groups AND the seed used, so the caller can log it. A logged seed
+ * + this pure function makes the grouping reproducible and therefore auditable:
+ * re-running with the same seed yields the same groups.
+ */
+export function randomGroupsWithSeed(
+  roster: number[],
+  targetSize: number,
+  titlePrefix: string,
+  seed: number = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0,
+): { seed: number; groups: RandomGroup[] } {
+  return { seed, groups: randomGroups(roster, targetSize, titlePrefix, seed) };
+}
+
 export function randomGroups(
   roster: number[],
   targetSize: number,
