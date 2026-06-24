@@ -6,7 +6,8 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { notifyEnrolledStudents } from "@/lib/notifications";
+import { notifyEnrolledStudents, notifyMany } from "@/lib/notifications";
+import { recipientsFor } from "@/lib/recipients";
 import {
   createAssignmentSchema,
   createCourseContentSchema,
@@ -190,18 +191,72 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
   const course = await ensureOwnsCourse(parsed.data.courseId, lecturerId);
   if (!course) return { ok: false, error: "Anda bukan pensyarah kursus ini." };
 
-  await prisma.assignment.create({
+  const { groupingMode } = parsed.data;
+
+  const assignment = await prisma.assignment.create({
     data: {
       courseId: course.id,
       title: parsed.data.title,
       description: parsed.data.description || null,
       type: parsed.data.type,
+      groupingMode,
       dueDate: new Date(parsed.data.dueDate),
       maxGrade: parsed.data.maxGrade,
     },
   });
 
-  await notifyEnrolledStudents(course.id, {
+  // CUSTOM/RANDOM create ad-hoc groups scoped to THIS assignment (assignmentId
+  // set, status APPROVED). Standing groups (assignmentId null) are never read or
+  // mutated here, so the course's standing grouping is left intact.
+  if (groupingMode === "CUSTOM") {
+    const groups = parsed.data.groups ?? [];
+    for (const g of groups) {
+      await prisma.projectGroup.create({
+        data: {
+          courseId: course.id,
+          name: g.name,
+          status: "APPROVED",
+          createdById: lecturerId,
+          assignmentId: assignment.id,
+          members: {
+            create: g.memberIds.map((studentId) => ({ studentId, role: "MEMBER" })),
+          },
+        },
+      });
+    }
+  } else if (groupingMode === "RANDOM") {
+    const size = parsed.data.groupSize ?? 4;
+    const roster = await prisma.classEnrollment.findMany({
+      where: { courseId: course.id },
+      select: { studentId: true },
+    });
+    const ids = roster.map((r) => r.studentId);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = ids[i]!;
+      ids[i] = ids[j]!;
+      ids[j] = tmp;
+    }
+    let idx = 1;
+    for (let i = 0; i < ids.length; i += size) {
+      const chunk = ids.slice(i, i + size);
+      await prisma.projectGroup.create({
+        data: {
+          courseId: course.id,
+          name: `${parsed.data.title} — Kumpulan ${idx++}`,
+          status: "APPROVED",
+          createdById: lecturerId,
+          assignmentId: assignment.id,
+          members: {
+            create: chunk.map((studentId) => ({ studentId, role: "MEMBER" })),
+          },
+        },
+      });
+    }
+  }
+
+  const recipientIds = await recipientsFor(assignment);
+  await notifyMany(recipientIds, {
     title: `Tugasan Baharu — ${course.code}`,
     message: parsed.data.title,
     link: "assignments",

@@ -4,8 +4,15 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notifications";
-import { joinGroupSchema, leaveGroupSchema } from "@/schemas/group";
+import { notifyMany } from "@/lib/notifications";
+import {
+  joinGroupSchema,
+  leaveGroupSchema,
+  requestGroupSchema,
+} from "@/schemas/group";
 import type { ActionResult } from "@/schemas/common";
+
+const DEFAULT_MAX_MEMBERS = 5;
 
 export async function joinGroup(raw: unknown): Promise<ActionResult> {
   const session = await auth();
@@ -28,6 +35,7 @@ export async function joinGroup(raw: unknown): Promise<ActionResult> {
     },
   });
   if (!group) return { ok: false, error: "Kumpulan tidak wujud." };
+  const assignmentId = group.assignmentId;
   if (group.course.groupsLocked) {
     return {
       ok: false,
@@ -43,12 +51,20 @@ export async function joinGroup(raw: unknown): Promise<ActionResult> {
     return { ok: false, error: "Anda tidak berdaftar dalam kursus kumpulan ini." };
   }
 
-  // One group per student per course
+  // One group per student per grouping context (standing = assignmentId null,
+  // or a specific assignment). Pending groups count toward the conflict.
   const existing = await prisma.groupMember.findFirst({
-    where: { studentId, group: { courseId: group.courseId } },
+    where: {
+      studentId,
+      group: {
+        courseId: group.courseId,
+        assignmentId,
+        status: { in: ["PENDING", "APPROVED"] },
+      },
+    },
   });
   if (existing) {
-    return { ok: false, error: "Anda sudah dalam kumpulan untuk kursus ini." };
+    return { ok: false, error: "Anda sudah dalam kumpulan untuk konteks ini." };
   }
 
   if (group._count.members >= group.maxMembers) {
@@ -105,5 +121,97 @@ export async function leaveGroup(raw: unknown): Promise<ActionResult> {
   // Sync the lecturer's view too.
   revalidatePath("/lecturer/pengurusan-kumpulan");
   revalidatePath(`/lecturer/kursus/${group.course.code}`);
+  return { ok: true };
+}
+
+export async function requestGroup(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "STUDENT") {
+    return { ok: false, error: "Hanya pelajar boleh memohon kumpulan." };
+  }
+
+  const parsed = requestGroupSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const leaderId = session.user.id;
+  const { courseId, name } = parsed.data;
+  const memberIds = Array.from(new Set([leaderId, ...parsed.data.memberIds]));
+
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { code: true, lecturerId: true },
+  });
+  if (!course) return { ok: false, error: "Kursus tidak wujud." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (memberIds.length > DEFAULT_MAX_MEMBERS) {
+        throw new Error(`Kumpulan melebihi had ${DEFAULT_MAX_MEMBERS} ahli.`);
+      }
+
+      const enrolledCount = await tx.classEnrollment.count({
+        where: { courseId, studentId: { in: memberIds } },
+      });
+      if (enrolledCount !== memberIds.length) {
+        throw new Error("Setiap ahli mesti berdaftar dalam kursus ini.");
+      }
+
+      const conflict = await tx.groupMember.findFirst({
+        where: {
+          studentId: { in: memberIds },
+          group: {
+            courseId,
+            assignmentId: null,
+            status: { in: ["PENDING", "APPROVED"] },
+          },
+        },
+      });
+      if (conflict) {
+        throw new Error("Seorang ahli sudah dalam kumpulan kursus ini.");
+      }
+
+      await tx.projectGroup.create({
+        data: {
+          courseId,
+          name,
+          status: "PENDING",
+          createdById: leaderId,
+          assignmentId: null,
+          members: {
+            create: memberIds.map((studentId) => ({
+              studentId,
+              role: studentId === leaderId ? "LEADER" : "MEMBER",
+            })),
+          },
+        },
+      });
+    });
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Gagal memohon." };
+  }
+
+  if (course.lecturerId) {
+    await notifyUser(course.lecturerId, {
+      title: "Permohonan Kumpulan Baharu",
+      message: `${session.user.name} memohon kumpulan "${name}" (${course.code}).`,
+      link: "groups",
+    });
+  }
+  await notifyMany(
+    memberIds.filter((id) => id !== leaderId),
+    {
+      title: "Anda Dimasukkan ke Permohonan Kumpulan",
+      message: `${session.user.name} memasukkan anda ke kumpulan "${name}" (${course.code}). Menunggu kelulusan pensyarah.`,
+      link: "groups",
+    },
+  );
+
+  revalidatePath("/student");
+  revalidatePath("/student/kumpulan");
+  revalidatePath("/lecturer/pengurusan-kumpulan");
+  revalidatePath(`/lecturer/kursus/${course.code}`);
   return { ok: true };
 }

@@ -24,6 +24,18 @@ export const createAssignmentSchema = z.object({
   title: z.string().trim().min(1, "Tajuk diperlukan.").max(200),
   description: z.string().trim().max(10_000).optional().or(z.literal("")),
   type: z.enum(["INDIVIDUAL", "GROUP"]),
+  groupingMode: z
+    .enum(["INHERIT", "CUSTOM", "RANDOM", "INDIVIDUAL"])
+    .default("INHERIT"),
+  groups: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, "Nama kumpulan diperlukan."),
+        memberIds: z.array(idSchema).min(1),
+      }),
+    )
+    .optional(),
+  groupSize: z.coerce.number().int().min(2).max(20).optional(),
   dueDate: z
     .string()
     .trim()
