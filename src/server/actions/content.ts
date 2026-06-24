@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyEnrolledStudents, notifyMany } from "@/lib/notifications";
 import { recipientsFor } from "@/lib/recipients";
+import { randomGroups } from "@/lib/random-groups";
 import {
   createAssignmentSchema,
   createCourseContentSchema,
@@ -193,67 +194,76 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
 
   const { groupingMode } = parsed.data;
 
-  const assignment = await prisma.assignment.create({
-    data: {
-      courseId: course.id,
-      title: parsed.data.title,
-      description: parsed.data.description || null,
-      type: parsed.data.type,
-      groupingMode,
-      dueDate: new Date(parsed.data.dueDate),
-      maxGrade: parsed.data.maxGrade,
-    },
-  });
+  const roster = (
+    await prisma.classEnrollment.findMany({
+      where: { courseId: course.id },
+      select: { studentId: true },
+    })
+  ).map((r) => r.studentId);
+  const rosterSet = new Set(roster);
 
-  // CUSTOM/RANDOM create ad-hoc groups scoped to THIS assignment (assignmentId
-  // set, status APPROVED). Standing groups (assignmentId null) are never read or
-  // mutated here, so the course's standing grouping is left intact.
+  // Build the ad-hoc group rows BEFORE any write, so validation can reject the
+  // whole creation atomically. Standing groups (assignmentId null) are never
+  // read or mutated here — ad-hoc groups are separate rows keyed by assignmentId.
+  let adHocGroups: { name: string; memberIds: number[] }[] = [];
+
   if (groupingMode === "CUSTOM") {
-    const groups = parsed.data.groups ?? [];
-    for (const g of groups) {
-      await prisma.projectGroup.create({
+    adHocGroups = parsed.data.groups ?? [];
+    const seen = new Set<number>();
+    for (const g of adHocGroups) {
+      for (const id of g.memberIds) {
+        if (!rosterSet.has(id)) {
+          return { ok: false, error: "Seorang ahli tidak berdaftar dalam kursus ini." };
+        }
+        if (seen.has(id)) {
+          return { ok: false, error: "Seorang pelajar diletak dalam lebih daripada satu kumpulan." };
+        }
+        seen.add(id);
+      }
+    }
+    // Rule 3: the resolved members must equal the enrolled roster — no student
+    // may fall through the cracks. Reject if anyone is left unassigned.
+    const missing = roster.filter((id) => !seen.has(id));
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        error: `Setiap pelajar mesti diletakkan dalam satu kumpulan. ${missing.length} pelajar belum dikumpulkan.`,
+      };
+    }
+  } else if (groupingMode === "RANDOM") {
+    adHocGroups = randomGroups(roster, parsed.data.groupSize ?? 4, parsed.data.title);
+  }
+
+  // Create the assignment and its ad-hoc groups in ONE transaction so a partial
+  // failure can't leave an orphaned assignment or a half-built grouping.
+  const assignment = await prisma.$transaction(async (tx) => {
+    const created = await tx.assignment.create({
+      data: {
+        courseId: course.id,
+        title: parsed.data.title,
+        description: parsed.data.description || null,
+        type: parsed.data.type,
+        groupingMode,
+        dueDate: new Date(parsed.data.dueDate),
+        maxGrade: parsed.data.maxGrade,
+      },
+    });
+    for (const g of adHocGroups) {
+      await tx.projectGroup.create({
         data: {
           courseId: course.id,
           name: g.name,
           status: "APPROVED",
           createdById: lecturerId,
-          assignmentId: assignment.id,
+          assignmentId: created.id,
           members: {
             create: g.memberIds.map((studentId) => ({ studentId, role: "MEMBER" })),
           },
         },
       });
     }
-  } else if (groupingMode === "RANDOM") {
-    const size = parsed.data.groupSize ?? 4;
-    const roster = await prisma.classEnrollment.findMany({
-      where: { courseId: course.id },
-      select: { studentId: true },
-    });
-    const ids = roster.map((r) => r.studentId);
-    for (let i = ids.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const tmp = ids[i]!;
-      ids[i] = ids[j]!;
-      ids[j] = tmp;
-    }
-    let idx = 1;
-    for (let i = 0; i < ids.length; i += size) {
-      const chunk = ids.slice(i, i + size);
-      await prisma.projectGroup.create({
-        data: {
-          courseId: course.id,
-          name: `${parsed.data.title} — Kumpulan ${idx++}`,
-          status: "APPROVED",
-          createdById: lecturerId,
-          assignmentId: assignment.id,
-          members: {
-            create: chunk.map((studentId) => ({ studentId, role: "MEMBER" })),
-          },
-        },
-      });
-    }
-  }
+    return created;
+  });
 
   const recipientIds = await recipientsFor(assignment);
   await notifyMany(recipientIds, {
