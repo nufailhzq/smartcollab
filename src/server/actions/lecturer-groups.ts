@@ -148,21 +148,31 @@ export async function assignStudentToGroup(raw: unknown): Promise<ActionResult> 
     return { ok: false, error: "Pelajar tidak berdaftar dalam kursus ini." };
   }
 
-  // One group per student per course — remove from any existing group first
-  await prisma.groupMember.deleteMany({
-    where: {
-      studentId: parsed.data.studentId,
-      group: { courseId: group.course.id },
-    },
-  });
-
-  await prisma.groupMember.create({
-    data: {
-      groupId: group.id,
-      studentId: parsed.data.studentId,
-      role: parsed.data.role,
-    },
-  });
+  // Membership invariant is per GROUPING CONTEXT, not per course: a student may
+  // be in their standing group AND in a per-assignment ad-hoc group at once.
+  // So only displace them from groups in the SAME context as the target
+  // (same assignmentId) — never across contexts. Wrapped in a transaction so a
+  // failure can't leave the student in two groups (or none).
+  await prisma.$transaction([
+    prisma.groupMember.deleteMany({
+      where: {
+        studentId: parsed.data.studentId,
+        group: { courseId: group.course.id, assignmentId: group.assignmentId },
+        groupId: { not: group.id },
+      },
+    }),
+    prisma.groupMember.upsert({
+      where: {
+        groupId_studentId: { groupId: group.id, studentId: parsed.data.studentId },
+      },
+      update: { role: parsed.data.role },
+      create: {
+        groupId: group.id,
+        studentId: parsed.data.studentId,
+        role: parsed.data.role,
+      },
+    }),
+  ]);
 
   await notifyUser(parsed.data.studentId, {
     title: `Ditambah ke ${group.name}`,
