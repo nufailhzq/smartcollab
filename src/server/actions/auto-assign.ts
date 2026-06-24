@@ -46,19 +46,21 @@ export async function autoAssignUngrouped(
     return { ok: false, error: "Anda bukan pensyarah kursus ini." };
   }
 
-  // Snapshot current state in one round-trip.
+  // Snapshot current state in one round-trip. This tool operates ONLY on
+  // standing groups (assignmentId = null); ad-hoc per-assignment groups are
+  // created and managed via the assignment, never auto-filled here.
   const [enrollments, groups, existingMembers] = await Promise.all([
     prisma.classEnrollment.findMany({
       where: { courseId: course.id },
       select: { studentId: true },
     }),
     prisma.projectGroup.findMany({
-      where: { courseId: course.id },
+      where: { courseId: course.id, assignmentId: null },
       include: { _count: { select: { members: true } } },
       orderBy: { name: "asc" },
     }),
     prisma.groupMember.findMany({
-      where: { group: { courseId: course.id } },
+      where: { group: { courseId: course.id, assignmentId: null } },
       select: { studentId: true },
     }),
   ]);
@@ -118,7 +120,13 @@ export async function autoAssignUngrouped(
       const name = `Kumpulan ${letter} (${course.code})`;
       existingNames.add(name);
       const newGroup = await prisma.projectGroup.create({
-        data: { courseId: course.id, name, maxMembers: parsed.data.defaultGroupSize },
+        // Explicitly a standing group.
+        data: {
+          courseId: course.id,
+          name,
+          maxMembers: parsed.data.defaultGroupSize,
+          assignmentId: null,
+        },
         select: { id: true, maxMembers: true },
       });
       created++;

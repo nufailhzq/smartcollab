@@ -37,10 +37,12 @@ export async function createGroup(raw: unknown): Promise<ActionResult> {
   if (!course) return { ok: false, error: "Anda bukan pensyarah kursus ini." };
 
   await prisma.projectGroup.create({
+    // Lecturer-created groups via the group manager are standing groups.
     data: {
       courseId: course.id,
       name: parsed.data.name,
       maxMembers: parsed.data.maxMembers,
+      assignmentId: null,
     },
   });
 

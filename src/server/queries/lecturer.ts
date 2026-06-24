@@ -107,7 +107,9 @@ export async function getCourseGroups(lecturerId: number, courseId: number) {
 
   const [groups, enrollments, pendingRequests] = await Promise.all([
     prisma.projectGroup.findMany({
-      where: { courseId },
+      // Standing groups only — the group manager governs the course's long-lived
+      // grouping. Ad-hoc per-assignment groups are managed via the assignment.
+      where: { courseId, assignmentId: null },
       include: {
         members: {
           include: { student: { select: { id: true, name: true, matricNum: true } } },
@@ -283,7 +285,8 @@ export async function getMonitoringData(
   );
 
   const groupMembers = await prisma.groupMember.findMany({
-    where: { studentId: { in: studentIds }, group: { courseId } },
+    // Monitoring shows each student's standing group, not an ad-hoc one.
+    where: { studentId: { in: studentIds }, group: { courseId, assignmentId: null } },
     include: { group: { select: { name: true } } },
   });
   const groupByStudent = new Map<number, string>();

@@ -44,7 +44,8 @@ export async function getRequestGroupContext(studentId: number, courseId: number
 
 export async function getGroupsForStudentInCourse(studentId: number, courseId: number) {
   const groups = await prisma.projectGroup.findMany({
-    where: { courseId },
+    // Standing groups only.
+    where: { courseId, assignmentId: null },
     include: {
       members: { include: { student: { select: { id: true, name: true, matricNum: true, avatarPath: true } } } },
       _count: { select: { members: true } },
@@ -93,6 +94,9 @@ export async function getCurrentGroupForStudent(studentId: number, courseId: num
   return prisma.projectGroup.findFirst({
     where: {
       courseId,
+      // Standing group only (assignmentId = null). Ad-hoc per-assignment groups
+      // must never surface as the student's "current" course group.
+      assignmentId: null,
       members: { some: { studentId } },
     },
     include: {
@@ -119,7 +123,9 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
         select: { id: true, code: true, title: true, groupsLocked: true },
       }),
       prisma.projectGroup.findMany({
-        where: { courseId },
+        // Standing groups only — the "my group / other groups" browser is the
+        // course's long-lived grouping, not per-assignment ad-hoc rows.
+        where: { courseId, assignmentId: null },
         include: {
           members: {
             include: { student: { select: { id: true, name: true, matricNum: true, avatarPath: true } } },
