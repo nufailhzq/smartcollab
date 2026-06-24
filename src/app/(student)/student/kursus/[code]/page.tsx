@@ -14,11 +14,14 @@ import {
   Megaphone,
   Pin,
   ClipboardList,
+  LineChart,
   Users,
 } from "lucide-react";
 import { formatDate, formatDateTime, initials } from "@/lib/utils";
+import { getCourseProgress } from "@/server/queries/progress";
+import { ProgressList } from "@/components/progress/ProgressList";
 
-type Tab = "general" | "notes" | "tugasan";
+type Tab = "general" | "notes" | "tugasan" | "progress";
 
 export default async function CourseDetailPage({
   params,
@@ -34,9 +37,16 @@ export default async function CourseDetailPage({
 
   const myGroup = await getCurrentGroupForStudent(userId, course.id);
 
-  const tab: Tab = (["general", "notes", "tugasan"] as const).includes(searchParams.tab as Tab)
+  const tab: Tab = (["general", "notes", "tugasan", "progress"] as const).includes(
+    searchParams.tab as Tab,
+  )
     ? (searchParams.tab as Tab)
     : "general";
+
+  const progress =
+    tab === "progress"
+      ? await getCourseProgress(course.id, userId, "STUDENT")
+      : null;
 
   const generalContent = course.content.filter(
     (c) => c.type === "GENERAL" || c.type === "ANNOUNCEMENT" || c.type === "FORUM",
@@ -152,6 +162,7 @@ export default async function CourseDetailPage({
             { key: "general", label: "Umum", Icon: Megaphone },
             { key: "notes", label: "Nota dan Bahan Pembelajaran", Icon: FileText },
             { key: "tugasan", label: "Tugasan", Icon: ClipboardList },
+            { key: "progress", label: "Progress", Icon: LineChart },
           ] as const
         ).map(({ key, label, Icon }) => (
           <Link
@@ -308,6 +319,20 @@ export default async function CourseDetailPage({
               );
             })
           )}
+        </section>
+      )}
+
+      {tab === "progress" && progress && (
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-base font-semibold text-ukm-navy">
+              Status Penyiapan Anda
+            </h3>
+            <p className="text-xs text-slate-500">
+              Status diterbitkan terus daripada penghantaran &amp; tarikh akhir.
+            </p>
+          </div>
+          <ProgressList data={progress} />
         </section>
       )}
     </div>
