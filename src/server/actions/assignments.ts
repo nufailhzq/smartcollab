@@ -61,9 +61,18 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
   let groupName: string | null = null;
 
   if (assignment.type === "GROUP") {
+    // Resolve the submitter's group for THIS assignment's grouping context, not
+    // just any course group: CUSTOM/RANDOM submit to the assignment's ad-hoc
+    // group (assignmentId = this assignment); INHERIT submits to the standing
+    // group (assignmentId = null). Mixing these would propagate a submission to
+    // the wrong set of students.
+    const groupContext =
+      assignment.groupingMode === "INHERIT"
+        ? { courseId: assignment.course.id, assignmentId: null }
+        : { assignmentId: assignment.id };
     const group = await prisma.projectGroup.findFirst({
       where: {
-        courseId: assignment.course.id,
+        ...groupContext,
         members: { some: { studentId: submitterId } },
       },
       include: { members: { select: { studentId: true } } },
@@ -71,7 +80,7 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
     if (!group) {
       return {
         ok: false,
-        error: "Tugasan kumpulan tetapi anda belum berada dalam mana-mana kumpulan kursus ini.",
+        error: "Tugasan kumpulan tetapi anda belum berada dalam mana-mana kumpulan untuk tugasan ini.",
       };
     }
     groupName = group.name;

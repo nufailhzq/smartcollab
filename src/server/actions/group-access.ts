@@ -81,9 +81,13 @@ export async function requestJoinGroup(raw: unknown): Promise<ActionResult> {
   });
   if (!enrollment) return { ok: false, error: "Anda tidak berdaftar dalam kursus ini." };
 
-  // Already in another group?
+  // Already in another group in the SAME context? (assignmentId scopes the
+  // check so a student's ad-hoc membership doesn't block a standing-group join.)
   const existing = await prisma.groupMember.findFirst({
-    where: { studentId, group: { courseId: group.courseId } },
+    where: {
+      studentId,
+      group: { courseId: group.courseId, assignmentId: group.assignmentId },
+    },
   });
   if (existing) {
     return { ok: false, error: "Anda sudah dalam kumpulan untuk kursus ini." };
@@ -247,12 +251,15 @@ export async function approveAccessRequest(raw: unknown): Promise<ActionResult> 
     if (req.group._count.members >= req.group.maxMembers) {
       return { ok: false, error: "Kumpulan sudah penuh." };
     }
-    // Drop student from any other group in this course first (one-group invariant)
+    // Drop the student from any other group in the SAME context first
+    // (per-context invariant). Scoped by assignmentId so approving a standing-
+    // group join doesn't wipe the student's ad-hoc memberships.
     await prisma.$transaction([
       prisma.groupMember.deleteMany({
         where: {
           studentId: req.studentId,
-          group: { courseId: req.courseId },
+          group: { courseId: req.courseId, assignmentId: req.group.assignmentId },
+          groupId: { not: req.groupId },
         },
       }),
       prisma.groupMember.create({

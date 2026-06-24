@@ -154,6 +154,10 @@ export async function getCourseProgress(
   // group (or themselves for INDIVIDUAL assignments). They never see other
   // groups' completion status.
   if (viewerRole === "STUDENT") {
+    // Intentionally spans BOTH contexts (no assignmentId filter): the grid shows
+    // every assignment, so the student's rows are their standing group AND any
+    // ad-hoc groups they belong to. Filtering to assignmentId=null here would
+    // wrongly hide their ad-hoc rows.
     const myGroupIds = new Set(
       (
         await prisma.groupMember.findMany({
