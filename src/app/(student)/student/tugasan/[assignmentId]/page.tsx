@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getAssignmentForStudent } from "@/server/queries/submissions";
+import { getAdHocBoard } from "@/server/queries/ad-hoc-groups";
 import { ArrowLeft } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { SubmissionForm } from "./submission-form";
+import { AdHocBoardView } from "./adhoc-board";
 import { TrackAccess } from "@/components/dashboard/TrackAccess";
 
 export default async function AssignmentDetailPage({
@@ -18,6 +20,12 @@ export default async function AssignmentDetailPage({
 
   const assignment = await getAssignmentForStudent(session!.user.id, assignmentId);
   if (!assignment) notFound();
+
+  // Ad-hoc self-service grouping board (Stage 4): only in SELF (CUSTOM) mode.
+  const board =
+    assignment.groupingMode === "CUSTOM"
+      ? await getAdHocBoard(assignment.id, session!.user.id, session!.user.role)
+      : null;
 
   const sub = assignment.submissions[0] ?? null;
   const due = assignment.dueDate ? new Date(assignment.dueDate) : null;
@@ -58,6 +66,8 @@ export default async function AssignmentDetailPage({
           <p className="mt-4 whitespace-pre-wrap text-sm text-slate-700">{assignment.description}</p>
         )}
       </article>
+
+      {board && <AdHocBoardView board={board} viewerId={currentUserId} />}
 
       <SubmissionForm
         assignmentId={assignment.id}
