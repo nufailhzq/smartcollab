@@ -48,6 +48,20 @@ enum GroupingMode {
   INDIVIDUAL
 }
 
+/// Lifecycle of a student-to-student ad-hoc group invite (SELF / CUSTOM mode).
+/// PENDING  — sent, awaiting the invitee's decision.
+/// ACCEPTED — invitee joined; their OTHER pending invites for this assignment
+///            are auto-CANCELLED in the same transaction (no double-booking).
+/// DECLINED — invitee said no.
+/// CANCELLED — withdrawn by inviter, superseded by an accept elsewhere, or the
+///            group filled up.
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 enum ContentType {
   GENERAL
   NOTES
@@ -142,6 +156,8 @@ model User {
   mutesReceived           UserMute[]           @relation("Muted")
   folioReports            FolioPostReport[]    @relation("ReportReporter")
   timetable               TimetableEntry[]
+  sentGroupInvites        GroupInvite[]        @relation("InviteInviter")
+  receivedGroupInvites    GroupInvite[]        @relation("InviteInvitee")
 
   // NextAuth (database session strategy) tables
   accounts Account[]
@@ -206,6 +222,7 @@ model Assignment {
   submissions Submission[]
   attachments AssignmentAttachment[]
   adHocGroups ProjectGroup[]         @relation("AdHocGroups")
+  groupInvites GroupInvite[]
 
   @@index([courseId])
   @@map("assignments")
@@ -276,6 +293,7 @@ model ProjectGroup {
   members        GroupMember[]
   events         CalendarEvent[]
   accessRequests GroupAccessRequest[]
+  invites        GroupInvite[]
 
   @@index([courseId])
   @@index([assignmentId])
@@ -313,6 +331,38 @@ model GroupMember {
 
   @@unique([groupId, studentId], map: "uniq_group_student")
   @@map("group_members")
+}
+
+/// Student-to-student invite into an ad-hoc group for ONE assignment (SELF /
+/// CUSTOM-self-organization mode). This entity exists only in the ad-hoc
+/// grouping context — standing groups (assignmentId null on the target group)
+/// never use invites, so `assignmentId` here is always a real assignment.
+///
+/// `assignmentId` is denormalized onto the row (it could be derived via group)
+/// so the hot "does this student already have a pending invite for THIS
+/// assignment?" lookup is a single indexed query and the auto-cancel-on-accept
+/// sweep doesn't have to join through ProjectGroup.
+model GroupInvite {
+  id           Int          @id @default(autoincrement()) @map("fld_invite_id")
+  assignment   Assignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId Int          @map("fld_assignment_id")
+  group        ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId      Int          @map("fld_group_id")
+  inviter      User         @relation("InviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviterId    Int          @map("fld_inviter_id")
+  invitee      User         @relation("InviteInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  inviteeId    Int          @map("fld_invitee_id")
+  status       InviteStatus @default(PENDING) @map("fld_status")
+  createdAt    DateTime     @default(now()) @map("fld_created_at")
+
+  // One live (PENDING) invite per (assignment, group, invitee). Resolved invites
+  // (ACCEPTED/DECLINED/CANCELLED) are kept for audit; a partial unique on status
+  // isn't expressible in MySQL/Prisma, so uniqueness of the *pending* state is
+  // enforced in the invite() action's transaction instead.
+  @@index([assignmentId, status])
+  @@index([inviteeId, status])
+  @@index([groupId])
+  @@map("group_invites")
 }
 
 model CourseContent {
