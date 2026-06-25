@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getAssignmentForStudent } from "@/server/queries/submissions";
+import { getAssignmentForStudent, getGroupSubmissions } from "@/server/queries/submissions";
 import { getAdHocBoard } from "@/server/queries/ad-hoc-groups";
 import { ArrowLeft } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { SubmissionForm } from "./submission-form";
 import { AdHocBoardView } from "./adhoc-board";
+import { GroupSubmissionsView } from "./group-submissions";
 import { TrackAccess } from "@/components/dashboard/TrackAccess";
 
 export default async function AssignmentDetailPage({
@@ -22,10 +23,16 @@ export default async function AssignmentDetailPage({
   if (!assignment) notFound();
 
   // Ad-hoc self-service grouping board (Stage 4): only in SELF (CUSTOM) mode.
-  const board =
+  // Peer file visibility (Feature 2): only for GROUP assignments where the
+  // viewer is in a group. Both are null otherwise and skip rendering.
+  const [board, groupSubmissions] = await Promise.all([
     assignment.groupingMode === "CUSTOM"
-      ? await getAdHocBoard(assignment.id, session!.user.id, session!.user.role)
-      : null;
+      ? getAdHocBoard(assignment.id, session!.user.id, session!.user.role)
+      : Promise.resolve(null),
+    assignment.type === "GROUP"
+      ? getGroupSubmissions(session!.user.id, assignment.id)
+      : Promise.resolve(null),
+  ]);
 
   const sub = assignment.submissions[0] ?? null;
   const due = assignment.dueDate ? new Date(assignment.dueDate) : null;
@@ -98,6 +105,10 @@ export default async function AssignmentDetailPage({
             : null
         }
       />
+
+      {groupSubmissions && (
+        <GroupSubmissionsView data={groupSubmissions} viewerId={currentUserId} />
+      )}
     </div>
   );
 }
