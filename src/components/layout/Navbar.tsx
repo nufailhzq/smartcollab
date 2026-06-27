@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Link2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/common/Avatar";
@@ -152,6 +153,19 @@ export async function Navbar() {
               <div className="hidden md:block">
                 <StudentSearchBar />
               </div>
+            )}
+
+            {/* Folio Connect — moved out of the sidebar into a topbar icon
+                beside the search bar. (Stage 4 may enhance with a dropdown.) */}
+            {(userRole === "STUDENT" || userRole === "LECTURER") && (
+              <Link
+                href="/folio"
+                aria-label="Folio Connect"
+                title="Folio Connect"
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-ukm-navy"
+              >
+                <Link2 size={18} />
+              </Link>
             )}
 
             <ThemeToggle />

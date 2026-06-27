@@ -9,7 +9,6 @@ import {
   Calendar,
   FileCheck,
   Flag,
-  Hash,
   Layers,
   LayoutDashboard,
   Megaphone,
@@ -23,23 +22,21 @@ import { cn } from "@/lib/utils";
 
 type Tab = { href: string; label: string; Icon: LucideIcon; exact?: boolean };
 
+// Dashboard is now reached via the SmartCollab logo (top-left); Folio Connect
+// via the topbar icon beside search; Kalendar via the pinned bottom icon. So
+// none of those three appear as sidebar tabs anymore.
 const STUDENT_TABS: Tab[] = [
-  { href: "/student", label: "Dashboard", Icon: LayoutDashboard, exact: true },
   { href: "/student/kursus", label: "Kursus Saya", Icon: BookOpen },
   { href: "/student/kumpulan", label: "Kumpulan Saya", Icon: Users },
   { href: "/student/tugasan", label: "Tugasan", Icon: Upload },
-  { href: "/folio", label: "Folio Connect", Icon: Hash },
-  { href: "/student/kalendar", label: "Kalendar", Icon: Calendar },
 ];
 
+// Lecturer: "Kursus Saya" is merged into "Urus Kumpulan" — the courses render
+// as sub-items below, so there's no standalone course tab.
 const LECTURER_TABS: Tab[] = [
-  { href: "/lecturer", label: "Dashboard", Icon: LayoutDashboard, exact: true },
-  { href: "/lecturer/kursus", label: "Kursus Saya", Icon: BookOpen },
-  { href: "/lecturer/pengurusan-kumpulan", label: "Urus Kumpulan", Icon: Users },
   { href: "/lecturer/penghantaran", label: "Penghantaran Pelajar", Icon: FileCheck },
+  { href: "/lecturer/pengurusan-kumpulan", label: "Urus Kumpulan", Icon: Users },
   { href: "/lecturer/pemantauan", label: "Progress Monitoring", Icon: BarChart3 },
-  { href: "/folio", label: "Folio Connect", Icon: Hash },
-  { href: "/lecturer/kalendar", label: "Kalendar", Icon: Calendar },
 ];
 
 const ADMIN_TABS: Tab[] = [
@@ -69,6 +66,17 @@ export function LeftSidebar({ role, courses }: Props) {
   const pathname = usePathname();
   const tabs = TABS_BY_ROLE[role];
   const courseHrefBase = role === "STUDENT" ? "/student/kursus/" : "/lecturer/kursus/";
+  // Calendar is pinned to the bottom of the sidebar (icon only). Admins have no
+  // calendar route, so it's only shown for students and lecturers.
+  const calendarHref =
+    role === "STUDENT"
+      ? "/student/kalendar"
+      : role === "LECTURER"
+        ? "/lecturer/kalendar"
+        : null;
+  const calendarActive = calendarHref ? pathname.startsWith(calendarHref) : false;
+  // Lecturers see courses nested under "Urus Kumpulan"; everyone else as "Kursus Saya".
+  const courseSectionLabel = role === "LECTURER" ? "Urus Kumpulan — Kursus" : "Kursus Saya";
 
   const [mobileOpen, setMobileOpen] = useState(false);
   // Compact mode hides the dashboard nav tabs but keeps the course list
@@ -163,7 +171,7 @@ export function LeftSidebar({ role, courses }: Props) {
       {courses.length > 0 && (
         <>
           <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider sidebar-section">
-            Kursus Saya
+            {courseSectionLabel}
           </p>
           <ul className="space-y-1">
             {courses.map((c) => {
@@ -208,11 +216,30 @@ export function LeftSidebar({ role, courses }: Props) {
     </>
   );
 
+  // Calendar icon pinned to the very bottom of the sidebar (no label).
+  const calendarPin = calendarHref ? (
+    <div className="mt-auto pt-4">
+      <Link
+        href={calendarHref}
+        aria-label="Kalendar"
+        title="Kalendar"
+        className={cn(
+          "flex items-center justify-center rounded-xl p-3 transition-all duration-200 ease-spring",
+          calendarActive
+            ? "sidebar-link-active border-l-4 border-ukm-orange"
+            : "sidebar-link hover:scale-105",
+        )}
+      >
+        <Calendar size={22} />
+      </Link>
+    </div>
+  ) : null;
+
   return (
     <>
       {/* Desktop sidebar — uses .glass so it follows the active theme */}
       <aside className="glass hidden w-72 shrink-0 border-r border-l-0 border-t-0 border-b-0 md:block">
-        <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto p-4">
+        <div className="sticky top-16 flex max-h-[calc(100vh-4rem)] min-h-[calc(100vh-4rem)] flex-col overflow-y-auto p-4">
           <div className="mb-6 flex items-center justify-between sidebar-header">
             <button
               type="button"
@@ -228,6 +255,7 @@ export function LeftSidebar({ role, courses }: Props) {
             </button>
           </div>
           {body}
+          {calendarPin}
         </div>
       </aside>
 
@@ -269,6 +297,7 @@ export function LeftSidebar({ role, courses }: Props) {
             </button>
           </div>
           {body}
+          {calendarPin}
         </aside>
       </div>
     </>
