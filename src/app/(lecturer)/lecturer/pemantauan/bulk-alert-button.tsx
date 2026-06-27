@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, MessageCircleWarning, Users } from "lucide-react";
+import { AlertTriangle, MessageCircleWarning } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
 import { useToast } from "@/components/common/Toast";
 import { sendInactivityWarnings } from "@/server/actions/warnings";
@@ -21,7 +21,13 @@ type Props = {
   rows: Row[];
 };
 
-export function ActivityOverview({ courseId, courseCode, rows }: Props) {
+/**
+ * Top-right bulk "Hantar Amaran" control for Progress Monitoring. Targets every
+ * inactive student (has assignments but zero submissions). The "Penggunaan
+ * Pelajar" progress-bar section that used to wrap this was removed in the Stage 3
+ * redesign — only the action survives.
+ */
+export function BulkAlertButton({ courseId, courseCode, rows }: Props) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
@@ -30,27 +36,14 @@ export function ActivityOverview({ courseId, courseCode, rows }: Props) {
     `Anda telah dikesan tidak aktif dalam ${courseCode}. Sila hubungi pensyarah dan kemaskini penghantaran anda secepat mungkin.`,
   );
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    // "Active" = student has at least one submission OR there are no assignments yet.
-    const active = rows.filter((r) => r.totalAssignments === 0 || r.submitted > 0).length;
-    const inactive = total - active;
-    const inactiveStudents = rows.filter(
-      (r) => r.totalAssignments > 0 && r.submitted === 0,
-    );
-    return {
-      total,
-      active,
-      inactive,
-      activePct: total ? Math.round((active / total) * 100) : 0,
-      inactivePct: total ? Math.round((inactive / total) * 100) : 0,
-      inactiveStudents,
-    };
-  }, [rows]);
+  const inactiveStudents = useMemo(
+    () => rows.filter((r) => r.totalAssignments > 0 && r.submitted === 0),
+    [rows],
+  );
 
   const onSend = (e: FormEvent) => {
     e.preventDefault();
-    const studentIds = stats.inactiveStudents.map((s) => s.studentId);
+    const studentIds = inactiveStudents.map((s) => s.studentId);
     if (studentIds.length === 0) {
       toast.push({ kind: "error", message: "Tiada pelajar tidak aktif." });
       return;
@@ -68,65 +61,21 @@ export function ActivityOverview({ courseId, courseCode, rows }: Props) {
   };
 
   return (
-    <section className="card-elevated space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-ukm-navy">
-            <Users size={16} className="text-ukm-teal" /> Penggunaan Pelajar
-          </h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            Pelajar dengan sekurang-kurangnya satu penghantaran dianggap aktif.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          disabled={stats.inactive === 0}
-          className="inline-flex items-center gap-2 rounded-lg bg-ukm-red px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <MessageCircleWarning size={14} />
-          Hantar Amaran ({stats.inactive})
-        </button>
-      </header>
-
-      {/* Stacked bar */}
-      <div>
-        <div
-          className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100"
-          title={`Aktif ${stats.active} · Tidak aktif ${stats.inactive}`}
-          role="img"
-          aria-label={`${stats.activePct}% aktif, ${stats.inactivePct}% tidak aktif`}
-        >
-          {stats.active > 0 && (
-            <div
-              className="bg-emerald-500 transition-all duration-500"
-              style={{ width: `${stats.activePct}%` }}
-            />
-          )}
-          {stats.inactive > 0 && (
-            <div
-              className="bg-ukm-red transition-all duration-500"
-              style={{ width: `${stats.inactivePct}%` }}
-            />
-          )}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Aktif: {stats.active} ({stats.activePct}%)
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-ukm-red" />
-            Tidak aktif: {stats.inactive} ({stats.inactivePct}%)
-          </span>
-          <span className="text-slate-400">Jumlah: {stats.total} pelajar</span>
-        </div>
-      </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={inactiveStudents.length === 0}
+        className="inline-flex items-center gap-2 rounded-lg bg-ukm-red px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <MessageCircleWarning size={14} />
+        Hantar Amaran ({inactiveStudents.length})
+      </button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={`Hantar amaran kepada ${stats.inactive} pelajar`}
+        title={`Hantar amaran kepada ${inactiveStudents.length} pelajar`}
       >
         <form onSubmit={onSend} className="space-y-3">
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -159,10 +108,10 @@ export function ActivityOverview({ courseId, courseCode, rows }: Props) {
 
           <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
             <summary className="cursor-pointer font-semibold text-ukm-navy">
-              Penerima ({stats.inactive})
+              Penerima ({inactiveStudents.length})
             </summary>
             <ul className="mt-2 max-h-40 overflow-y-auto">
-              {stats.inactiveStudents.map((s) => (
+              {inactiveStudents.map((s) => (
                 <li key={s.studentId} className="flex justify-between py-0.5">
                   <span>{s.studentName}</span>
                   <span className="font-mono text-slate-400">{s.matricNum ?? "—"}</span>
@@ -181,6 +130,6 @@ export function ActivityOverview({ courseId, courseCode, rows }: Props) {
           </div>
         </form>
       </Modal>
-    </section>
+    </>
   );
 }
