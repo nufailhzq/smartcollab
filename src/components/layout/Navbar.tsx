@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Link2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/common/Avatar";
@@ -16,6 +15,7 @@ import {
 } from "@/server/queries/messages";
 import { NotificationBell } from "./NotificationBell";
 import { MessengerBubble } from "./MessengerBubble";
+import { FolioConnectButton } from "./FolioConnectButton";
 import { StudentSearchBar } from "@/components/folio/StudentSearchBar";
 import { TranslateToggle } from "./TranslateToggle";
 import { MobileNavToggle } from "./MobileNavToggle";
@@ -155,17 +155,10 @@ export async function Navbar() {
               </div>
             )}
 
-            {/* Folio Connect — moved out of the sidebar into a topbar icon
-                beside the search bar. (Stage 4 may enhance with a dropdown.) */}
+            {/* Folio Connect — topbar icon beside the search bar (replaces the
+                old sidebar item), with a styled hover tooltip. */}
             {(userRole === "STUDENT" || userRole === "LECTURER") && (
-              <Link
-                href="/folio"
-                aria-label="Folio Connect"
-                title="Folio Connect"
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-ukm-navy"
-              >
-                <Link2 size={18} />
-              </Link>
+              <FolioConnectButton />
             )}
 
             <ThemeToggle />
