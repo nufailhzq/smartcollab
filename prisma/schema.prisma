@@ -43,7 +43,12 @@ enum GroupStatus {
 
 enum GroupingMode {
   INHERIT
+  /// Mode A: students form their own groups (name + chosen members); each group
+  /// is PENDING until the lecturer approves/declines it.
   CUSTOM
+  /// Mode B: lecturer opens empty groups; students self-join (no approval) and
+  /// any member can pull friends in (auto-join). Joining locks at joinCloseAt.
+  OPEN
   RANDOM
   INDIVIDUAL
 }
@@ -217,6 +222,10 @@ model Assignment {
   groupingMode GroupingMode   @default(INHERIT) @map("fld_grouping_mode")
   dueDate      DateTime?      @map("fld_due_date")
   maxGrade     Int?           @map("fld_max_grade")
+  /// OPEN mode only: after this moment, students can no longer join/be invited
+  /// into the assignment's open groups (existing memberships are untouched).
+  /// Null = no auto-lock.
+  joinCloseAt  DateTime?      @map("fld_join_close_at")
   createdAt    DateTime       @default(now())
 
   submissions Submission[]

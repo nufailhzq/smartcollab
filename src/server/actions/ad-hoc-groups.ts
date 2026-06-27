@@ -3,72 +3,82 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { notifyUser } from "@/lib/notifications";
+import { notifyUser, notifyMany } from "@/lib/notifications";
 import {
   createAdHocGroupSchema,
-  inviteSchema,
-  listInvitablePoolSchema,
-  respondToInviteSchema,
-  cancelInviteSchema,
-  type InvitablePool,
-  type InviteErrorCode,
-  type PoolStudent,
+  joinOpenGroupSchema,
+  inviteToOpenGroupSchema,
+  createOpenGroupSchema,
+  type AdHocErrorCode,
 } from "@/schemas/ad-hoc-group";
 import type { ActionResult } from "@/schemas/common";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STUDENT SELF-SERVICE AD-HOC GROUPING (Stage 2)
+// STUDENT AD-HOC GROUPING — two mutually-exclusive modes per assignment.
 //
-// Viva note — standing vs ad-hoc isolation:
-//   Standing and ad-hoc groups share ONE table (project_groups), discriminated
-//   by assignmentId (null = standing, set = ad-hoc). This file only ever touches
-//   rows where assignmentId = <this assignment>, so standing groups are never
-//   read or mutated here. (Moodle "groups vs groupings" parallel.)
+//   CUSTOM (Mode A): students form their own group (name + chosen friends) →
+//     the group is PENDING until the lecturer approves/declines it via the
+//     shared lecturer approval flow (setGroupStatus). Members are "locked" while
+//     pending: they can't be in another ad-hoc group/application for this
+//     assignment.
 //
-// Viva note — per-context membership invariant:
-//   A student may hold their standing-group membership AND one ad-hoc membership
-//   for an assignment simultaneously. So every conflict check is scoped by
-//   assignmentId, never by course alone.
+//   OPEN (Mode B): the lecturer opens empty groups; any enrolled student
+//     self-joins instantly (APPROVED, no approval step), and any member can pull
+//     a friend in — the friend auto-joins instantly. Joining/inviting is blocked
+//     once the assignment's joinCloseAt has passed.
 //
-// "SELF mode" is GroupingMode.CUSTOM (students self-organize). RANDOM is the
-// lecturer auto-assign mode; INHERIT/INDIVIDUAL have no ad-hoc invites.
+// Standing vs ad-hoc isolation: every read/write here is scoped by
+// group.assignmentId = <this assignment>, so standing groups (assignmentId null)
+// are never touched.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AD_HOC_GROUP_CAP = 4;
 
-/** Localized message for each typed invite error code (BM). */
-const INVITE_ERROR_MESSAGES: Record<InviteErrorCode, string> = {
-  NOT_SELF_MODE: "Tugasan ini bukan mod bentuk-sendiri.",
+/** Localized message for each typed error code (BM). */
+const AD_HOC_ERROR_MESSAGES: Record<AdHocErrorCode, string> = {
+  NOT_SELF_MODE: "Tugasan ini bukan mod bentuk-sendiri (perlu kelulusan).",
+  NOT_OPEN_MODE: "Tugasan ini bukan mod kumpulan terbuka.",
   NOT_ENROLLED: "Anda tidak berdaftar dalam kursus ini.",
   INVITEE_NOT_ENROLLED: "Pelajar itu tidak berdaftar dalam kursus ini.",
   GROUP_NOT_FOUND: "Kumpulan tidak wujud.",
   GROUP_FULL: "Kumpulan ini sudah penuh.",
+  ALREADY_IN_GROUP: "Anda sudah berada dalam satu kumpulan untuk tugasan ini.",
   INVITEE_IN_GROUP: "Pelajar itu sudah berada dalam satu kumpulan.",
-  INVITEE_ALREADY_INVITED: "Pelajar itu sudah mempunyai jemputan tertangguh.",
+  MEMBER_IN_PENDING: "Seorang ahli sudah mempunyai permohonan kumpulan tertangguh.",
+  INVITEE_IN_PENDING: "Pelajar itu sudah mempunyai permohonan kumpulan tertangguh.",
   NOT_GROUP_MEMBER: "Anda bukan ahli kumpulan ini.",
-  INVITE_NOT_FOUND: "Jemputan tidak wujud.",
-  INVITE_NOT_PENDING: "Jemputan ini sudah diproses.",
-  NOT_INVITEE: "Jemputan ini bukan untuk anda.",
+  JOIN_CLOSED: "Tempoh menyertai kumpulan telah ditutup.",
   SELF_INVITE: "Anda tidak boleh menjemput diri sendiri.",
 };
 
-function inviteErr(code: InviteErrorCode): { ok: false; error: string; code: InviteErrorCode } {
-  return { ok: false, error: INVITE_ERROR_MESSAGES[code], code };
+function err(code: AdHocErrorCode): { ok: false; error: string; code: AdHocErrorCode } {
+  return { ok: false, error: AD_HOC_ERROR_MESSAGES[code], code };
+}
+
+/** Internal control-flow carrier so transaction callbacks can surface a typed code. */
+class AdHocError extends Error {
+  constructor(public readonly code: AdHocErrorCode) {
+    super(code);
+  }
 }
 
 function revalidateBoard(courseCode: string, assignmentId: number) {
   revalidatePath(`/student/tugasan/${assignmentId}`);
   revalidatePath(`/student/kursus/${courseCode}`);
   revalidatePath(`/lecturer/kursus/${courseCode}`);
+  revalidatePath("/lecturer/pengurusan-kumpulan");
   revalidatePath("/student/kumpulan");
 }
 
+// ─── Mode A: student-formed, lecturer-approved ───────────────────────────────
+
 /**
- * createAdHocGroup — only in SELF (CUSTOM) mode, only for enrolled students.
- * The creator becomes the group's first member (LEADER). Transactional: the
- * group + the creator's membership are created together, and we re-check the
- * per-assignment invariant INSIDE the transaction so two rapid clicks can't
- * leave the student in two ad-hoc groups.
+ * createAdHocGroup (CUSTOM mode) — the student names a group and picks the
+ * friends they want in it. The group is created PENDING with the creator as
+ * LEADER and the chosen friends as MEMBERs; the lecturer must approve it before
+ * anyone is "really" grouped. Transactional: we re-check, inside the tx, that
+ * NONE of the proposed members are already in a group or another pending
+ * application for this assignment, so two rapid submissions can't double-book.
  */
 export async function createAdHocGroup(raw: unknown): Promise<ActionResult<{ groupId: number }>> {
   const session = await auth();
@@ -80,7 +90,7 @@ export async function createAdHocGroup(raw: unknown): Promise<ActionResult<{ gro
   const parsed = createAdHocGroupSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Input tidak sah." };
 
-  const studentId = session.user.id;
+  const creatorId = session.user.id;
   const assignment = await prisma.assignment.findUnique({
     where: { id: parsed.data.assignmentId },
     include: {
@@ -88,18 +98,23 @@ export async function createAdHocGroup(raw: unknown): Promise<ActionResult<{ gro
         select: {
           id: true,
           code: true,
-          enrollments: { where: { studentId }, select: { id: true } },
+          enrollments: { select: { studentId: true } },
         },
       },
     },
   });
   if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
-  if (assignment.groupingMode !== "CUSTOM") {
-    return { ok: false, error: INVITE_ERROR_MESSAGES.NOT_SELF_MODE };
-  }
-  if (assignment.course.enrollments.length === 0) {
-    return { ok: false, error: INVITE_ERROR_MESSAGES.NOT_ENROLLED };
-  }
+  if (assignment.groupingMode !== "CUSTOM") return err("NOT_SELF_MODE");
+
+  const enrolledIds = new Set(assignment.course.enrollments.map((e) => e.studentId));
+  if (!enrolledIds.has(creatorId)) return err("NOT_ENROLLED");
+
+  // Proposed roster = creator + chosen friends (deduped, creator excluded from picks).
+  const memberIds = Array.from(
+    new Set([creatorId, ...parsed.data.memberIds.filter((id) => id !== creatorId)]),
+  );
+  // Every proposed member must be enrolled.
+  if (memberIds.some((id) => !enrolledIds.has(id))) return err("INVITEE_NOT_ENROLLED");
 
   const name =
     parsed.data.name?.trim() ||
@@ -107,361 +122,230 @@ export async function createAdHocGroup(raw: unknown): Promise<ActionResult<{ gro
 
   try {
     const group = await prisma.$transaction(async (tx) => {
-      // Per-context invariant, re-checked inside the tx: at most ONE ad-hoc
-      // membership for this assignment. Scoped by assignmentId so the student's
-      // standing-group membership is untouched.
-      const existing = await tx.groupMember.findFirst({
-        where: { studentId, group: { assignmentId: assignment.id } },
+      // None of the proposed members may already be confirmed in an ad-hoc group
+      // for this assignment...
+      const inGroup = await tx.groupMember.findFirst({
+        where: {
+          studentId: { in: memberIds },
+          group: { assignmentId: assignment.id, status: "APPROVED" },
+        },
+        select: { id: true },
       });
-      if (existing) throw new Error("ALREADY_IN_GROUP");
+      if (inGroup) throw new AdHocError("INVITEE_IN_GROUP");
+
+      // ...nor part of another PENDING application for this assignment.
+      const inPending = await tx.groupMember.findFirst({
+        where: {
+          studentId: { in: memberIds },
+          group: { assignmentId: assignment.id, status: "PENDING" },
+        },
+        select: { id: true },
+      });
+      if (inPending) throw new AdHocError("MEMBER_IN_PENDING");
 
       return tx.projectGroup.create({
         data: {
           courseId: assignment.course.id,
           name,
-          maxMembers: AD_HOC_GROUP_CAP,
-          status: "APPROVED",
-          createdById: studentId,
+          maxMembers: Math.max(AD_HOC_GROUP_CAP, memberIds.length),
+          status: "PENDING",
+          createdById: creatorId,
           assignmentId: assignment.id,
-          members: { create: { studentId, role: "LEADER" } },
+          members: {
+            create: memberIds.map((studentId) => ({
+              studentId,
+              role: studentId === creatorId ? "LEADER" : "MEMBER",
+            })),
+          },
         },
         select: { id: true },
       });
     });
 
+    // Notify the chosen friends they've been put in a pending application.
+    const others = memberIds.filter((id) => id !== creatorId);
+    await notifyMany(others, {
+      title: "Permohonan Kumpulan",
+      message: `${session.user.name} memasukkan anda dalam permohonan kumpulan "${name}" untuk "${assignment.title}". Menunggu kelulusan pensyarah.`,
+      link: `student/tugasan/${assignment.id}`,
+    });
+
     revalidateBoard(assignment.course.code, assignment.id);
     return { ok: true, data: { groupId: group.id } };
-  } catch (err) {
-    if (err instanceof Error && err.message === "ALREADY_IN_GROUP") {
-      return { ok: false, error: "Anda sudah berada dalam kumpulan untuk tugasan ini." };
-    }
-    throw err;
+  } catch (e) {
+    if (e instanceof AdHocError) return err(e.code);
+    throw e;
   }
 }
 
-/**
- * listInvitablePool — the enrolled roster (minus the caller) split into:
- *   - invitable:     not in any ad-hoc group here AND no pending invite.
- *   - nonInvitable:  tagged IN_GROUP or ALREADY_INVITED so the UI disables the
- *                    invite button and shows the exact reason.
- * The roster comes from ClassEnrollment (the real source), never from group rows.
- */
-export async function listInvitablePool(
-  raw: unknown,
-): Promise<ActionResult<InvitablePool>> {
+// ─── Mode B: lecturer-opened, self-join ──────────────────────────────────────
+
+/** createOpenGroup (lecturer) — open one empty self-join group for an OPEN-mode assignment. */
+export async function createOpenGroup(raw: unknown): Promise<ActionResult<{ groupId: number }>> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
-  if (session.user.role !== "STUDENT") {
-    return { ok: false, error: "Hanya pelajar boleh melihat kumpulan ini." };
-  }
+  if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
 
-  const parsed = listInvitablePoolSchema.safeParse(raw);
+  const parsed = createOpenGroupSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: parsed.data.assignmentId },
+    include: { course: { select: { id: true, code: true, lecturerId: true } } },
+  });
+  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
+  if (assignment.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+  if (assignment.groupingMode !== "OPEN") return err("NOT_OPEN_MODE");
+
+  const count = await prisma.projectGroup.count({ where: { assignmentId: assignment.id } });
+  const name = parsed.data.name?.trim() || `Kumpulan ${count + 1}`;
+
+  const group = await prisma.projectGroup.create({
+    data: {
+      courseId: assignment.course.id,
+      name,
+      maxMembers: parsed.data.maxMembers,
+      status: "APPROVED",
+      createdById: session.user.id,
+      assignmentId: assignment.id,
+    },
+    select: { id: true },
+  });
+
+  revalidateBoard(assignment.course.code, assignment.id);
+  return { ok: true, data: { groupId: group.id } };
+}
+
+/** True once the assignment's join window has closed (OPEN mode auto-lock). */
+function isJoinClosed(joinCloseAt: Date | null): boolean {
+  return joinCloseAt !== null && joinCloseAt.getTime() <= Date.now();
+}
+
+/**
+ * joinOpenGroup (OPEN mode) — an enrolled student self-joins, instantly and
+ * without approval, provided the group has room and the join window is open.
+ * The capacity + single-membership checks run INSIDE the transaction.
+ */
+export async function joinOpenGroup(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "STUDENT") return { ok: false, error: "Hanya pelajar boleh menyertai." };
+
+  const parsed = joinOpenGroupSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Input tidak sah." };
 
   const studentId = session.user.id;
-  const assignment = await prisma.assignment.findUnique({
-    where: { id: parsed.data.assignmentId },
-    select: {
-      id: true,
-      groupingMode: true,
-      course: {
-        select: {
-          id: true,
-          enrollments: { where: { studentId }, select: { id: true } },
-        },
-      },
+  const group = await prisma.projectGroup.findUnique({
+    where: { id: parsed.data.groupId },
+    include: {
+      course: { select: { id: true, code: true } },
+      assignment: { select: { id: true, groupingMode: true, joinCloseAt: true } },
     },
   });
-  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
-  if (assignment.course.enrollments.length === 0) {
-    return { ok: false, error: INVITE_ERROR_MESSAGES.NOT_ENROLLED };
+  if (!group || !group.assignment || group.assignmentId === null) return err("GROUP_NOT_FOUND");
+  if (group.assignment.groupingMode !== "OPEN") return err("NOT_OPEN_MODE");
+  if (isJoinClosed(group.assignment.joinCloseAt)) return err("JOIN_CLOSED");
+  const assignmentId = group.assignment.id;
+
+  const enrolled = await prisma.classEnrollment.findUnique({
+    where: { courseId_studentId: { courseId: group.course.id, studentId } },
+    select: { id: true },
+  });
+  if (!enrolled) return err("NOT_ENROLLED");
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const already = await tx.groupMember.findFirst({
+        where: { studentId, group: { assignmentId } },
+        select: { id: true },
+      });
+      if (already) throw new AdHocError("ALREADY_IN_GROUP");
+
+      const memberCount = await tx.groupMember.count({ where: { groupId: group.id } });
+      if (memberCount >= group.maxMembers) throw new AdHocError("GROUP_FULL");
+
+      await tx.groupMember.create({
+        data: { groupId: group.id, studentId, role: memberCount === 0 ? "LEADER" : "MEMBER" },
+      });
+    });
+  } catch (e) {
+    if (e instanceof AdHocError) return err(e.code);
+    throw e;
   }
 
-  const [roster, groupedMembers, pendingInvites] = await Promise.all([
-    prisma.classEnrollment.findMany({
-      where: { courseId: assignment.course.id },
-      select: {
-        student: {
-          select: { id: true, name: true, matricNum: true, avatarPath: true },
-        },
-      },
-      orderBy: { student: { name: "asc" } },
-    }),
-    // Confirmed members of ANY ad-hoc group for this assignment.
-    prisma.groupMember.findMany({
-      where: { group: { assignmentId: assignment.id } },
-      select: { studentId: true },
-    }),
-    // Anyone with a live PENDING invite for this assignment.
-    prisma.groupInvite.findMany({
-      where: { assignmentId: assignment.id, status: "PENDING" },
-      select: { inviteeId: true },
-    }),
-  ]);
-
-  const inGroup = new Set(groupedMembers.map((m) => m.studentId));
-  const invited = new Set(pendingInvites.map((i) => i.inviteeId));
-
-  const invitable: PoolStudent[] = [];
-  const nonInvitable: InvitablePool["nonInvitable"] = [];
-
-  for (const e of roster) {
-    if (e.student.id === studentId) continue; // never invite yourself
-    const s: PoolStudent = {
-      id: e.student.id,
-      name: e.student.name,
-      matricNum: e.student.matricNum,
-      avatarPath: e.student.avatarPath,
-    };
-    if (inGroup.has(s.id)) nonInvitable.push({ student: s, reason: "IN_GROUP" });
-    else if (invited.has(s.id)) nonInvitable.push({ student: s, reason: "ALREADY_INVITED" });
-    else invitable.push(s);
-  }
-
-  return { ok: true, data: { invitable, nonInvitable } };
+  revalidateBoard(group.course.code, assignmentId);
+  return { ok: true };
 }
 
 /**
- * invite — validate same course, group not full, invitee not already in a group
- * and not already pending; create a PENDING invite. Every check that guards the
- * write happens INSIDE the transaction so two concurrent invites can't both
- * succeed past the cap or double-invite the same student.
+ * inviteToOpenGroup (OPEN mode) — any current member pulls a friend into their
+ * group. The friend AUTO-JOINS instantly (no approval, no accept step), as long
+ * as there's room and the window is open. All guards run inside the transaction.
  */
-export async function invite(
-  raw: unknown,
-): Promise<ActionResult<{ inviteId: number }> | ReturnType<typeof inviteErr>> {
+export async function inviteToOpenGroup(raw: unknown): Promise<ActionResult> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
-  if (session.user.role !== "STUDENT") {
-    return { ok: false, error: "Hanya pelajar boleh menjemput." };
-  }
+  if (session.user.role !== "STUDENT") return { ok: false, error: "Hanya pelajar boleh menjemput." };
 
-  const parsed = inviteSchema.safeParse(raw);
+  const parsed = inviteToOpenGroupSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Input tidak sah." };
 
   const inviterId = session.user.id;
   const { groupId, inviteeId } = parsed.data;
-  if (inviterId === inviteeId) return inviteErr("SELF_INVITE");
+  if (inviterId === inviteeId) return err("SELF_INVITE");
 
   const group = await prisma.projectGroup.findUnique({
     where: { id: groupId },
     include: {
       course: { select: { id: true, code: true } },
-      assignment: { select: { id: true, title: true, groupingMode: true } },
+      assignment: { select: { id: true, title: true, groupingMode: true, joinCloseAt: true } },
     },
   });
-  if (!group || group.assignmentId === null || !group.assignment) {
-    return inviteErr("GROUP_NOT_FOUND");
-  }
-  if (group.assignment.groupingMode !== "CUSTOM") return inviteErr("NOT_SELF_MODE");
+  if (!group || !group.assignment || group.assignmentId === null) return err("GROUP_NOT_FOUND");
+  if (group.assignment.groupingMode !== "OPEN") return err("NOT_OPEN_MODE");
+  if (isJoinClosed(group.assignment.joinCloseAt)) return err("JOIN_CLOSED");
   const assignmentId = group.assignment.id;
 
+  const enrolled = await prisma.classEnrollment.findUnique({
+    where: { courseId_studentId: { courseId: group.course.id, studentId: inviteeId } },
+    select: { id: true },
+  });
+  if (!enrolled) return err("INVITEE_NOT_ENROLLED");
+
   try {
-    const created = await prisma.$transaction(async (tx) => {
-      // Inviter must be a member of this group.
+    await prisma.$transaction(async (tx) => {
       const isMember = await tx.groupMember.findFirst({
         where: { groupId, studentId: inviterId },
         select: { id: true },
       });
-      if (!isMember) throw new InviteError("NOT_GROUP_MEMBER");
+      if (!isMember) throw new AdHocError("NOT_GROUP_MEMBER");
 
-      // Invitee must be enrolled in this course.
-      const enrolled = await tx.classEnrollment.findUnique({
-        where: { courseId_studentId: { courseId: group.course.id, studentId: inviteeId } },
-        select: { id: true },
-      });
-      if (!enrolled) throw new InviteError("INVITEE_NOT_ENROLLED");
-
-      // Group must have spare capacity.
-      const memberCount = await tx.groupMember.count({ where: { groupId } });
-      if (memberCount >= group.maxMembers) throw new InviteError("GROUP_FULL");
-
-      // Invitee must not already be in an ad-hoc group for THIS assignment.
       const inviteeInGroup = await tx.groupMember.findFirst({
         where: { studentId: inviteeId, group: { assignmentId } },
         select: { id: true },
       });
-      if (inviteeInGroup) throw new InviteError("INVITEE_IN_GROUP");
+      if (inviteeInGroup) throw new AdHocError("INVITEE_IN_GROUP");
 
-      // Invitee must not already have a PENDING invite for this assignment.
-      const pending = await tx.groupInvite.findFirst({
-        where: { assignmentId, inviteeId, status: "PENDING" },
-        select: { id: true },
-      });
-      if (pending) throw new InviteError("INVITEE_ALREADY_INVITED");
+      const memberCount = await tx.groupMember.count({ where: { groupId } });
+      if (memberCount >= group.maxMembers) throw new AdHocError("GROUP_FULL");
 
-      return tx.groupInvite.create({
-        data: { assignmentId, groupId, inviterId, inviteeId, status: "PENDING" },
-        select: { id: true },
-      });
-    });
-
-    await notifyUser(inviteeId, {
-      title: "Jemputan Kumpulan",
-      message: `${session.user.name} menjemput anda ke "${group.name}" untuk tugasan "${group.assignment.title}".`,
-      link: `student/tugasan/${assignmentId}`,
-    });
-
-    revalidateBoard(group.course.code, assignmentId);
-    return { ok: true, data: { inviteId: created.id } };
-  } catch (err) {
-    if (err instanceof InviteError) return inviteErr(err.code);
-    throw err;
-  }
-}
-
-/**
- * respondToInvite — ACCEPT joins the group atomically and auto-CANCELS the
- * invitee's OTHER pending invites for this assignment (no double-booking).
- *
- * Viva note — why auto-cancel + atomic overlap prevention:
- *   Accepting joins exactly one group; any other invite this student is holding
- *   for the SAME assignment is now stale and would let them be pulled into a
- *   second group, breaking the per-assignment invariant. Cancelling them in the
- *   same transaction as the join closes that window — there is no instant where
- *   the student is both joined here and still invitable elsewhere.
- */
-export async function respondToInvite(
-  raw: unknown,
-): Promise<ActionResult | ReturnType<typeof inviteErr>> {
-  const session = await auth();
-  if (!session) return { ok: false, error: "Sesi tidak sah." };
-  if (session.user.role !== "STUDENT") {
-    return { ok: false, error: "Hanya pelajar boleh menjawab jemputan." };
-  }
-
-  const parsed = respondToInviteSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
-
-  const studentId = session.user.id;
-  const inviteRow = await prisma.groupInvite.findUnique({
-    where: { id: parsed.data.inviteId },
-    include: {
-      group: {
-        include: {
-          course: { select: { code: true } },
-          members: { select: { studentId: true } },
-        },
-      },
-    },
-  });
-  if (!inviteRow) return inviteErr("INVITE_NOT_FOUND");
-  if (inviteRow.inviteeId !== studentId) return inviteErr("NOT_INVITEE");
-  if (inviteRow.status !== "PENDING") return inviteErr("INVITE_NOT_PENDING");
-
-  const assignmentId = inviteRow.assignmentId;
-  const courseCode = inviteRow.group.course.code;
-
-  if (parsed.data.action === "DECLINE") {
-    await prisma.groupInvite.update({
-      where: { id: inviteRow.id },
-      data: { status: "DECLINED" },
-    });
-    revalidateBoard(courseCode, assignmentId);
-    return { ok: true };
-  }
-
-  // ACCEPT — everything in one transaction.
-  try {
-    await prisma.$transaction(async (tx) => {
-      // Re-check capacity inside the tx (someone may have filled it).
-      const memberCount = await tx.groupMember.count({ where: { groupId: inviteRow.groupId } });
-      const group = await tx.projectGroup.findUnique({
-        where: { id: inviteRow.groupId },
-        select: { maxMembers: true },
-      });
-      if (!group) throw new InviteError("GROUP_NOT_FOUND");
-      if (memberCount >= group.maxMembers) throw new InviteError("GROUP_FULL");
-
-      // Per-context invariant: must not already be in an ad-hoc group here.
-      const already = await tx.groupMember.findFirst({
-        where: { studentId, group: { assignmentId } },
-        select: { id: true },
-      });
-      if (already) throw new InviteError("INVITEE_IN_GROUP");
-
-      // Join.
       await tx.groupMember.create({
-        data: { groupId: inviteRow.groupId, studentId, role: "MEMBER" },
-      });
-      // Mark this invite accepted.
-      await tx.groupInvite.update({
-        where: { id: inviteRow.id },
-        data: { status: "ACCEPTED" },
-      });
-      // Auto-cancel every OTHER pending invite this student holds for this
-      // assignment — closes the double-booking window atomically.
-      await tx.groupInvite.updateMany({
-        where: {
-          assignmentId,
-          inviteeId: studentId,
-          status: "PENDING",
-          id: { not: inviteRow.id },
-        },
-        data: { status: "CANCELLED" },
+        data: { groupId, studentId: inviteeId, role: "MEMBER" },
       });
     });
-  } catch (err) {
-    if (err instanceof InviteError) return inviteErr(err.code);
-    throw err;
+  } catch (e) {
+    if (e instanceof AdHocError) return err(e.code);
+    throw e;
   }
 
-  await notifyUser(inviteRow.inviterId, {
-    title: "Jemputan Diterima",
-    message: `${session.user.name} telah menyertai "${inviteRow.group.name}".`,
+  await notifyUser(inviteeId, {
+    title: "Ditambah ke Kumpulan",
+    message: `${session.user.name} menambah anda ke "${group.name}" untuk "${group.assignment.title}".`,
     link: `student/tugasan/${assignmentId}`,
   });
 
-  revalidateBoard(courseCode, assignmentId);
+  revalidateBoard(group.course.code, assignmentId);
   return { ok: true };
-}
-
-/**
- * cancelInvite — the inviter (or any current member of the inviting group)
- * withdraws a still-pending invite they sent.
- */
-export async function cancelInvite(
-  raw: unknown,
-): Promise<ActionResult | ReturnType<typeof inviteErr>> {
-  const session = await auth();
-  if (!session) return { ok: false, error: "Sesi tidak sah." };
-  if (session.user.role !== "STUDENT") {
-    return { ok: false, error: "Tidak dibenarkan." };
-  }
-
-  const parsed = cancelInviteSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
-
-  const studentId = session.user.id;
-  const inviteRow = await prisma.groupInvite.findUnique({
-    where: { id: parsed.data.inviteId },
-    include: {
-      group: {
-        include: {
-          course: { select: { code: true } },
-          members: { select: { studentId: true } },
-        },
-      },
-    },
-  });
-  if (!inviteRow) return inviteErr("INVITE_NOT_FOUND");
-  if (inviteRow.status !== "PENDING") return inviteErr("INVITE_NOT_PENDING");
-  const isInvitingMember =
-    inviteRow.inviterId === studentId ||
-    inviteRow.group.members.some((m) => m.studentId === studentId);
-  if (!isInvitingMember) return inviteErr("NOT_GROUP_MEMBER");
-
-  await prisma.groupInvite.update({
-    where: { id: inviteRow.id },
-    data: { status: "CANCELLED" },
-  });
-  revalidateBoard(inviteRow.group.course.code, inviteRow.assignmentId);
-  return { ok: true };
-}
-
-/** Internal control-flow carrier so transaction callbacks can surface a typed code. */
-class InviteError extends Error {
-  constructor(public readonly code: InviteErrorCode) {
-    super(code);
-  }
 }

@@ -64,12 +64,16 @@ export async function getGroupsForStudentInCourse(studentId: number, courseId: n
 }
 
 /**
- * Pending standing-group requests for a course, for the lecturer approval list.
+ * Pending group requests for a course, for the lecturer approval list. Covers
+ * BOTH standing groups (assignmentId null) and ad-hoc student-formed groups
+ * (CUSTOM mode, assignmentId set) — the latter carry an `assignment` label so
+ * the lecturer sees which assignment the request belongs to.
  */
 export async function getPendingGroupRequests(courseId: number) {
   const groups = await prisma.projectGroup.findMany({
-    where: { courseId, assignmentId: null, status: "PENDING" },
+    where: { courseId, status: "PENDING" },
     include: {
+      assignment: { select: { id: true, title: true } },
       members: {
         include: { student: { select: { id: true, name: true, matricNum: true } } },
         orderBy: { role: "asc" },
@@ -81,6 +85,9 @@ export async function getPendingGroupRequests(courseId: number) {
   return groups.map((g) => ({
     id: g.id,
     name: g.name,
+    assignment: g.assignment
+      ? { id: g.assignment.id, title: g.assignment.title }
+      : null,
     members: g.members.map((m) => ({
       id: m.student.id,
       name: m.student.name,

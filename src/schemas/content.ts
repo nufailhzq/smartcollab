@@ -25,8 +25,15 @@ export const createAssignmentSchema = z.object({
   description: z.string().trim().max(10_000).optional().or(z.literal("")),
   type: z.enum(["INDIVIDUAL", "GROUP"]),
   groupingMode: z
-    .enum(["INHERIT", "CUSTOM", "RANDOM", "INDIVIDUAL"])
+    .enum(["INHERIT", "CUSTOM", "OPEN", "RANDOM", "INDIVIDUAL"])
     .default("INHERIT"),
+  /** OPEN mode only: when set, joining/inviting locks after this datetime. */
+  joinCloseAt: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || !Number.isNaN(Date.parse(v)), "Tarikh tidak sah."),
   groups: z
     .array(
       z.object({
@@ -36,6 +43,9 @@ export const createAssignmentSchema = z.object({
     )
     .optional(),
   groupSize: z.coerce.number().int().min(2).max(20).optional(),
+  /** OPEN mode: how many empty self-join groups to open, and their capacity. */
+  openGroupCount: z.coerce.number().int().min(1).max(50).optional(),
+  openGroupSize: z.coerce.number().int().min(2).max(20).optional(),
   dueDate: z
     .string()
     .trim()

@@ -11,6 +11,8 @@ import {
 
 type Mode = "content" | "notes" | "assignment";
 
+type GroupingMode = "INHERIT" | "CUSTOM" | "OPEN" | "RANDOM" | "INDIVIDUAL";
+
 type Props = {
   courseId: number;
   mode: Mode;
@@ -111,6 +113,9 @@ export function CourseAuthoring({ courseId, mode }: Props) {
                     type: values.type,
                     groupingMode: values.groupingMode,
                     groupSize: values.groupSize,
+                    joinCloseAt: values.joinCloseAt,
+                    openGroupCount: values.openGroupCount,
+                    openGroupSize: values.openGroupSize,
                     dueDate: values.dueDate,
                     maxGrade: values.maxGrade,
                   });
@@ -268,8 +273,11 @@ function AssignmentForm({
     title: string;
     description: string;
     type: "INDIVIDUAL" | "GROUP";
-    groupingMode: "INHERIT" | "RANDOM" | "INDIVIDUAL";
+    groupingMode: GroupingMode;
     groupSize?: number;
+    joinCloseAt?: string;
+    openGroupCount?: number;
+    openGroupSize?: number;
     dueDate: string;
     maxGrade: number;
   }) => void;
@@ -277,10 +285,11 @@ function AssignmentForm({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"INDIVIDUAL" | "GROUP">("INDIVIDUAL");
-  const [groupingMode, setGroupingMode] = useState<
-    "INHERIT" | "RANDOM" | "INDIVIDUAL"
-  >("INHERIT");
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>("INHERIT");
   const [groupSize, setGroupSize] = useState(4);
+  const [joinCloseAt, setJoinCloseAt] = useState("");
+  const [openGroupCount, setOpenGroupCount] = useState(5);
+  const [openGroupSize, setOpenGroupSize] = useState(4);
   const [dueDate, setDueDate] = useState("");
   const [maxGrade, setMaxGrade] = useState(100);
 
@@ -292,6 +301,9 @@ function AssignmentForm({
       type,
       groupingMode,
       groupSize: groupingMode === "RANDOM" ? groupSize : undefined,
+      joinCloseAt: groupingMode === "OPEN" ? joinCloseAt : undefined,
+      openGroupCount: groupingMode === "OPEN" ? openGroupCount : undefined,
+      openGroupSize: groupingMode === "OPEN" ? openGroupSize : undefined,
       dueDate,
       maxGrade,
     });
@@ -362,14 +374,14 @@ function AssignmentForm({
           </label>
           <select
             value={groupingMode}
-            onChange={(e) =>
-              setGroupingMode(e.target.value as "INHERIT" | "RANDOM" | "INDIVIDUAL")
-            }
+            onChange={(e) => setGroupingMode(e.target.value as GroupingMode)}
             className="input-base"
           >
             <option value="INHERIT">Ikut kumpulan kursus</option>
             <option value="INDIVIDUAL">Individu (tiada kumpulan)</option>
             <option value="RANDOM">Rawak (auto-bahagi)</option>
+            <option value="CUSTOM">Pelajar bentuk sendiri (perlu kelulusan)</option>
+            <option value="OPEN">Kumpulan terbuka (pelajar sertai sendiri)</option>
           </select>
         </div>
         {groupingMode === "RANDOM" && (
@@ -387,7 +399,58 @@ function AssignmentForm({
             />
           </div>
         )}
+        {groupingMode === "OPEN" && (
+          <>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+                Bilangan kumpulan kosong
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={openGroupCount}
+                onChange={(e) => setOpenGroupCount(Number(e.target.value))}
+                className="input-base"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+                Saiz setiap kumpulan
+              </label>
+              <input
+                type="number"
+                min={2}
+                max={20}
+                value={openGroupSize}
+                onChange={(e) => setOpenGroupSize(Number(e.target.value))}
+                className="input-base"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+                Tutup penyertaan (pilihan)
+              </label>
+              <input
+                type="datetime-local"
+                value={joinCloseAt}
+                onChange={(e) => setJoinCloseAt(e.target.value)}
+                className="input-base"
+              />
+              <p className="mt-1 text-[10px] text-slate-500">
+                Selepas masa ini, pelajar tidak boleh sertai/jemput lagi.
+              </p>
+            </div>
+          </>
+        )}
       </div>
+      {(groupingMode === "CUSTOM" || groupingMode === "OPEN") && (
+        <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] text-sky-800">
+          {groupingMode === "CUSTOM"
+            ? "Pelajar akan membentuk kumpulan sendiri di halaman tugasan; setiap kumpulan memerlukan kelulusan anda di Pengurusan Kumpulan."
+            : "Buka kumpulan kosong di halaman tugasan selepas mencipta; pelajar menyertai sendiri dan boleh menjemput rakan (auto-sertai)."}
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <button type="submit" disabled={pending} className="btn-primary">
           Cipta Tugasan

@@ -200,36 +200,25 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
       select: { studentId: true },
     })
   ).map((r) => r.studentId);
-  const rosterSet = new Set(roster);
 
   // Build the ad-hoc group rows BEFORE any write, so validation can reject the
   // whole creation atomically. Standing groups (assignmentId null) are never
   // read or mutated here — ad-hoc groups are separate rows keyed by assignmentId.
-  let adHocGroups: { name: string; memberIds: number[] }[] = [];
+  //
+  // CUSTOM (students self-form, lecturer-approved) and OPEN (lecturer opens
+  // empty groups, students self-join) DON'T pre-build any groups here: students
+  // create them later (CUSTOM) or the lecturer opens them after creation (OPEN).
+  let adHocGroups: { name: string; memberIds: number[]; maxMembers?: number }[] = [];
 
-  if (groupingMode === "CUSTOM") {
-    adHocGroups = parsed.data.groups ?? [];
-    const seen = new Set<number>();
-    for (const g of adHocGroups) {
-      for (const id of g.memberIds) {
-        if (!rosterSet.has(id)) {
-          return { ok: false, error: "Seorang ahli tidak berdaftar dalam kursus ini." };
-        }
-        if (seen.has(id)) {
-          return { ok: false, error: "Seorang pelajar diletak dalam lebih daripada satu kumpulan." };
-        }
-        seen.add(id);
-      }
-    }
-    // Rule 3: the resolved members must equal the enrolled roster — no student
-    // may fall through the cracks. Reject if anyone is left unassigned.
-    const missing = roster.filter((id) => !seen.has(id));
-    if (missing.length > 0) {
-      return {
-        ok: false,
-        error: `Setiap pelajar mesti diletakkan dalam satu kumpulan. ${missing.length} pelajar belum dikumpulkan.`,
-      };
-    }
+  if (groupingMode === "OPEN") {
+    // Seed empty self-join groups the students will populate themselves.
+    const n = parsed.data.openGroupCount ?? 1;
+    const size = parsed.data.openGroupSize ?? 4;
+    adHocGroups = Array.from({ length: n }, (_, i) => ({
+      name: `Kumpulan ${i + 1}`,
+      memberIds: [],
+      maxMembers: size,
+    }));
   } else if (groupingMode === "RANDOM") {
     const result = randomGroupsWithSeed(
       roster,
@@ -255,6 +244,10 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
         groupingMode,
         dueDate: new Date(parsed.data.dueDate),
         maxGrade: parsed.data.maxGrade,
+        joinCloseAt:
+          groupingMode === "OPEN" && parsed.data.joinCloseAt
+            ? new Date(parsed.data.joinCloseAt)
+            : null,
       },
     });
     for (const g of adHocGroups) {
@@ -262,6 +255,7 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
         data: {
           courseId: course.id,
           name: g.name,
+          ...(g.maxMembers ? { maxMembers: g.maxMembers } : {}),
           status: "APPROVED",
           createdById: lecturerId,
           assignmentId: created.id,

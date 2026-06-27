@@ -235,27 +235,44 @@ export async function setGroupStatus(raw: unknown): Promise<ActionResult> {
 
   const memberIds = group.members.map((m) => m.studentId);
 
+  // Ad-hoc (per-assignment) groups send students back to /student/tugasan/<id>;
+  // standing groups use the "groups" tag. The membership invariant for ad-hoc
+  // groups keys off GroupMember rows, so a REJECT must actually free the members:
+  // for ad-hoc we DELETE the group (cascade drops GroupMember), truly resetting
+  // everyone to "Tiada Kumpulan". Standing groups keep the REJECTED marker.
+  const isAdHoc = group.assignmentId !== null;
+  const link = isAdHoc ? `student/tugasan/${group.assignmentId}` : "groups";
+
   if (parsed.data.action === "REJECT") {
-    await prisma.projectGroup.update({
-      where: { id: group.id },
-      data: { status: "REJECTED" },
-    });
+    if (isAdHoc) {
+      await prisma.projectGroup.delete({ where: { id: group.id } });
+    } else {
+      await prisma.projectGroup.update({
+        where: { id: group.id },
+        data: { status: "REJECTED" },
+      });
+    }
     await notifyMany(memberIds, {
       title: "Permohonan Kumpulan Ditolak",
       message: `Kumpulan "${group.name}" (${group.course.code}) ditolak. Anda boleh membentuk kumpulan baharu.`,
-      link: "groups",
+      link,
     });
   } else {
-    // Approve this group, and auto-reject any OTHER pending standing group in
-    // the same course that shares a member — a student can't have two competing
-    // pending memberships in one context. Finding the overlaps and rejecting
-    // them must be ATOMIC with the approval, otherwise a concurrent request
-    // could slip a new overlapping pending group in between the read and write.
+    // Approve this group, and auto-reject any OTHER pending group in the SAME
+    // grouping context that shares a member — a student can't have two competing
+    // pending memberships in one context. Context = the course for standing
+    // groups (assignmentId null), or the specific assignment for ad-hoc (CUSTOM)
+    // groups. Finding the overlaps and rejecting them must be ATOMIC with the
+    // approval, otherwise a concurrent request could slip a new overlapping
+    // pending group in between the read and write.
+    const overlapContext =
+      group.assignmentId === null
+        ? { courseId: group.courseId, assignmentId: null }
+        : { assignmentId: group.assignmentId };
     const bumped = await prisma.$transaction(async (tx) => {
       const overlaps = await tx.projectGroup.findMany({
         where: {
-          courseId: group.courseId,
-          assignmentId: null,
+          ...overlapContext,
           status: "PENDING",
           id: { not: group.id },
           members: { some: { studentId: { in: memberIds } } },
@@ -276,7 +293,7 @@ export async function setGroupStatus(raw: unknown): Promise<ActionResult> {
     await notifyMany(memberIds, {
       title: "Kumpulan Diluluskan",
       message: `Kumpulan "${group.name}" (${group.course.code}) telah diluluskan.`,
-      link: "groups",
+      link,
     });
     const bumpedMemberIds = Array.from(
       new Set(bumped.flatMap((g) => g.members.map((m) => m.studentId))),
@@ -284,13 +301,14 @@ export async function setGroupStatus(raw: unknown): Promise<ActionResult> {
     await notifyMany(bumpedMemberIds, {
       title: "Permohonan Kumpulan Ditolak",
       message: `Permohonan kumpulan anda dalam ${group.course.code} ditolak kerana ahli bertindih. Sila bentuk kumpulan baharu.`,
-      link: "groups",
+      link,
     });
   }
 
   revalidatePath("/lecturer/pengurusan-kumpulan");
   revalidatePath(`/lecturer/kursus/${group.course.code}`);
   revalidatePath("/student/kumpulan");
+  if (isAdHoc) revalidatePath(`/student/tugasan/${group.assignmentId}`);
   return { ok: true };
 }
 

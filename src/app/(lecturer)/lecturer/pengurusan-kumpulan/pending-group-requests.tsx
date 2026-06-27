@@ -9,6 +9,8 @@ import { setGroupStatus } from "@/server/actions/lecturer-groups";
 type PendingGroup = {
   id: number;
   name: string;
+  /** Set for ad-hoc (CUSTOM) student-formed groups; null for standing groups. */
+  assignment: { id: number; title: string } | null;
   members: { id: number; name: string; matricNum: string | null; role: "LEADER" | "MEMBER" }[];
 };
 
@@ -43,7 +45,14 @@ export function PendingGroupRequests({ groups }: { groups: PendingGroup[] }) {
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
           >
             <div className="min-w-0">
-              <p className="font-semibold text-ukm-navy">{g.name}</p>
+              <p className="font-semibold text-ukm-navy">
+                {g.name}
+                {g.assignment && (
+                  <span className="ml-2 rounded-full bg-ukm-teal/10 px-2 py-0.5 text-[10px] font-medium text-ukm-teal">
+                    Tugasan: {g.assignment.title}
+                  </span>
+                )}
+              </p>
               <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
                 {g.members.map((m) => (
                   <li key={m.id} className="inline-flex items-center gap-1">

@@ -2,76 +2,81 @@ import { z } from "zod";
 import { idSchema } from "./common";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Student self-service ad-hoc grouping (SELF mode = GroupingMode.CUSTOM with
-// student self-organization). Every invite rejection is a TYPED reason so the
-// UI can render an exact, localized message and disable the right control —
-// never a stringly-typed `any`.
+// Student ad-hoc grouping, two mutually-exclusive modes per assignment:
+//
+//   CUSTOM (Mode A) — students form their own group (name + chosen friends).
+//                     The group is PENDING until the lecturer approves/declines.
+//   OPEN   (Mode B) — the lecturer opens empty groups; students self-join with
+//                     no approval, and any member can pull a friend in (the
+//                     friend auto-joins). Joining locks at the assignment's
+//                     joinCloseAt.
+//
+// Every failure is a TYPED reason so the UI can render an exact message and
+// disable the right control — never a stringly-typed `any`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Mode A: create a PENDING group with the creator + chosen members. */
 export const createAdHocGroupSchema = z.object({
   assignmentId: idSchema,
   /** Optional custom name; falls back to an auto-generated one when omitted. */
   name: z.string().trim().min(1).max(120).optional(),
+  /** Friends to include in the application (excluding the creator). */
+  memberIds: z.array(idSchema).max(20).default([]),
 });
 
-export const listInvitablePoolSchema = z.object({
-  assignmentId: idSchema,
+/** Mode B: a student self-joins a lecturer-opened OPEN group. */
+export const joinOpenGroupSchema = z.object({
+  groupId: idSchema,
 });
 
-export const inviteSchema = z.object({
+/** Mode B: a member pulls a friend into their OPEN group (friend auto-joins). */
+export const inviteToOpenGroupSchema = z.object({
   groupId: idSchema,
   inviteeId: idSchema,
 });
 
-export const respondToInviteSchema = z.object({
-  inviteId: idSchema,
-  action: z.enum(["ACCEPT", "DECLINE"]),
-});
-
-export const cancelInviteSchema = z.object({
-  inviteId: idSchema,
+/** Mode B (lecturer): open one empty self-join group for an assignment. */
+export const createOpenGroupSchema = z.object({
+  assignmentId: idSchema,
+  name: z.string().trim().min(1).max(120).optional(),
+  maxMembers: z.coerce.number().int().min(2).max(20).default(4),
 });
 
 export type CreateAdHocGroupInput = z.infer<typeof createAdHocGroupSchema>;
-export type ListInvitablePoolInput = z.infer<typeof listInvitablePoolSchema>;
-export type InviteInput = z.infer<typeof inviteSchema>;
-export type RespondToInviteInput = z.infer<typeof respondToInviteSchema>;
-export type CancelInviteInput = z.infer<typeof cancelInviteSchema>;
+export type JoinOpenGroupInput = z.infer<typeof joinOpenGroupSchema>;
+export type InviteToOpenGroupInput = z.infer<typeof inviteToOpenGroupSchema>;
+export type CreateOpenGroupInput = z.infer<typeof createOpenGroupSchema>;
 
 /**
- * Why a student is NOT invitable into an ad-hoc group for an assignment.
- * - IN_GROUP        — already a confirmed member of an ad-hoc group here.
- * - ALREADY_INVITED — already has a PENDING invite for this assignment.
+ * Why a student is NOT selectable/joinable for an ad-hoc group on an assignment.
+ * - IN_GROUP   — already a member of an ad-hoc group here.
+ * - IN_PENDING — already part of a PENDING student-formed application here.
  */
-export type NonInvitableReason = "IN_GROUP" | "ALREADY_INVITED";
+export type NonInvitableReason = "IN_GROUP" | "IN_PENDING";
 
 /**
- * Typed failure codes for invite()/respondToInvite(). The action returns the
- * code; the UI maps it to a localized message. No `any`, no free-form strings.
+ * Typed failure codes for the ad-hoc actions. The action returns the code; the
+ * UI maps it to a localized message. No `any`, no free-form strings.
  */
-export type InviteErrorCode =
+export type AdHocErrorCode =
   | "NOT_SELF_MODE"
+  | "NOT_OPEN_MODE"
   | "NOT_ENROLLED"
   | "INVITEE_NOT_ENROLLED"
   | "GROUP_NOT_FOUND"
   | "GROUP_FULL"
+  | "ALREADY_IN_GROUP"
   | "INVITEE_IN_GROUP"
-  | "INVITEE_ALREADY_INVITED"
+  | "MEMBER_IN_PENDING"
+  | "INVITEE_IN_PENDING"
   | "NOT_GROUP_MEMBER"
-  | "INVITE_NOT_FOUND"
-  | "INVITE_NOT_PENDING"
-  | "NOT_INVITEE"
+  | "JOIN_CLOSED"
   | "SELF_INVITE";
 
-/** A pool entry the UI renders as a non-invitable, reason-tagged chip. */
+/** A pool entry the UI renders as a selectable / reason-tagged chip. */
 export type PoolStudent = {
   id: number;
   name: string;
   matricNum: string | null;
   avatarPath: string | null;
-};
-
-export type InvitablePool = {
-  invitable: PoolStudent[];
-  nonInvitable: { student: PoolStudent; reason: NonInvitableReason }[];
 };
