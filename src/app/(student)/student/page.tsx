@@ -17,7 +17,6 @@ import { WarningBanner } from "@/components/dashboard/WarningBanner";
 import { RecentAccessPanel } from "@/components/dashboard/RecentAccessPanel";
 import { UpcomingEventsPanel } from "@/components/dashboard/UpcomingEventsPanel";
 import { StatTile } from "@/components/dashboard/StatTile";
-import { ProgressRing } from "@/components/dashboard/ProgressRing";
 import { DeadlineTimeline } from "@/components/dashboard/DeadlineTimeline";
 import { ArrowRight, Bell, BookOpen, CalendarClock } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -132,12 +131,6 @@ export default async function StudentDashboard() {
     href: `/student/tugasan/${a.id}`,
   }));
 
-  // Lightweight "momentum" reading derived from existing data only: share of
-  // upcoming assignments already submitted/graded. Drives the hero ring.
-  const handledUpcoming = upcoming.filter((a) => a.submissions[0]).length;
-  const momentum =
-    upcoming.length > 0 ? Math.round((handledUpcoming / upcoming.length) * 100) : 100;
-
   return (
     <div className="space-y-6">
       <WarningBanner
@@ -149,36 +142,18 @@ export default async function StudentDashboard() {
         }))}
       />
 
-      {/* Hero — glassy gradient with a momentum ring */}
-      <div className="gradient-hero tile-sheen relative overflow-hidden rounded-3xl px-6 py-8 text-white shadow-lift-lg animate-scale-in">
+      {/* Hero — calm gradient header (momentum ring removed in Stage 2). */}
+      <div className="gradient-hero relative overflow-hidden rounded-3xl px-6 py-8 text-white shadow-sm">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
         <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-20 mix-blend-overlay"
-          style={{
-            backgroundImage:
-              "radial-gradient(rgba(255,255,255,0.7) 1px, transparent 1px)",
-            backgroundSize: "18px 18px",
-          }}
-        />
-        <div className="relative z-10 flex items-center justify-between gap-6">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-white/80">
-              SmartCollab
-            </p>
-            <h1 className="mt-1 truncate text-2xl font-extrabold text-white sm:text-3xl">
-              Selamat datang, {session.user.name}
-            </h1>
-            <p className="mt-1 text-sm text-white/90">
-              Papan pemuka pelajar UKMFolio — teruskan momentum anda.
-            </p>
-          </div>
-          <div className="hidden shrink-0 flex-col items-center gap-1 sm:flex">
-            <ProgressRing value={momentum} size={92} from="#ffffff" to="#bae6fd" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">
-              Momentum
-            </span>
-          </div>
+        <div className="relative z-10 min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-white/80">
+            SmartCollab
+          </p>
+          <h1 className="mt-1 truncate text-2xl font-extrabold text-white sm:text-3xl">
+            Selamat datang, {session.user.name}
+          </h1>
+          <p className="mt-1 text-sm text-white/90">Papan pemuka pelajar UKMFolio</p>
         </div>
       </div>
 
