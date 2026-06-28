@@ -4,6 +4,8 @@ import { randomBytes } from "node:crypto";
 import {
   ALLOWED_CHAT_IMAGE_TYPES,
   ALLOWED_CHAT_VIDEO_TYPES,
+  ALLOWED_CHAT_FILE_TYPES,
+  ALLOWED_CHAT_FILE_LABEL,
   MAX_CHAT_FILE_BYTES,
   MAX_CHAT_IMAGE_BYTES,
   MAX_CHAT_VIDEO_BYTES,
@@ -49,7 +51,7 @@ export async function saveChatAttachment(
       return { ok: false, error: "Format imej tidak disokong (PNG, JPG, WEBP, GIF)." };
     }
     if (file.size > MAX_CHAT_IMAGE_BYTES) {
-      return { ok: false, error: "Saiz imej melebihi 5MB." };
+      return { ok: false, error: "Saiz imej melebihi 25MB." };
     }
   } else if (type === "video") {
     if (!(ALLOWED_CHAT_VIDEO_TYPES as readonly string[]).includes(file.type)) {
@@ -59,8 +61,11 @@ export async function saveChatAttachment(
       return { ok: false, error: "Saiz video melebihi 25MB." };
     }
   } else {
+    if (!(ALLOWED_CHAT_FILE_TYPES as readonly string[]).includes(file.type)) {
+      return { ok: false, error: `Format fail tidak disokong (${ALLOWED_CHAT_FILE_LABEL}).` };
+    }
     if (file.size > MAX_CHAT_FILE_BYTES) {
-      return { ok: false, error: "Saiz fail melebihi 10MB." };
+      return { ok: false, error: "Saiz fail melebihi 25MB." };
     }
   }
 

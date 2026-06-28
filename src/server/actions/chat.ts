@@ -428,6 +428,7 @@ export async function deleteMessage(
       receiverId: true,
       chatGroupId: true,
       deletedAt: true,
+      timestamp: true,
     },
   });
   if (!message) return { ok: false, error: "Mesej tidak wujud." };
@@ -436,6 +437,15 @@ export async function deleteMessage(
   }
   if (message.deletedAt) {
     return { ok: true, data: { messageId } };
+  }
+  // 1-hour rule: messages older than an hour can no longer be unsent. Enforced
+  // here (server) as the source of truth; the UI also hides the control past 1h.
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  if (Date.now() - message.timestamp.getTime() > ONE_HOUR_MS) {
+    return {
+      ok: false,
+      error: "Mesej hanya boleh dipadam dalam tempoh 1 jam selepas dihantar.",
+    };
   }
 
   await prisma.message.update({

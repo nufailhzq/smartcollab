@@ -463,6 +463,9 @@ model UserMute {
 model ChatGroup {
   id          Int      @id @default(autoincrement()) @map("fld_chat_group_id")
   name        String   @map("fld_name")
+  /// Optional custom group picture (e.g. /uploads/chat/abc.png). Null = initials
+  /// fallback. Only user-created groups may set this; course groups stay locked.
+  imagePath   String?  @map("fld_image_path")
   createdBy   User     @relation("ChatGroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
   createdById Int      @map("fld_created_by")
   createdAt   DateTime @default(now()) @map("fld_created_at")

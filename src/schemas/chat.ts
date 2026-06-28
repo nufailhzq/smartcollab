@@ -25,9 +25,22 @@ export const ALLOWED_CHAT_VIDEO_TYPES = [
   "video/quicktime",
 ] as const;
 
-export const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+// Generic (non-image, non-video) document uploads: restricted to common safe
+// office/document formats. Used for the "file" attachment type.
+export const ALLOWED_CHAT_FILE_TYPES = [
+  "application/pdf",
+  "application/msword", // .doc
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.ms-excel", // .xls
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+] as const;
+/** Human-readable list of accepted formats, for UI hints + error toasts. */
+export const ALLOWED_CHAT_FILE_LABEL = "PDF, DOC, DOCX, XLS, XLSX, JPG, PNG";
+
+// 25 MB cap across all attachment types per the file-sharing limit.
+export const MAX_CHAT_IMAGE_BYTES = 25 * 1024 * 1024; // 25 MB
 export const MAX_CHAT_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
-export const MAX_CHAT_FILE_BYTES = 10 * 1024 * 1024; // 10 MB (generic files)
+export const MAX_CHAT_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type MarkReadInput = z.infer<typeof markReadSchema>;

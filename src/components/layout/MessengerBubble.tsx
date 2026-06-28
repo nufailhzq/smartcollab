@@ -73,6 +73,14 @@ import {
 } from "@/server/actions/chat-groups";
 import { useToast } from "@/components/common/Toast";
 
+// Unsend window: a message can only be deleted within 1 hour of being sent.
+// Mirrors the server-side rule in deleteMessage() so the UI hides the control
+// once it would be rejected anyway.
+const UNSEND_WINDOW_MS = 60 * 60 * 1000;
+function withinUnsendWindow(timestamp: string): boolean {
+  return Date.now() - new Date(timestamp).getTime() <= UNSEND_WINDOW_MS;
+}
+
 export type BubbleContact = {
   id: number;
   name: string;
@@ -155,6 +163,12 @@ export function MessengerBubble({
   };
 
   const onPickAttachment = (file: File, type: AttachmentType) => {
+    // Client-side guard for immediate feedback (server re-validates anyway):
+    // 25MB cap across all types.
+    if (file.size > 25 * 1024 * 1024) {
+      toast.push({ kind: "error", message: "Saiz fail melebihi 25MB." });
+      return;
+    }
     // Replace any prior selection (only one attachment per message for now).
     if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.previewUrl);
     setPendingAttachment({ file, type, previewUrl: URL.createObjectURL(file) });
@@ -1336,7 +1350,7 @@ export function MessengerBubble({
                           mine ? "justify-end" : "justify-start",
                         )}
                       >
-                        {mine && !isDeleted && (
+                        {mine && !isDeleted && withinUnsendWindow(m.timestamp) && (
                           <button
                             type="button"
                             onClick={() => onDeleteMessage(m.id)}

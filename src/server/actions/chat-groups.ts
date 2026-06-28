@@ -11,6 +11,7 @@ import {
   leaveChatGroupSchema,
   removeChatGroupMemberSchema,
   renameChatGroupSchema,
+  setChatGroupAdminSchema,
   sendChatGroupMessageSchema,
 } from "@/schemas/chat-group";
 import { ATTACHMENT_TYPES, type AttachmentType } from "@/schemas/chat";
@@ -21,6 +22,19 @@ async function ensureMember(chatGroupId: number, userId: number) {
   return prisma.chatGroupMember.findUnique({
     where: { chatGroupId_userId: { chatGroupId, userId } },
   });
+}
+
+/**
+ * A "course group" is a chat group auto-created for a ProjectGroup. Its name and
+ * picture are permanently locked — customization is reserved for user-created
+ * groups. Returns true when this chat group is tied to a project group.
+ */
+async function isCourseGroup(chatGroupId: number): Promise<boolean> {
+  const pg = await prisma.projectGroup.findFirst({
+    where: { chatGroupId },
+    select: { id: true },
+  });
+  return pg !== null;
 }
 
 export async function createChatGroup(
@@ -90,6 +104,15 @@ export async function addChatGroupMember(raw: unknown): Promise<ActionResult> {
   const meMember = await ensureMember(parsed.data.chatGroupId, me);
   if (!meMember) {
     return { ok: false, error: "Anda bukan ahli kumpulan chat ini." };
+  }
+  // Only the owner or an admin may add members.
+  const grp = await prisma.chatGroup.findUnique({
+    where: { id: parsed.data.chatGroupId },
+    select: { createdById: true },
+  });
+  const isOwner = grp?.createdById === me;
+  if (!isOwner && !meMember.isAdmin) {
+    return { ok: false, error: "Hanya pemilik atau admin boleh menambah ahli." };
   }
 
   const target = await prisma.user.findUnique({
@@ -216,10 +239,87 @@ export async function renameChatGroup(raw: unknown): Promise<ActionResult> {
   if (!meMember || !meMember.isAdmin) {
     return { ok: false, error: "Hanya admin kumpulan boleh menukar nama." };
   }
+  // Course (system) groups have a permanently locked name.
+  if (await isCourseGroup(parsed.data.chatGroupId)) {
+    return { ok: false, error: "Kumpulan kursus rasmi tidak boleh ditukar nama." };
+  }
 
   await prisma.chatGroup.update({
     where: { id: parsed.data.chatGroupId },
     data: { name: parsed.data.name },
+  });
+
+  revalidatePath("/student");
+  revalidatePath("/lecturer");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * setChatGroupAdmin — OWNER only. Grant/revoke the admin role for a member. The
+ * owner is always implicitly an admin and cannot be demoted via this action.
+ */
+export async function setChatGroupAdmin(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const parsed = setChatGroupAdminSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const me = session.user.id;
+  const group = await prisma.chatGroup.findUnique({
+    where: { id: parsed.data.chatGroupId },
+    select: { createdById: true },
+  });
+  if (!group) return { ok: false, error: "Kumpulan tidak wujud." };
+  if (group.createdById !== me) {
+    return { ok: false, error: "Hanya pemilik kumpulan boleh melantik admin." };
+  }
+  if (parsed.data.userId === group.createdById) {
+    return { ok: false, error: "Pemilik sentiasa admin." };
+  }
+
+  const target = await ensureMember(parsed.data.chatGroupId, parsed.data.userId);
+  if (!target) return { ok: false, error: "Pengguna bukan ahli kumpulan ini." };
+
+  await prisma.chatGroupMember.update({
+    where: { id: target.id },
+    data: { isAdmin: parsed.data.isAdmin },
+  });
+
+  revalidatePath("/student");
+  revalidatePath("/lecturer");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * updateChatGroupImage — admin/owner only, user-created groups only. Saves the
+ * uploaded image and stores its path on the group. Course groups stay locked.
+ */
+export async function updateChatGroupImage(formData: FormData): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  const chatGroupId = idSchema.safeParse(formData.get("chatGroupId"));
+  if (!chatGroupId.success) return { ok: false, error: "Input tidak sah." };
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "Tiada fail imej." };
+
+  const meMember = await ensureMember(chatGroupId.data, session.user.id);
+  if (!meMember || !meMember.isAdmin) {
+    return { ok: false, error: "Hanya admin kumpulan boleh menukar gambar." };
+  }
+  if (await isCourseGroup(chatGroupId.data)) {
+    return { ok: false, error: "Kumpulan kursus rasmi tidak boleh tukar gambar." };
+  }
+
+  const saved = await saveChatAttachment(file, "image");
+  if (!saved.ok) return { ok: false, error: saved.error };
+
+  await prisma.chatGroup.update({
+    where: { id: chatGroupId.data },
+    data: { imagePath: saved.data.path },
   });
 
   revalidatePath("/student");

@@ -32,5 +32,13 @@ export const renameChatGroupSchema = z.object({
   name: z.string().trim().min(1).max(80),
 });
 
+/** Owner-only: grant or revoke the admin role for a member. */
+export const setChatGroupAdminSchema = z.object({
+  chatGroupId: idSchema,
+  userId: idSchema,
+  isAdmin: z.boolean(),
+});
+
 export type CreateChatGroupInput = z.infer<typeof createChatGroupSchema>;
 export type SendChatGroupMessageInput = z.infer<typeof sendChatGroupMessageSchema>;
+export type SetChatGroupAdminInput = z.infer<typeof setChatGroupAdminSchema>;

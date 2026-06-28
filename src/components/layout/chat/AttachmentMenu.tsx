@@ -10,10 +10,12 @@ type Props = {
   disabled?: boolean;
 };
 
+// Aligned with the server allow-list (schemas/chat.ts). Document uploads are
+// limited to PDF/Office formats; images cover JPG/PNG (+ webp/gif).
 const ACCEPT: Record<AttachmentType, string> = {
   image: "image/png,image/jpeg,image/webp,image/gif",
   video: "video/mp4,video/webm,video/quicktime",
-  file: ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar",
+  file: ".pdf,.doc,.docx,.xls,.xlsx",
 };
 
 export function AttachmentMenu({ onPick, disabled = false }: Props) {
