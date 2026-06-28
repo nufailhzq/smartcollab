@@ -18,6 +18,7 @@ type Role = "STUDENT" | "LECTURER" | "ADMIN";
 
 function resolveLink(link: string | null, role: Role): string | null {
   if (!link) return null;
+  // Already an absolute app path.
   if (link.startsWith("/")) return link;
   if (link === "chat") return "chat:open";
   if (link === "warning") {
@@ -25,6 +26,12 @@ function resolveLink(link: string | null, role: Role): string | null {
   }
   if (link === "submissions") {
     return role === "LECTURER" ? "/lecturer/penghantaran" : "/student/tugasan";
+  }
+  if (link === "assignments") {
+    return role === "LECTURER" ? "/lecturer/penghantaran" : "/student/tugasan";
+  }
+  if (link === "course") {
+    return role === "LECTURER" ? "/lecturer/kursus" : "/student/kursus";
   }
   if (link === "groups") {
     return role === "LECTURER"
@@ -34,6 +41,9 @@ function resolveLink(link: string | null, role: Role): string | null {
   if (link === "bulletin") {
     return role === "LECTURER" ? "/lecturer" : "/student";
   }
+  // Relative deep-link payload (e.g. "student/tugasan/123") — treat any tag
+  // that looks like a path (contains "/") as a real route by prefixing "/".
+  if (link.includes("/")) return `/${link.replace(/^\/+/, "")}`;
   return null;
 }
 
