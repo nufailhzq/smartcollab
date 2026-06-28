@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 
 type QuickLink = { href: string; label: string; description: string; Icon: LucideIcon };
 
@@ -49,6 +50,7 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      <OnboardingGate />
       <div>
         <h1 className="text-2xl font-bold">Pentadbiran Sistem</h1>
         <p className="text-sm text-slate-500">Statistik keseluruhan UKMFolio</p>

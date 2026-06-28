@@ -18,6 +18,7 @@ import {
 import { CourseCard } from "@/components/course/CourseCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { formatDateTime } from "@/lib/utils";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 
 export default async function LecturerDashboard() {
   const session = await auth();
@@ -92,6 +93,7 @@ export default async function LecturerDashboard() {
 
   return (
     <div className="space-y-6">
+      <OnboardingGate />
       <div className="gradient-hero relative overflow-hidden rounded-2xl px-6 py-8 text-white shadow-sm">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10" />
         <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-white/10" />

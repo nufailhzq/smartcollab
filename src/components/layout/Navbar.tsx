@@ -125,6 +125,7 @@ export async function Navbar() {
             <Link
               href={dashboardHref}
               aria-label="Ke Dashboard"
+              data-tour="dashboard-logo"
               className="group flex items-center gap-2 rounded-lg transition hover:opacity-90 sm:gap-3"
             >
               <Image
@@ -197,6 +198,7 @@ export async function Navbar() {
               href={profileHref}
               aria-label="Ke profil"
               title="Profil"
+              data-tour="profile-link"
               className="rounded-full transition hover:scale-105"
             >
               <Avatar

@@ -8,7 +8,7 @@ import { Link2 } from "lucide-react";
  */
 export function FolioConnectButton() {
   return (
-    <div className="group relative">
+    <div className="group relative" data-tour="folio-connect">
       <Link
         href="/folio"
         aria-label="Folio Connect"

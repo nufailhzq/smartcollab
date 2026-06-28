@@ -20,6 +20,7 @@ import { StatTile } from "@/components/dashboard/StatTile";
 import { DeadlineTimeline } from "@/components/dashboard/DeadlineTimeline";
 import { ArrowRight, Bell, BookOpen, CalendarClock } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 
 type UpcomingAssignment = Awaited<ReturnType<typeof getUpcomingAssignments>>[number];
 type Notification = Awaited<ReturnType<typeof getNotificationsForUser>>[number];
@@ -133,6 +134,7 @@ export default async function StudentDashboard() {
 
   return (
     <div className="space-y-6">
+      <OnboardingGate />
       <WarningBanner
         warnings={warnings.map((w) => ({
           id: w.id,

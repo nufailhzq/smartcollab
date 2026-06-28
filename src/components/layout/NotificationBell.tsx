@@ -82,13 +82,6 @@ export function NotificationBell({
     };
   }, [open]);
 
-  const handleMarkOne = (id: number) => {
-    startTransition(async () => {
-      await markNotificationRead({ id });
-      router.refresh();
-    });
-  };
-
   const handleMarkAll = () => {
     if (initialUnreadCount === 0) return;
     startTransition(async () => {
@@ -120,7 +113,7 @@ export function NotificationBell({
   };
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative" data-tour="notification-bell">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -68,3 +68,19 @@ export async function saveTheme(
   revalidatePath("/lecturer/profil");
   return { ok: true, data: { theme: themeKey } };
 }
+
+/**
+ * Mark the first-time onboarding tutorial as done. Called when the user finishes
+ * all steps OR clicks "Langkau". Idempotent — flipping an already-true flag is a
+ * harmless no-op — so the tour can never re-appear after this fires once.
+ */
+export async function completeTutorial(): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { hasCompletedTutorial: true },
+  });
+  return { ok: true };
+}

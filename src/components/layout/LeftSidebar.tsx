@@ -146,6 +146,7 @@ export function LeftSidebar({ role, courses }: Props) {
             <Link
               key={tab.href}
               href={tab.href}
+              data-tour={`nav-${tab.href.split("/").filter(Boolean).pop()}`}
               className={cn(
                 "group flex items-center gap-3 rounded-xl px-3.5 py-3 text-[15px] font-medium transition-all duration-200 ease-spring",
                 active
@@ -223,6 +224,7 @@ export function LeftSidebar({ role, courses }: Props) {
         href={calendarHref}
         aria-label="Kalendar"
         title="Kalendar"
+        data-tour="calendar-pin"
         className={cn(
           "flex items-center justify-center rounded-xl p-3 transition-all duration-200 ease-spring",
           calendarActive

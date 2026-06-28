@@ -125,6 +125,10 @@ model User {
   /// Account-saved UI theme key (e.g. "aurora", "midnight", "ocean"). Drives
   /// the [data-sb-theme] attribute on <html>. See src/lib/themes.ts.
   theme              String    @default("aurora") @map("fld_theme")
+  /// First-time onboarding tutorial gate. New accounts start false; the guided
+  /// tour runs once on first dashboard load, then this is flipped true (on
+  /// completing all steps or skipping) so it never appears again.
+  hasCompletedTutorial Boolean @default(false) @map("fld_tutorial_done")
   createdAt          DateTime  @default(now())
 
   enrollments             ClassEnrollment[]
