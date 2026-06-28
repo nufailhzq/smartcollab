@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { AvatarUploader } from "@/components/common/AvatarUploader";
+import { PhoneEditor } from "@/components/profile/PhoneEditor";
 import { MuteToggle } from "@/components/profile/MuteToggle";
 import { ThemePicker } from "@/components/profile/ThemePicker";
 import { FolioPanel } from "@/components/profile/FolioPanel";
@@ -14,7 +15,6 @@ import {
   Hash,
   LogOut,
   Mail,
-  ShieldCheck,
 } from "lucide-react";
 
 export default async function StudentProfilePage() {
@@ -31,12 +31,12 @@ export default async function StudentProfilePage() {
       getFolioPostsByAuthor(userId, userId, 200, true),
     ]);
 
+  // Role is shown in the header badge + topbar — not repeated in the info grid.
   const fields = [
     { label: "Nama", value: user.name, Icon: GraduationCap },
-    { label: "No. Matrik", value: user.matricNum ?? "—", Icon: Hash },
+    { label: "ID Pelajar", value: user.matricNum ?? "—", Icon: Hash },
     { label: "Emel", value: user.email ?? "—", Icon: Mail },
     { label: "Fakulti", value: user.faculty ?? "—", Icon: Building2 },
-    { label: "Peranan", value: "Pelajar", Icon: ShieldCheck },
     { label: "Daftar", value: formatDate(user.createdAt), Icon: Calendar },
   ];
 
@@ -168,6 +168,7 @@ export default async function StudentProfilePage() {
               </div>
             </div>
           ))}
+          <PhoneEditor initialPhone={user.phone} />
         </div>
       </article>
 

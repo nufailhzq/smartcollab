@@ -12,7 +12,6 @@ import {
   Hash,
   LogOut,
   Mail,
-  ShieldCheck,
 } from "lucide-react";
 
 export default async function LecturerProfilePage() {
@@ -27,12 +26,12 @@ export default async function LecturerProfilePage() {
     }),
   ]);
 
+  // Role is shown in the header badge + topbar — not repeated in the info grid.
   const fields = [
     { label: "Nama", value: user.name, Icon: GraduationCap },
     { label: "ID Pensyarah", value: user.matricNum ?? "—", Icon: Hash },
     { label: "Emel", value: user.email ?? "—", Icon: Mail },
     { label: "Fakulti", value: user.faculty ?? "—", Icon: Building2 },
-    { label: "Peranan", value: "Pensyarah", Icon: ShieldCheck },
     { label: "Daftar", value: formatDate(user.createdAt), Icon: Calendar },
   ];
 
