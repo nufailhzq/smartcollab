@@ -286,19 +286,29 @@ function AssignmentForm({
   const [description, setDescription] = useState("");
   // Single merged selector. AUTO -> RANDOM (system splits), MANUAL -> OPEN
   // (students self-join). INDIVIDUAL -> no groups.
-  const [taskType, setTaskType] = useState<"INDIVIDUAL" | "AUTO" | "MANUAL">("INDIVIDUAL");
+  const [taskType, setTaskType] = useState<"INDIVIDUAL" | "EXISTING" | "AUTO" | "MANUAL">(
+    "INDIVIDUAL",
+  );
   const [maxGroupSize, setMaxGroupSize] = useState(4);
   const [dueDate, setDueDate] = useState("");
   const [maxGrade, setMaxGrade] = useState(100);
 
-  const isGroup = taskType === "AUTO" || taskType === "MANUAL";
+  // EXISTING (INHERIT) reuses the course's standing groups, so no size input.
+  const isGroup = taskType === "EXISTING" || taskType === "AUTO" || taskType === "MANUAL";
+  const needsGroupSize = taskType === "AUTO" || taskType === "MANUAL";
 
   const handle = (e: FormEvent) => {
     e.preventDefault();
-    // Map the three UI choices onto the underlying schema fields.
+    // Map the four UI choices onto the underlying schema fields.
     const type: "INDIVIDUAL" | "GROUP" = isGroup ? "GROUP" : "INDIVIDUAL";
     const groupingMode: GroupingMode =
-      taskType === "AUTO" ? "RANDOM" : taskType === "MANUAL" ? "OPEN" : "INDIVIDUAL";
+      taskType === "EXISTING"
+        ? "INHERIT"
+        : taskType === "AUTO"
+          ? "RANDOM"
+          : taskType === "MANUAL"
+            ? "OPEN"
+            : "INDIVIDUAL";
     onSubmit({
       title,
       description,
@@ -344,11 +354,14 @@ function AssignmentForm({
           <select
             value={taskType}
             onChange={(e) =>
-              setTaskType(e.target.value as "INDIVIDUAL" | "AUTO" | "MANUAL")
+              setTaskType(
+                e.target.value as "INDIVIDUAL" | "EXISTING" | "AUTO" | "MANUAL",
+              )
             }
             className="input-base"
           >
             <option value="INDIVIDUAL">Individu</option>
+            <option value="EXISTING">Kumpulan — Guna Kumpulan Asal</option>
             <option value="AUTO">Kumpulan — Auto (Sistem Bahagi)</option>
             <option value="MANUAL">Kumpulan — Manual (Bentuk Sendiri)</option>
           </select>
@@ -376,9 +389,20 @@ function AssignmentForm({
         </div>
       </div>
 
-      {/* Group configuration — hidden unless a Kumpulan option is chosen.
-          Kept minimal: only the max group size. */}
-      {isGroup && (
+      {/* Existing-groups mode needs no extra input — just tell the lecturer
+          which groups will be used. */}
+      {taskType === "EXISTING" && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="text-[11px] text-slate-600">
+            Tugasan ini akan menggunakan kumpulan asal kursus yang telah dibentuk
+            (di Pengurusan Kumpulan). Pelajar menghantar sebagai kumpulan sedia ada
+            mereka — tiada pembahagian baharu dibuat.
+          </p>
+        </div>
+      )}
+
+      {/* Group configuration — only AUTO/MANUAL need a max group size. */}
+      {needsGroupSize && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
           <label className="mb-1 block text-xs font-semibold text-ukm-navy">
             Had Pelajar Sekumpulan
