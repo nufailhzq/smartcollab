@@ -18,6 +18,7 @@ import { getCourseProgress } from "@/server/queries/progress";
 import { ProgressGrid } from "@/components/progress/ProgressGrid";
 import { getAdHocBoard, type AdHocBoard } from "@/server/queries/ad-hoc-groups";
 import { LecturerGroupControls } from "./lecturer-group-controls";
+import { DeleteItemButton } from "./delete-item-button";
 
 type Tab = "general" | "notes" | "tugasan" | "kumpulan" | "progress";
 
@@ -146,6 +147,7 @@ export default async function LecturerCourseDetailPage({
                     <span>{c.type}</span>
                   )}
                   <span className="ml-auto">{formatDateTime(c.postedAt)}</span>
+                  <DeleteItemButton kind="content" id={c.id} label={c.title} />
                 </div>
                 <h3 className="text-base font-semibold text-ukm-navy">{c.title}</h3>
                 {c.content && <p className="mt-1 text-sm text-slate-700">{c.content}</p>}
@@ -173,6 +175,7 @@ export default async function LecturerCourseDetailPage({
                     {n.fileName ?? "—"} · {formatDateTime(n.postedAt)}
                   </p>
                 </div>
+                <DeleteItemButton kind="content" id={n.id} label={n.title} />
               </article>
             ))
           )}
@@ -203,6 +206,7 @@ export default async function LecturerCourseDetailPage({
                         >
                           {a.type === "GROUP" ? "Kumpulan" : "Individu"}
                         </span>
+                        <DeleteItemButton kind="assignment" id={a.id} label={a.title} />
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
                         Tarikh akhir:{" "}
