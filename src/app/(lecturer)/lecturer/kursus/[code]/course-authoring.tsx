@@ -284,26 +284,31 @@ function AssignmentForm({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState<"INDIVIDUAL" | "GROUP">("INDIVIDUAL");
-  const [groupingMode, setGroupingMode] = useState<GroupingMode>("INHERIT");
-  const [groupSize, setGroupSize] = useState(4);
-  const [joinCloseAt, setJoinCloseAt] = useState("");
-  const [openGroupCount, setOpenGroupCount] = useState(5);
-  const [openGroupSize, setOpenGroupSize] = useState(4);
+  // Single merged selector. AUTO -> RANDOM (system splits), MANUAL -> OPEN
+  // (students self-join). INDIVIDUAL -> no groups.
+  const [taskType, setTaskType] = useState<"INDIVIDUAL" | "AUTO" | "MANUAL">("INDIVIDUAL");
+  const [maxGroupSize, setMaxGroupSize] = useState(4);
   const [dueDate, setDueDate] = useState("");
   const [maxGrade, setMaxGrade] = useState(100);
 
+  const isGroup = taskType === "AUTO" || taskType === "MANUAL";
+
   const handle = (e: FormEvent) => {
     e.preventDefault();
+    // Map the three UI choices onto the underlying schema fields.
+    const type: "INDIVIDUAL" | "GROUP" = isGroup ? "GROUP" : "INDIVIDUAL";
+    const groupingMode: GroupingMode =
+      taskType === "AUTO" ? "RANDOM" : taskType === "MANUAL" ? "OPEN" : "INDIVIDUAL";
     onSubmit({
       title,
       description,
       type,
       groupingMode,
-      groupSize: groupingMode === "RANDOM" ? groupSize : undefined,
-      joinCloseAt: groupingMode === "OPEN" ? joinCloseAt : undefined,
-      openGroupCount: groupingMode === "OPEN" ? openGroupCount : undefined,
-      openGroupSize: groupingMode === "OPEN" ? openGroupSize : undefined,
+      // AUTO (RANDOM) splits the roster into groups of this size.
+      groupSize: taskType === "AUTO" ? maxGroupSize : undefined,
+      // MANUAL (OPEN) seeds empty self-join groups of this size. Count is
+      // derived server-side from the roster; no extra inputs (kept minimal).
+      openGroupSize: taskType === "MANUAL" ? maxGroupSize : undefined,
       dueDate,
       maxGrade,
     });
@@ -335,14 +340,17 @@ function AssignmentForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
-          <label className="mb-1 block text-xs font-semibold text-ukm-navy">Jenis</label>
+          <label className="mb-1 block text-xs font-semibold text-ukm-navy">Jenis Tugasan</label>
           <select
-            value={type}
-            onChange={(e) => setType(e.target.value as "INDIVIDUAL" | "GROUP")}
+            value={taskType}
+            onChange={(e) =>
+              setTaskType(e.target.value as "INDIVIDUAL" | "AUTO" | "MANUAL")
+            }
             className="input-base"
           >
             <option value="INDIVIDUAL">Individu</option>
-            <option value="GROUP">Kumpulan</option>
+            <option value="AUTO">Kumpulan — Auto (Sistem Bahagi)</option>
+            <option value="MANUAL">Kumpulan — Manual (Bentuk Sendiri)</option>
           </select>
         </div>
         <div>
@@ -367,89 +375,28 @@ function AssignmentForm({
           />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
+
+      {/* Group configuration — hidden unless a Kumpulan option is chosen.
+          Kept minimal: only the max group size. */}
+      {isGroup && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
           <label className="mb-1 block text-xs font-semibold text-ukm-navy">
-            Mod Pengumpulan
+            Had Pelajar Sekumpulan
           </label>
-          <select
-            value={groupingMode}
-            onChange={(e) => setGroupingMode(e.target.value as GroupingMode)}
-            className="input-base"
-          >
-            <option value="INHERIT">Ikut kumpulan kursus</option>
-            <option value="INDIVIDUAL">Individu (tiada kumpulan)</option>
-            <option value="RANDOM">Rawak (auto-bahagi)</option>
-            <option value="CUSTOM">Pelajar bentuk sendiri (perlu kelulusan)</option>
-            <option value="OPEN">Kumpulan terbuka (pelajar sertai sendiri)</option>
-          </select>
+          <input
+            type="number"
+            min={2}
+            max={20}
+            value={maxGroupSize}
+            onChange={(e) => setMaxGroupSize(Number(e.target.value))}
+            className="input-base sm:max-w-[200px]"
+          />
+          <p className="mt-1 text-[11px] text-slate-500">
+            {taskType === "AUTO"
+              ? "Sistem akan membahagi pelajar secara rawak ke dalam kumpulan bersaiz ini."
+              : "Pelajar menyertai kumpulan sendiri di halaman tugasan; setiap kumpulan menampung sehingga bilangan ini."}
+          </p>
         </div>
-        {groupingMode === "RANDOM" && (
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ukm-navy">
-              Saiz Kumpulan
-            </label>
-            <input
-              type="number"
-              min={2}
-              max={20}
-              value={groupSize}
-              onChange={(e) => setGroupSize(Number(e.target.value))}
-              className="input-base"
-            />
-          </div>
-        )}
-        {groupingMode === "OPEN" && (
-          <>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
-                Bilangan kumpulan kosong
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={openGroupCount}
-                onChange={(e) => setOpenGroupCount(Number(e.target.value))}
-                className="input-base"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
-                Saiz setiap kumpulan
-              </label>
-              <input
-                type="number"
-                min={2}
-                max={20}
-                value={openGroupSize}
-                onChange={(e) => setOpenGroupSize(Number(e.target.value))}
-                className="input-base"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
-                Tutup penyertaan (pilihan)
-              </label>
-              <input
-                type="datetime-local"
-                value={joinCloseAt}
-                onChange={(e) => setJoinCloseAt(e.target.value)}
-                className="input-base"
-              />
-              <p className="mt-1 text-[10px] text-slate-500">
-                Selepas masa ini, pelajar tidak boleh sertai/jemput lagi.
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-      {(groupingMode === "CUSTOM" || groupingMode === "OPEN") && (
-        <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] text-sky-800">
-          {groupingMode === "CUSTOM"
-            ? "Pelajar akan membentuk kumpulan sendiri di halaman tugasan; setiap kumpulan memerlukan kelulusan anda di Pengurusan Kumpulan."
-            : "Buka kumpulan kosong di halaman tugasan selepas mencipta; pelajar menyertai sendiri dan boleh menjemput rakan (auto-sertai)."}
-        </p>
       )}
       <div className="flex justify-end gap-2">
         <button type="submit" disabled={pending} className="btn-primary">

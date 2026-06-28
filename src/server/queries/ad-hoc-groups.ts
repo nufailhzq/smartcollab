@@ -38,7 +38,8 @@ export type BoardGroup = {
 export type AdHocBoard = {
   assignmentId: number;
   courseCode: string;
-  groupingMode: "CUSTOM" | "OPEN";
+  // RANDOM included so the student "Auto" read-only card + lecturer override render.
+  groupingMode: "CUSTOM" | "OPEN" | "RANDOM";
   cap: number;
   groups: BoardGroup[];
   ungrouped: PoolStudent[];
@@ -54,6 +55,8 @@ export type AdHocBoard = {
   // OPEN-mode (Mode B) only.
   joinCloseAt: Date | null;
   joinClosed: boolean;
+  /** Lecturer's manual "Kunci Kumpulan" lock (OPEN/Manual). */
+  groupsLocked: boolean;
 };
 
 /**
@@ -73,6 +76,7 @@ export async function getAdHocBoard(
       id: true,
       groupingMode: true,
       joinCloseAt: true,
+      groupsLocked: true,
       course: {
         select: {
           id: true,
@@ -84,7 +88,11 @@ export async function getAdHocBoard(
     },
   });
   if (!assignment) return null;
-  if (assignment.groupingMode !== "CUSTOM" && assignment.groupingMode !== "OPEN") {
+  if (
+    assignment.groupingMode !== "CUSTOM" &&
+    assignment.groupingMode !== "OPEN" &&
+    assignment.groupingMode !== "RANDOM"
+  ) {
     return null;
   }
 
@@ -181,7 +189,7 @@ export async function getAdHocBoard(
   return {
     assignmentId: assignment.id,
     courseCode: assignment.course.code,
-    groupingMode: assignment.groupingMode,
+    groupingMode: assignment.groupingMode as "CUSTOM" | "OPEN" | "RANDOM",
     cap: 4,
     groups,
     ungrouped,
@@ -191,5 +199,6 @@ export async function getAdHocBoard(
     nonSelectable,
     joinCloseAt,
     joinClosed,
+    groupsLocked: assignment.groupsLocked,
   };
 }

@@ -11,11 +11,13 @@ import {
   Clock,
   Hourglass,
   LogIn,
+  LogOut,
   Check,
 } from "lucide-react";
 import {
   createAdHocGroup,
   joinOpenGroup,
+  leaveOpenGroup,
   inviteToOpenGroup,
 } from "@/server/actions/ad-hoc-groups";
 import { useToast } from "@/components/common/Toast";
@@ -53,16 +55,19 @@ export function AdHocBoardView({ board, viewerId }: Props) {
       <header className="flex flex-wrap items-center gap-2">
         <UsersRound className="text-ukm-teal" size={20} />
         <h2 className="text-lg font-semibold">Kumpulan</h2>
-        {board.groupingMode === "CUSTOM" ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-            Bentuk sendiri · perlu kelulusan
-          </span>
-        ) : (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-            Kumpulan terbuka · sertai sendiri
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+          {board.groupingMode === "RANDOM"
+            ? "Auto · sistem bahagi"
+            : board.groupingMode === "OPEN"
+              ? "Manual · sertai sendiri"
+              : "Bentuk sendiri · perlu kelulusan"}
+        </span>
+        {board.groupingMode === "OPEN" && board.groupsLocked && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-600">
+            <Lock size={11} /> Kumpulan telah dikunci
           </span>
         )}
-        {board.groupingMode === "OPEN" && board.joinCloseAt && (
+        {board.groupingMode === "OPEN" && !board.groupsLocked && board.joinCloseAt && (
           <span
             className={
               board.joinClosed
@@ -76,12 +81,61 @@ export function AdHocBoardView({ board, viewerId }: Props) {
         )}
       </header>
 
-      {board.groupingMode === "CUSTOM" ? (
+      {board.groupingMode === "RANDOM" ? (
+        <AutoMode board={board} viewerId={viewerId} />
+      ) : board.groupingMode === "CUSTOM" ? (
         <CustomMode board={board} viewerId={viewerId} />
       ) : (
         <OpenMode board={board} viewerId={viewerId} />
       )}
     </section>
+  );
+}
+
+// ─── AUTO (RANDOM) — read-only ───────────────────────────────────────────────
+
+function AutoMode({ board, viewerId }: { board: AdHocBoard; viewerId: number }) {
+  const myGroup = board.groups.find((g) => g.id === board.myGroupId) ?? null;
+  return (
+    <>
+      {myGroup ? (
+        <div className="card border-ukm-teal/40 bg-ukm-teal/5">
+          <header className="mb-2 flex items-center gap-2">
+            <h3 className="text-base font-semibold">Kumpulan Saya — {myGroup.name}</h3>
+            <span className="ml-auto text-xs text-slate-500">
+              {myGroup.members.length} ahli
+            </span>
+          </header>
+          <p className="mb-3 text-xs text-slate-500">
+            Kumpulan ini dibahagikan secara automatik oleh sistem. Hubungi pensyarah untuk
+            sebarang perubahan.
+          </p>
+          <ul className="space-y-1.5">
+            {myGroup.members.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center gap-2 rounded-md bg-white px-2 py-1.5 shadow-soft"
+              >
+                <Avatar name={m.name} avatarPath={m.avatarPath} size="xs" />
+                <span className={`text-sm ${m.id === viewerId ? "font-semibold" : ""}`}>
+                  {m.id === viewerId ? "Anda" : m.name}
+                </span>
+                {m.matricNum && (
+                  <span className="font-mono text-[10px] text-slate-400">{m.matricNum}</span>
+                )}
+                {m.role === "LEADER" && <Crown size={11} className="ml-auto text-ukm-orange" />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <EmptyState
+          Icon={UsersRound}
+          title="Belum ditugaskan ke kumpulan"
+          description="Sistem belum membahagikan anda ke mana-mana kumpulan. Hubungi pensyarah."
+        />
+      )}
+    </>
   );
 }
 
@@ -248,10 +302,21 @@ function CreateGroupCard({
 
 function OpenMode({ board, viewerId }: { board: AdHocBoard; viewerId: number }) {
   const inGroup = board.myGroupId !== null;
+  // Locked = manual lecturer lock OR the time window closed. Either freezes
+  // student join/leave; only the lecturer override can still move people.
+  const frozen = board.groupsLocked || board.joinClosed;
 
   return (
     <>
-      {board.joinClosed && !inGroup && (
+      {board.groupsLocked && (
+        <div className="card flex items-center gap-3 border-red-300/50 bg-red-50">
+          <Lock className="shrink-0 text-red-500" size={20} />
+          <p className="text-sm text-red-700">
+            Kumpulan telah dikunci oleh pensyarah. Anda tidak boleh sertai atau keluar.
+          </p>
+        </div>
+      )}
+      {!board.groupsLocked && board.joinClosed && !inGroup && (
         <div className="card flex items-center gap-3 border-red-300/50 bg-red-50">
           <Lock className="shrink-0 text-red-500" size={20} />
           <p className="text-sm text-red-700">
@@ -263,8 +328,9 @@ function OpenMode({ board, viewerId }: { board: AdHocBoard; viewerId: number }) 
       <AllGroups
         board={board}
         viewerId={viewerId}
-        joinable={!inGroup && !board.joinClosed}
-        invitable={inGroup && !board.joinClosed ? board.selectable : []}
+        joinable={!inGroup && !frozen}
+        canLeave={inGroup && !frozen}
+        invitable={inGroup && !frozen ? board.selectable : []}
       />
     </>
   );
@@ -277,12 +343,14 @@ function AllGroups({
   viewerId,
   showStatus = false,
   joinable = false,
+  canLeave = false,
   invitable = [],
 }: {
   board: AdHocBoard;
   viewerId: number;
   showStatus?: boolean;
   joinable?: boolean;
+  canLeave?: boolean;
   invitable?: PoolStudent[];
 }) {
   return (
@@ -308,6 +376,7 @@ function AllGroups({
             viewerId={viewerId}
             showStatus={showStatus}
             joinable={joinable}
+            canLeave={canLeave}
             invitable={invitable}
           />
         ))
@@ -346,12 +415,14 @@ function GroupCard({
   viewerId,
   showStatus,
   joinable,
+  canLeave,
   invitable,
 }: {
   group: BoardGroup;
   viewerId: number;
   showStatus: boolean;
   joinable: boolean;
+  canLeave: boolean;
   invitable: PoolStudent[];
 }) {
   const router = useRouter();
@@ -366,6 +437,18 @@ function GroupCard({
         return;
       }
       toast.push({ kind: "success", message: `Anda menyertai "${group.name}".` });
+      router.refresh();
+    });
+  }
+
+  function onLeave() {
+    startTransition(async () => {
+      const res = await leaveOpenGroup({ groupId: group.id });
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({ kind: "success", message: `Anda keluar dari "${group.name}".` });
       router.refresh();
     });
   }
@@ -420,6 +503,19 @@ function GroupCard({
         >
           {isPending ? <LoadingSpinner /> : <LogIn size={13} />}
           {group.hasCapacity ? "Sertai" : "Penuh"}
+        </button>
+      )}
+
+      {/* OPEN-mode leave button (for the viewer's own group). */}
+      {canLeave && group.isMine && (
+        <button
+          type="button"
+          onClick={onLeave}
+          disabled={isPending}
+          className="btn-secondary mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+        >
+          {isPending ? <LoadingSpinner /> : <LogOut size={13} />}
+          Keluar
         </button>
       )}
 

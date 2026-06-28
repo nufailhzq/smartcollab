@@ -211,9 +211,13 @@ export async function createAssignment(raw: unknown): Promise<ActionResult> {
   let adHocGroups: { name: string; memberIds: number[]; maxMembers?: number }[] = [];
 
   if (groupingMode === "OPEN") {
-    // Seed empty self-join groups the students will populate themselves.
-    const n = parsed.data.openGroupCount ?? 1;
+    // Seed empty self-join groups the students will populate themselves. The
+    // count is derived so the whole roster has room (ceil(roster / size)), with
+    // a minimum of 1; an explicit openGroupCount still overrides when provided.
     const size = parsed.data.openGroupSize ?? 4;
+    const n =
+      parsed.data.openGroupCount ??
+      Math.max(1, Math.ceil(roster.length / Math.max(size, 1)));
     adHocGroups = Array.from({ length: n }, (_, i) => ({
       name: `Kumpulan ${i + 1}`,
       memberIds: [],

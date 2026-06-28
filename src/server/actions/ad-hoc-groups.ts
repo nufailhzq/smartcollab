@@ -7,8 +7,11 @@ import { notifyUser, notifyMany } from "@/lib/notifications";
 import {
   createAdHocGroupSchema,
   joinOpenGroupSchema,
+  leaveOpenGroupSchema,
   inviteToOpenGroupSchema,
   createOpenGroupSchema,
+  setGroupsLockSchema,
+  reassignStudentSchema,
   type AdHocErrorCode,
 } from "@/schemas/ad-hoc-group";
 import type { ActionResult } from "@/schemas/common";
@@ -48,6 +51,8 @@ const AD_HOC_ERROR_MESSAGES: Record<AdHocErrorCode, string> = {
   INVITEE_IN_PENDING: "Pelajar itu sudah mempunyai permohonan kumpulan tertangguh.",
   NOT_GROUP_MEMBER: "Anda bukan ahli kumpulan ini.",
   JOIN_CLOSED: "Tempoh menyertai kumpulan telah ditutup.",
+  GROUPS_LOCKED: "Kumpulan telah dikunci oleh pensyarah.",
+  NOT_IN_GROUP: "Anda tidak berada dalam mana-mana kumpulan.",
   SELF_INVITE: "Anda tidak boleh menjemput diri sendiri.",
 };
 
@@ -241,11 +246,12 @@ export async function joinOpenGroup(raw: unknown): Promise<ActionResult> {
     where: { id: parsed.data.groupId },
     include: {
       course: { select: { id: true, code: true } },
-      assignment: { select: { id: true, groupingMode: true, joinCloseAt: true } },
+      assignment: { select: { id: true, groupingMode: true, joinCloseAt: true, groupsLocked: true } },
     },
   });
   if (!group || !group.assignment || group.assignmentId === null) return err("GROUP_NOT_FOUND");
   if (group.assignment.groupingMode !== "OPEN") return err("NOT_OPEN_MODE");
+  if (group.assignment.groupsLocked) return err("GROUPS_LOCKED");
   if (isJoinClosed(group.assignment.joinCloseAt)) return err("JOIN_CLOSED");
   const assignmentId = group.assignment.id;
 
@@ -300,11 +306,12 @@ export async function inviteToOpenGroup(raw: unknown): Promise<ActionResult> {
     where: { id: groupId },
     include: {
       course: { select: { id: true, code: true } },
-      assignment: { select: { id: true, title: true, groupingMode: true, joinCloseAt: true } },
+      assignment: { select: { id: true, title: true, groupingMode: true, joinCloseAt: true, groupsLocked: true } },
     },
   });
   if (!group || !group.assignment || group.assignmentId === null) return err("GROUP_NOT_FOUND");
   if (group.assignment.groupingMode !== "OPEN") return err("NOT_OPEN_MODE");
+  if (group.assignment.groupsLocked) return err("GROUPS_LOCKED");
   if (isJoinClosed(group.assignment.joinCloseAt)) return err("JOIN_CLOSED");
   const assignmentId = group.assignment.id;
 
@@ -347,5 +354,149 @@ export async function inviteToOpenGroup(raw: unknown): Promise<ActionResult> {
   });
 
   revalidateBoard(group.course.code, assignmentId);
+  return { ok: true };
+}
+
+/**
+ * leaveOpenGroup (OPEN mode) — a student leaves the group they're in. Blocked
+ * when the lecturer has locked groups or the join window has closed (leaving
+ * after lock would let them dodge the frozen state).
+ */
+export async function leaveOpenGroup(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "STUDENT") return { ok: false, error: "Hanya pelajar boleh keluar." };
+
+  const parsed = leaveOpenGroupSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const studentId = session.user.id;
+  const group = await prisma.projectGroup.findUnique({
+    where: { id: parsed.data.groupId },
+    include: {
+      course: { select: { code: true } },
+      assignment: { select: { id: true, groupingMode: true, joinCloseAt: true, groupsLocked: true } },
+    },
+  });
+  if (!group || !group.assignment || group.assignmentId === null) return err("GROUP_NOT_FOUND");
+  if (group.assignment.groupingMode !== "OPEN") return err("NOT_OPEN_MODE");
+  if (group.assignment.groupsLocked) return err("GROUPS_LOCKED");
+  if (isJoinClosed(group.assignment.joinCloseAt)) return err("JOIN_CLOSED");
+
+  const membership = await prisma.groupMember.findFirst({
+    where: { groupId: group.id, studentId },
+    select: { id: true },
+  });
+  if (!membership) return err("NOT_IN_GROUP");
+
+  await prisma.groupMember.delete({ where: { id: membership.id } });
+  revalidateBoard(group.course.code, group.assignment.id);
+  return { ok: true };
+}
+
+/**
+ * setAssignmentGroupsLock (lecturer) — toggle the manual "Kunci Kumpulan" lock
+ * on an OPEN-mode assignment. When locked, student join/leave/invite are all
+ * blocked; only the lecturer manual override can still move students.
+ */
+export async function setAssignmentGroupsLock(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
+
+  const parsed = setGroupsLockSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: parsed.data.assignmentId },
+    include: { course: { select: { code: true, lecturerId: true } } },
+  });
+  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
+  if (assignment.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+
+  await prisma.assignment.update({
+    where: { id: assignment.id },
+    data: { groupsLocked: parsed.data.locked },
+  });
+  revalidateBoard(assignment.course.code, assignment.id);
+  return { ok: true };
+}
+
+/**
+ * reassignStudentToGroup (lecturer manual override) — move a student into a
+ * target group (or remove them when targetGroupId is null), regardless of the
+ * lock state. Scoped to ONE assignment's ad-hoc groups; the student is first
+ * removed from any current group in this assignment, then added to the target.
+ */
+export async function reassignStudentToGroup(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
+
+  const parsed = reassignStudentSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Input tidak sah." };
+
+  const { assignmentId, studentId, targetGroupId } = parsed.data;
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: { course: { select: { id: true, code: true, lecturerId: true } } },
+  });
+  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
+  if (assignment.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+
+  // The student must be enrolled in the course.
+  const enrolled = await prisma.classEnrollment.findUnique({
+    where: { courseId_studentId: { courseId: assignment.course.id, studentId } },
+    select: { id: true },
+  });
+  if (!enrolled) return err("NOT_ENROLLED");
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Target group (when moving, not removing) must belong to THIS assignment
+      // and have room.
+      if (targetGroupId !== null) {
+        const target = await tx.projectGroup.findUnique({
+          where: { id: targetGroupId },
+          select: { id: true, maxMembers: true, assignmentId: true },
+        });
+        if (!target || target.assignmentId !== assignmentId) {
+          throw new AdHocError("GROUP_NOT_FOUND");
+        }
+        const alreadyHere = await tx.groupMember.findFirst({
+          where: { groupId: targetGroupId, studentId },
+          select: { id: true },
+        });
+        if (!alreadyHere) {
+          const count = await tx.groupMember.count({ where: { groupId: targetGroupId } });
+          if (count >= target.maxMembers) throw new AdHocError("GROUP_FULL");
+        }
+      }
+      // Remove the student from any current group in this assignment's context.
+      await tx.groupMember.deleteMany({
+        where: { studentId, group: { assignmentId } },
+      });
+      // Add to the target (skip when removing).
+      if (targetGroupId !== null) {
+        await tx.groupMember.create({
+          data: { groupId: targetGroupId, studentId, role: "MEMBER" },
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof AdHocError) return err(e.code);
+    throw e;
+  }
+
+  await notifyUser(studentId, {
+    title: "Kumpulan Dikemaskini",
+    message: `Pensyarah telah mengemaskini kumpulan anda untuk satu tugasan (${assignment.course.code}).`,
+    link: `student/tugasan/${assignmentId}`,
+  });
+  revalidateBoard(assignment.course.code, assignmentId);
   return { ok: true };
 }

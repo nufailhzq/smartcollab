@@ -16,6 +16,8 @@ import { formatDateTime } from "@/lib/utils";
 import { CourseAuthoring } from "./course-authoring";
 import { getCourseProgress } from "@/server/queries/progress";
 import { ProgressGrid } from "@/components/progress/ProgressGrid";
+import { getAdHocBoard, type AdHocBoard } from "@/server/queries/ad-hoc-groups";
+import { LecturerGroupControls } from "./lecturer-group-controls";
 
 type Tab = "general" | "notes" | "tugasan" | "kumpulan" | "progress";
 
@@ -40,6 +42,23 @@ export default async function LecturerCourseDetailPage({
     tab === "progress"
       ? await getCourseProgress(course.id, session!.user.id, "LECTURER")
       : null;
+
+  // For the Tugasan tab: fetch the grouping board of every AUTO (RANDOM) /
+  // MANUAL (OPEN) group assignment so the lecturer gets lock + override controls.
+  const groupBoards = new Map<number, AdHocBoard>();
+  if (tab === "tugasan") {
+    const groupAssignments = course.assignments.filter(
+      (a) => a.groupingMode === "RANDOM" || a.groupingMode === "OPEN",
+    );
+    const boards = await Promise.all(
+      groupAssignments.map((a) =>
+        getAdHocBoard(a.id, session!.user.id, "LECTURER"),
+      ),
+    );
+    boards.forEach((b) => {
+      if (b) groupBoards.set(b.assignmentId, b);
+    });
+  }
 
   const generalContent = course.content.filter(
     (c) => c.type === "GENERAL" || c.type === "ANNOUNCEMENT" || c.type === "FORUM",
@@ -204,6 +223,10 @@ export default async function LecturerCourseDetailPage({
                       </Link>
                     </div>
                   </div>
+                  {/* Lecturer group controls for AUTO / MANUAL group assignments. */}
+                  {groupBoards.has(a.id) && (
+                    <LecturerGroupControls board={groupBoards.get(a.id)!} />
+                  )}
                 </article>
               );
             })

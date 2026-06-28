@@ -226,6 +226,10 @@ model Assignment {
   /// into the assignment's open groups (existing memberships are untouched).
   /// Null = no auto-lock.
   joinCloseAt  DateTime?      @map("fld_join_close_at")
+  /// OPEN (Manual) mode: lecturer's manual "Kunci Kumpulan" lock. When true,
+  /// student Join/Leave is disabled regardless of joinCloseAt. Lecturer manual
+  /// override (reassign) still works. Default false.
+  groupsLocked Boolean        @default(false) @map("fld_groups_locked")
   createdAt    DateTime       @default(now())
 
   submissions Submission[]

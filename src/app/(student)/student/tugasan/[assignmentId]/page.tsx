@@ -22,11 +22,13 @@ export default async function AssignmentDetailPage({
   const assignment = await getAssignmentForStudent(session!.user.id, assignmentId);
   if (!assignment) notFound();
 
-  // Ad-hoc grouping board: CUSTOM (student-formed, lecturer-approved) or OPEN
-  // (lecturer-opened, student self-join). Peer file visibility: GROUP
-  // assignments where the viewer is in a group. Both null otherwise.
+  // Grouping board: RANDOM (Auto — read-only teammates card), OPEN (Manual —
+  // self-join browser), or CUSTOM (legacy student-formed, lecturer-approved).
+  // Peer file visibility: GROUP assignments where the viewer is in a group.
   const isAdHoc =
-    assignment.groupingMode === "CUSTOM" || assignment.groupingMode === "OPEN";
+    assignment.groupingMode === "CUSTOM" ||
+    assignment.groupingMode === "OPEN" ||
+    assignment.groupingMode === "RANDOM";
   const [board, groupSubmissions] = await Promise.all([
     isAdHoc
       ? getAdHocBoard(assignment.id, session!.user.id, session!.user.role)

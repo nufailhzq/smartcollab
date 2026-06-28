@@ -35,6 +35,11 @@ export const inviteToOpenGroupSchema = z.object({
   inviteeId: idSchema,
 });
 
+/** Mode B: a student leaves the OPEN group they're currently in. */
+export const leaveOpenGroupSchema = z.object({
+  groupId: idSchema,
+});
+
 /** Mode B (lecturer): open one empty self-join group for an assignment. */
 export const createOpenGroupSchema = z.object({
   assignmentId: idSchema,
@@ -42,10 +47,27 @@ export const createOpenGroupSchema = z.object({
   maxMembers: z.coerce.number().int().min(2).max(20).default(4),
 });
 
+/** Mode B (lecturer): toggle the manual "Kunci Kumpulan" lock on an assignment. */
+export const setGroupsLockSchema = z.object({
+  assignmentId: idSchema,
+  locked: z.boolean(),
+});
+
+/** Lecturer manual override: move a student into a target group (any state). */
+export const reassignStudentSchema = z.object({
+  assignmentId: idSchema,
+  studentId: idSchema,
+  /** Target group, or null to remove the student from their current group. */
+  targetGroupId: idSchema.nullable(),
+});
+
 export type CreateAdHocGroupInput = z.infer<typeof createAdHocGroupSchema>;
 export type JoinOpenGroupInput = z.infer<typeof joinOpenGroupSchema>;
+export type LeaveOpenGroupInput = z.infer<typeof leaveOpenGroupSchema>;
 export type InviteToOpenGroupInput = z.infer<typeof inviteToOpenGroupSchema>;
 export type CreateOpenGroupInput = z.infer<typeof createOpenGroupSchema>;
+export type SetGroupsLockInput = z.infer<typeof setGroupsLockSchema>;
+export type ReassignStudentInput = z.infer<typeof reassignStudentSchema>;
 
 /**
  * Why a student is NOT selectable/joinable for an ad-hoc group on an assignment.
@@ -71,6 +93,8 @@ export type AdHocErrorCode =
   | "INVITEE_IN_PENDING"
   | "NOT_GROUP_MEMBER"
   | "JOIN_CLOSED"
+  | "GROUPS_LOCKED"
+  | "NOT_IN_GROUP"
   | "SELF_INVITE";
 
 /** A pool entry the UI renders as a selectable / reason-tagged chip. */
