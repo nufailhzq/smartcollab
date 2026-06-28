@@ -67,7 +67,14 @@ export function OnboardingTour({ steps }: { steps: TourStep[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Measure the current target and keep the spotlight in sync on resize/scroll.
+  // Measure the current target and keep the spotlight perfectly wrapped around
+  // it. The previous version measured once right after a SMOOTH scroll, so the
+  // rect was captured mid-animation and the box landed off-target. Now we:
+  //   1. re-measure on every animation frame for ~500ms (covers the smooth
+  //      scroll settling), then
+  //   2. keep it synced via ResizeObserver (element/layout changes),
+  //      window resize, and scroll — so it stays wrapped on responsive layouts
+  //      and dynamic re-renders.
   useLayoutEffect(() => {
     if (!active) return;
     const el = resolveEl(index);
@@ -75,15 +82,34 @@ export function OnboardingTour({ steps }: { steps: TourStep[] }) {
       setRect(null);
       return;
     }
+
     const measure = () => {
       const r = el.getBoundingClientRect();
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     };
+
+    // Bring the target into view, then re-measure across the scroll animation.
     el.scrollIntoView({ block: "center", behavior: "smooth" });
     measure();
+
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      measure();
+      if (now - start < 500) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    // Keep wrapped if the element resizes or the layout reflows (responsive).
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    ro.observe(document.documentElement);
+
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
