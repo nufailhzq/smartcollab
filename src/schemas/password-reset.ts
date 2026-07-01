@@ -17,10 +17,10 @@ export const resetPasswordSchema = z
     path: ["confirm"],
   });
 
-// Profile change-password: submit the emailed 6-digit code + new password.
-export const changePasswordWithCodeSchema = z
+// Profile change-password: verify the current password, then set a new one.
+export const changePasswordSchema = z
   .object({
-    code: z.string().trim().regex(/^\d{6}$/, "Kod mesti 6 digit."),
+    currentPassword: z.string().min(1, "Masukkan kata laluan semasa."),
     password: z.string().min(6, "Kata laluan sekurang-kurangnya 6 aksara.").max(100),
     confirm: z.string(),
   })
@@ -31,4 +31,4 @@ export const changePasswordWithCodeSchema = z
 
 export type RequestResetInput = z.infer<typeof requestResetSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
-export type ChangePasswordWithCodeInput = z.infer<typeof changePasswordWithCodeSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

@@ -6,16 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { sendMail, appUrl } from "@/lib/mailer";
 import {
   generateResetToken,
-  generateSixDigitCode,
   sha256,
   expiryFromNow,
   RESET_LINK_TTL_MIN,
-  CHANGE_CODE_TTL_MIN,
 } from "@/lib/reset-tokens";
 import {
   requestResetSchema,
   resetPasswordSchema,
-  changePasswordWithCodeSchema,
+  changePasswordSchema,
 } from "@/schemas/password-reset";
 import type { ActionResult } from "@/schemas/common";
 
@@ -93,76 +91,36 @@ export async function resetPassword(raw: unknown): Promise<ActionResult> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profile "change password" (requires session): email a 6-digit CODE to the
-// logged-in user, who enters it + a new password on their profile page.
+// Profile "change password" (requires session): verify the CURRENT password,
+// then set the new one. No email needed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function requestChangePasswordCode(): Promise<ActionResult> {
+export async function changePassword(raw: unknown): Promise<ActionResult> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true, name: true, email: true },
-  });
-  if (!user) return { ok: false, error: "Pengguna tidak wujud." };
-  if (!user.email) {
-    return {
-      ok: false,
-      error: "Akaun anda tiada e-mel. Sila hubungi pentadbir untuk menetapkan semula kata laluan.",
-    };
-  }
-
-  const { raw: code, hash } = generateSixDigitCode();
-  await prisma.$transaction([
-    // Only one active code at a time — invalidate any prior unused ones.
-    prisma.passwordChangeCode.updateMany({
-      where: { userId: user.id, usedAt: null },
-      data: { usedAt: new Date() },
-    }),
-    prisma.passwordChangeCode.create({
-      data: { userId: user.id, codeHash: hash, expiresAt: expiryFromNow(CHANGE_CODE_TTL_MIN) },
-    }),
-  ]);
-
-  await sendMail({
-    to: user.email,
-    subject: "Kod Tukar Kata Laluan — SmartCollab",
-    text:
-      `Hai ${user.name},\n\n` +
-      `Kod pengesahan untuk menukar kata laluan SmartCollab anda ialah:\n\n` +
-      `    ${code}\n\n` +
-      `Kod ini sah selama ${CHANGE_CODE_TTL_MIN} minit. Jangan kongsi kod ini dengan sesiapa.\n\n` +
-      `Jika anda tidak memohon ini, abaikan e-mel ini.`,
-  });
-
-  return { ok: true };
-}
-
-export async function changePasswordWithCode(raw: unknown): Promise<ActionResult> {
-  const session = await auth();
-  if (!session) return { ok: false, error: "Sesi tidak sah." };
-
-  const parsed = changePasswordWithCodeSchema.safeParse(raw);
+  const parsed = changePasswordSchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
   }
 
-  const codeHash = sha256(parsed.data.code);
-  const row = await prisma.passwordChangeCode.findFirst({
-    where: { userId: session.user.id, codeHash, usedAt: null },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, expiresAt: true },
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, passwordHash: true },
   });
-  if (!row || row.expiresAt.getTime() < Date.now()) {
-    return { ok: false, error: "Kod tidak sah atau telah tamat tempoh. Sila minta kod baharu." };
+  if (!user) return { ok: false, error: "Pengguna tidak wujud." };
+
+  // Verify the current password. Supports legacy plaintext during migration,
+  // same as the login authorize() path.
+  const currentOk = user.passwordHash.startsWith("$2")
+    ? await bcrypt.compare(parsed.data.currentPassword, user.passwordHash)
+    : parsed.data.currentPassword === user.passwordHash;
+  if (!currentOk) {
+    return { ok: false, error: "Kata laluan semasa tidak betul." };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: session.user.id }, data: { passwordHash } }),
-    prisma.passwordChangeCode.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
-  ]);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
 
   return { ok: true };
 }
