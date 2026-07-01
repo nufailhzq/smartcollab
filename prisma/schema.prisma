@@ -234,6 +234,10 @@ model Assignment {
   /// student Join/Leave is disabled regardless of joinCloseAt. Lecturer manual
   /// override (reassign) still works. Default false.
   groupsLocked Boolean        @default(false) @map("fld_groups_locked")
+  /// OPEN (Manual) mode: set true once the post-deadline auto-assign sweep has
+  /// run (ungrouped students randomly placed into groups). Guards the sweep so
+  /// it fires exactly once. Default false.
+  autoAssignDone Boolean      @default(false) @map("fld_auto_assign_done")
   createdAt    DateTime       @default(now())
 
   submissions Submission[]

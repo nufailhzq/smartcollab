@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import type { NonInvitableReason, PoolStudent } from "@/schemas/ad-hoc-group";
+import { maybeAutoAssignOpenGroups } from "@/lib/auto-assign-open";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Read model for the shared Groups board. One query shape serves both modes and
@@ -100,6 +101,18 @@ export async function getAdHocBoard(
   const isAdmin = role === "ADMIN";
   const isEnrolledStudent = role === "STUDENT" && assignment.course.enrollments.length > 0;
   if (!isLecturerOwner && !isAdmin && !isEnrolledStudent) return null;
+
+  // OPEN (Manual) mode: if the formation deadline has passed, lazily run the
+  // one-time sweep that randomly assigns any still-ungrouped students. Done
+  // before reading groups so the board reflects the post-sweep state. The helper
+  // is idempotent + concurrency-safe and never throws.
+  if (
+    assignment.groupingMode === "OPEN" &&
+    assignment.joinCloseAt !== null &&
+    assignment.joinCloseAt.getTime() <= Date.now()
+  ) {
+    await maybeAutoAssignOpenGroups(assignment.id);
+  }
 
   const [groupRows, roster] = await Promise.all([
     prisma.projectGroup.findMany({

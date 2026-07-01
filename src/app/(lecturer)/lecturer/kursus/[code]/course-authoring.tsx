@@ -290,6 +290,9 @@ function AssignmentForm({
     "INDIVIDUAL",
   );
   const [maxGroupSize, setMaxGroupSize] = useState(4);
+  // MANUAL (OPEN) only: deadline to form/join a group. After it passes,
+  // ungrouped students are auto-assigned and joining locks.
+  const [joinCloseAt, setJoinCloseAt] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [maxGrade, setMaxGrade] = useState(100);
 
@@ -317,8 +320,10 @@ function AssignmentForm({
       // AUTO (RANDOM) splits the roster into groups of this size.
       groupSize: taskType === "AUTO" ? maxGroupSize : undefined,
       // MANUAL (OPEN) seeds empty self-join groups of this size. Count is
-      // derived server-side from the roster; no extra inputs (kept minimal).
+      // derived server-side from the roster.
       openGroupSize: taskType === "MANUAL" ? maxGroupSize : undefined,
+      // MANUAL (OPEN) formation deadline → drives auto-assign + join lock.
+      joinCloseAt: taskType === "MANUAL" ? joinCloseAt : undefined,
       dueDate,
       maxGrade,
     });
@@ -420,6 +425,25 @@ function AssignmentForm({
               ? "Sistem akan membahagi pelajar secara rawak ke dalam kumpulan bersaiz ini."
               : "Pelajar menyertai kumpulan sendiri di halaman tugasan; setiap kumpulan menampung sehingga bilangan ini."}
           </p>
+
+          {taskType === "MANUAL" && (
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <label className="mb-1 block text-xs font-semibold text-ukm-navy">
+                Tarikh Tutup Pembentukan Kumpulan (pilihan)
+              </label>
+              <input
+                type="datetime-local"
+                value={joinCloseAt}
+                onChange={(e) => setJoinCloseAt(e.target.value)}
+                className="input-base sm:max-w-[260px]"
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Selepas masa ini, penyertaan dikunci dan pelajar yang belum
+                berkumpulan akan diagihkan secara rawak. Anda juga boleh mengunci
+                kumpulan pada bila-bila masa di halaman tugasan.
+              </p>
+            </div>
+          )}
         </div>
       )}
       <div className="flex justify-end gap-2">
