@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { AvatarUploader } from "@/components/common/AvatarUploader";
 import { PhoneEditor } from "@/components/profile/PhoneEditor";
+import { ChangePasswordCard } from "@/components/profile/ChangePasswordCard";
 import { MuteToggle } from "@/components/profile/MuteToggle";
 import { ThemePicker } from "@/components/profile/ThemePicker";
 import { FolioPanel } from "@/components/profile/FolioPanel";
@@ -186,6 +187,8 @@ export default async function StudentProfilePage() {
           <p className="text-xs uppercase tracking-wider text-slate-500">Penghantaran</p>
         </div>
       </div>
+
+      <ChangePasswordCard />
 
       <ThemePicker initial={user.theme} />
 

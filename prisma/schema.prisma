@@ -804,3 +804,32 @@ model VerificationToken {
   @@unique([identifier, token])
   @@map("auth_verification_tokens")
 }
+
+/// Forgot-password flow: a single-use token emailed as a reset LINK. The raw
+/// token lives only in the emailed URL; we store a SHA-256 hash so a DB leak
+/// can't be replayed. Expires after a short window; consumed on use.
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement()) @map("fld_reset_id")
+  userId    Int      @map("fld_user_id")
+  tokenHash String   @unique @map("fld_token_hash")
+  expiresAt DateTime @map("fld_expires_at")
+  usedAt    DateTime? @map("fld_used_at")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// Profile "change password" flow: a 6-digit CODE emailed to the account owner,
+/// entered on the profile page. Stored hashed; short-lived; single-use.
+model PasswordChangeCode {
+  id        Int      @id @default(autoincrement()) @map("fld_code_id")
+  userId    Int      @map("fld_user_id")
+  codeHash  String   @map("fld_code_hash")
+  expiresAt DateTime @map("fld_expires_at")
+  usedAt    DateTime? @map("fld_used_at")
+  createdAt DateTime @default(now()) @map("fld_created_at")
+
+  @@index([userId])
+  @@map("password_change_codes")
+}
