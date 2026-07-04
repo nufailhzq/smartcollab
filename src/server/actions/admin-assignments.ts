@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyMany, notifyUser } from "@/lib/notifications";
 import { idSchema } from "@/schemas/common";
 import type { ActionResult } from "@/schemas/common";
 
@@ -49,7 +50,7 @@ export async function bulkEnrollStudents(
 
   const course = await prisma.course.findUnique({
     where: { id: parsed.data.courseId },
-    select: { id: true, code: true },
+    select: { id: true, code: true, title: true },
   });
   if (!course) return { ok: false, error: "Kursus tidak wujud." };
 
@@ -70,6 +71,18 @@ export async function bulkEnrollStudents(
     data: students.map((s) => ({ courseId: course.id, studentId: s.id })),
     skipDuplicates: true,
   });
+
+  // Notify the students they've been enrolled (only the newly-added ones would
+  // be ideal, but createMany doesn't return them; notifying all selected valid
+  // students is acceptable and idempotent-feeling to the user).
+  await notifyMany(
+    students.map((s) => s.id),
+    {
+      title: "Didaftarkan ke Kursus",
+      message: `Anda telah didaftarkan ke kursus ${course.code} — ${course.title}.`,
+      link: "course",
+    },
+  );
 
   revalidatePath("/admin/pemberian");
   revalidatePath("/admin/kursus");
@@ -95,12 +108,25 @@ export async function bulkUnenrollStudents(
     };
   }
 
+  const course = await prisma.course.findUnique({
+    where: { id: parsed.data.courseId },
+    select: { code: true, title: true },
+  });
+
   const result = await prisma.classEnrollment.deleteMany({
     where: {
       courseId: parsed.data.courseId,
       studentId: { in: parsed.data.studentIds },
     },
   });
+
+  if (result.count > 0 && course) {
+    await notifyMany(parsed.data.studentIds, {
+      title: "Dikeluarkan dari Kursus",
+      message: `Anda telah dikeluarkan dari kursus ${course.code} — ${course.title}.`,
+      link: "course",
+    });
+  }
 
   revalidatePath("/admin/pemberian");
   revalidatePath("/admin/kursus");
@@ -135,10 +161,24 @@ export async function assignCourseLecturer(
     }
   }
 
+  const course = await prisma.course.findUnique({
+    where: { id: parsed.data.courseId },
+    select: { code: true, title: true },
+  });
+
   await prisma.course.update({
     where: { id: parsed.data.courseId },
     data: { lecturerId: parsed.data.lecturerId },
   });
+
+  // Notify the newly-assigned lecturer.
+  if (parsed.data.lecturerId !== null && course) {
+    await notifyUser(parsed.data.lecturerId, {
+      title: "Kursus Ditugaskan",
+      message: `Anda telah ditugaskan untuk mengajar ${course.code} — ${course.title}.`,
+      link: "course",
+    });
+  }
 
   revalidatePath("/admin/pemberian");
   revalidatePath("/admin/kursus");

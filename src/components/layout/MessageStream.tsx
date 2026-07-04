@@ -14,6 +14,10 @@ type StreamEvent =
       preview: string;
       timestamp: string;
       hasAttachment: boolean;
+      attachmentPath: string | null;
+      attachmentType: string | null;
+      attachmentName: string | null;
+      attachmentSize: string | null;
     }
   | {
       kind: "message:deleted";

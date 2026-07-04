@@ -293,6 +293,10 @@ export function MessengerBubble({
         preview: string;
         timestamp: string;
         silent?: boolean;
+        attachmentPath?: string | null;
+        attachmentType?: string | null;
+        attachmentName?: string | null;
+        attachmentSize?: string | null;
       }>).detail;
       if (!detail) return;
 
@@ -318,10 +322,11 @@ export function MessengerBubble({
                     timestamp: detail.timestamp,
                     isRead: true,
                     deletedAt: null,
-                    attachmentPath: null,
-                    attachmentType: null,
-                    attachmentName: null,
-                    attachmentSize: null,
+                    // Carry the real attachment so a picture/file renders live.
+                    attachmentPath: detail.attachmentPath ?? null,
+                    attachmentType: detail.attachmentType ?? null,
+                    attachmentName: detail.attachmentName ?? null,
+                    attachmentSize: detail.attachmentSize ?? null,
                   },
                 ],
               }

@@ -106,10 +106,10 @@ export function SmartCollabLoader({
         <Image
           src="/images/logo/SmartCollab_LogoNew.png"
           alt="SmartCollab"
-          width={220}
-          height={220}
+          width={440}
+          height={440}
           priority
-          className="mx-auto mb-9 h-40 w-40 animate-pulse-soft object-contain drop-shadow-2xl sm:h-52 sm:w-52"
+          className="mx-auto mb-9 h-72 w-72 animate-pulse-soft object-contain drop-shadow-2xl sm:h-[26rem] sm:w-[26rem]"
         />
 
         {/* Gradient title — swaps phrase with a soft fade */}

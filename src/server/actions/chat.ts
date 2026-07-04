@@ -236,6 +236,10 @@ export async function sendMessage(formData: FormData): Promise<ActionResult<Mess
     preview,
     timestamp: message.timestamp.toISOString(),
     hasAttachment: attachmentPath !== null,
+    attachmentPath,
+    attachmentType,
+    attachmentName,
+    attachmentSize,
   });
 
   revalidatePath("/student");

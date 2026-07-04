@@ -11,6 +11,12 @@ export type MessageEvent =
       preview: string;
       timestamp: string;
       hasAttachment: boolean;
+      // Full attachment payload so a picture/file renders live in an already-open
+      // conversation without needing a reload. Null when text-only.
+      attachmentPath: string | null;
+      attachmentType: string | null;
+      attachmentName: string | null;
+      attachmentSize: string | null;
     }
   | {
       kind: "message:deleted";
