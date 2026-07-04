@@ -227,16 +227,24 @@ export function WelcomeLanding() {
           <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
             {!loading && (
               <>
-                <div className="wl-spring inline-block rounded-2xl bg-black/45 px-6 py-5 backdrop-blur-sm sm:px-10 sm:py-7">
-                  <p className="font-display text-lg font-bold uppercase leading-snug tracking-[0.15em] text-white sm:text-3xl md:text-4xl">
-                    &ldquo;Mengilham Harapan, Mencipta Masa Depan&rdquo;
-                  </p>
-                </div>
-                <div className="wl-spring-delayed mt-8">
+                <p className="wl-spring mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-ukm-orange sm:text-sm">
+                  Universiti Kebangsaan Malaysia
+                </p>
+                <h1 className="wl-spring font-display text-3xl font-extrabold leading-[1.1] tracking-tight text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.5)] sm:text-5xl md:text-6xl">
+                  Mengilham Harapan,
+                  <br />
+                  <span className="bg-gradient-to-r from-ukm-orange via-amber-300 to-ukm-orange bg-clip-text text-transparent">
+                    Mencipta Masa Depan
+                  </span>
+                </h1>
+                <p className="wl-spring-delayed mx-auto mt-5 max-w-xl text-sm font-medium text-white/80 sm:text-base">
+                  Platform kolaborasi pintar untuk pembelajaran, kumpulan, dan komuniti UKMFolio.
+                </p>
+                <div className="wl-spring-delayed mt-9">
                   <button
                     type="button"
                     onClick={() => router.push("/login")}
-                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ukm-orange to-orange-500 px-8 py-3.5 text-base font-bold text-white shadow-xl transition-transform duration-300 hover:scale-105 hover:shadow-glow-orange active:scale-100"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-ukm-orange to-orange-500 px-9 py-4 text-base font-bold text-white shadow-xl transition-transform duration-300 hover:scale-105 hover:shadow-glow-orange active:scale-100"
                   >
                     <LogIn size={18} /> Log Masuk ke SmartCollab
                   </button>
