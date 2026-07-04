@@ -102,20 +102,15 @@ export function SmartCollabLoader({
       )}
 
       <div className="relative z-10 px-6 text-center">
-        {/* Soft gradient halo with a white core + SmartCollab logo. The logo
-            no longer spins — it gently floats/breathes instead. */}
-        <div className="mx-auto mb-9 grid h-32 w-32 animate-float-soft place-items-center rounded-full shadow-[0_0_60px_-6px_rgba(14,165,233,0.55)] [background:conic-gradient(from_0deg,#0ea5e9,#22d3ee,#f97316,#fb923c,#0ea5e9)]">
-          <div className="grid h-[7.25rem] w-[7.25rem] place-items-center rounded-full bg-white shadow-inner">
-            <Image
-              src="/images/logo/SmartCollab_LogoNew.png"
-              alt="SmartCollab"
-              width={78}
-              height={78}
-              priority
-              className="h-[4.6rem] w-[4.6rem] animate-pulse-soft object-contain"
-            />
-          </div>
-        </div>
+        {/* Just the logo, larger and centered — no ring/circle. Gently breathes. */}
+        <Image
+          src="/images/logo/SmartCollab_LogoNew.png"
+          alt="SmartCollab"
+          width={220}
+          height={220}
+          priority
+          className="mx-auto mb-9 h-40 w-40 animate-pulse-soft object-contain drop-shadow-2xl sm:h-52 sm:w-52"
+        />
 
         {/* Gradient title — swaps phrase with a soft fade */}
         <h1
