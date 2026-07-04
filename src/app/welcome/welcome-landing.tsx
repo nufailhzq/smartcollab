@@ -15,19 +15,20 @@ import {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pre-login landing page. Phases:
-//   1. Loading — top linear progress bar + logo pulse (no spinners).
-//   2. Landing — dark-blue navbar (3 logos + nav + LOG IN), full-bleed hero with
-//      a background video + a cross-fading image carousel under diagonal masks,
-//      a centered semi-transparent banner, and left/right arrows.
-// Elements spring in with a bouncy cubic-bezier. LOG IN routes to the existing
-// NextAuth /login.
+//   1. Loading — top linear progress bar + a large logo that fades in/out.
+//   2. Landing — solid dark-blue navbar on top (never covered), and BELOW it a
+//      hero media area. The VIDEO is the default front view; the UKM pictures
+//      only fade in when the user navigates (next/prev/dots). LOG MASUK routes
+//      to the existing NextAuth /login.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SLIDES = [
+// The carousel: index 0 = the video (default). 1..3 = the still pictures.
+const PICTURES = [
   "/images/backgrounds/UKM_picture1.jpeg",
   "/images/backgrounds/UKM_picture2.jpg",
   "/images/backgrounds/UKM_picture3.jpg",
 ] as const;
+const SLIDE_COUNT = PICTURES.length + 1; // +1 for the video slide
 
 const NAV_LINKS = [
   { label: "Utama", href: "#hero" },
@@ -39,7 +40,7 @@ export function WelcomeLanding() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
-  const [slide, setSlide] = useState(0);
+  const [slide, setSlide] = useState(0); // 0 = video, 1..3 = pictures
   const [mobileNav, setMobileNav] = useState(false);
 
   // Phase 1 — drive the loading progress bar, then reveal the landing.
@@ -50,28 +51,21 @@ export function WelcomeLanding() {
       setProgress(p);
       if (p >= 100) {
         clearInterval(tick);
-        setTimeout(() => setLoading(false), 350);
+        setTimeout(() => setLoading(false), 400);
       }
     }, 180);
     return () => clearInterval(tick);
   }, []);
 
-  // Auto-advance the carousel once loaded.
-  useEffect(() => {
-    if (loading) return;
-    const id = setInterval(() => setSlide((s) => (s + 1) % SLIDES.length), 5000);
-    return () => clearInterval(id);
-  }, [loading]);
-
   const prev = useCallback(
-    () => setSlide((s) => (s - 1 + SLIDES.length) % SLIDES.length),
+    () => setSlide((s) => (s - 1 + SLIDE_COUNT) % SLIDE_COUNT),
     [],
   );
-  const next = useCallback(() => setSlide((s) => (s + 1) % SLIDES.length), []);
+  const next = useCallback(() => setSlide((s) => (s + 1) % SLIDE_COUNT), []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-ukm-navy font-sans text-white">
-      {/* ── Phase 1: loading overlay ─────────────────────────────────────── */}
+    <div className="relative min-h-screen bg-ukm-navy font-sans text-white">
+      {/* ── Phase 1: loading overlay — big logo that fades in/out ─────────── */}
       {loading && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-ukm-navy">
           {/* top linear progress bar */}
@@ -81,17 +75,15 @@ export function WelcomeLanding() {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="wl-pulse flex items-center gap-4">
-            <Image
-              src="/images/logo/SmartCollab_LogoNew.png"
-              alt="SmartCollab"
-              width={72}
-              height={72}
-              priority
-              className="h-16 w-16 object-contain drop-shadow-lg sm:h-20 sm:w-20"
-            />
-          </div>
-          <p className="mt-5 text-sm font-medium uppercase tracking-[0.3em] text-white/60">
+          <Image
+            src="/images/logo/SmartCollab_LogoNew.png"
+            alt="SmartCollab"
+            width={180}
+            height={180}
+            priority
+            className="wl-fade h-28 w-28 object-contain drop-shadow-2xl sm:h-36 sm:w-36"
+          />
+          <p className="mt-6 text-sm font-medium uppercase tracking-[0.3em] text-white/60">
             Memuatkan…
           </p>
         </div>
@@ -103,8 +95,8 @@ export function WelcomeLanding() {
           loading ? "pointer-events-none opacity-0" : "opacity-100 transition-opacity duration-500"
         }
       >
-        {/* Navbar */}
-        <header className="absolute inset-x-0 top-0 z-40 bg-ukm-navy/95 backdrop-blur-sm shadow-lg">
+        {/* Navbar — solid, on top, sticky. Media sits BELOW it. */}
+        <header className="sticky top-0 z-50 bg-ukm-navy shadow-lg">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6">
             {/* Left — three institutional logos */}
             <div className="flex items-center gap-2 sm:gap-4">
@@ -174,14 +166,17 @@ export function WelcomeLanding() {
         <button
           type="button"
           aria-label="Tetapan"
-          className="fixed left-0 top-24 z-30 grid h-11 w-11 place-items-center rounded-r-xl bg-ukm-orange text-white shadow-lg transition hover:w-12"
+          className="fixed left-0 top-24 z-40 grid h-11 w-11 place-items-center rounded-r-xl bg-ukm-orange text-white shadow-lg transition hover:w-12"
         >
           <Settings size={18} />
         </button>
 
-        {/* Hero */}
-        <section id="hero" className="relative flex min-h-screen items-center justify-center">
-          {/* Background video */}
+        {/* Hero — media area sits BELOW the navbar (min-h minus navbar height) */}
+        <section
+          id="hero"
+          className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden sm:min-h-[calc(100vh-5rem)]"
+        >
+          {/* Base layer: the VIDEO — always present, the default front view. */}
           <video
             autoPlay
             muted
@@ -192,13 +187,14 @@ export function WelcomeLanding() {
             <source src="/images/backgrounds/Ukm_video.mp4" type="video/mp4" />
           </video>
 
-          {/* Diagonal-masked cross-fading image carousel over the video */}
+          {/* Picture layers — fade IN only when the user navigates to them
+              (slide 1..3). Slide 0 keeps only the video visible. */}
           <div className="absolute inset-0">
-            {SLIDES.map((src, i) => (
+            {PICTURES.map((src, i) => (
               <div
                 key={src}
-                className="wl-diagonal absolute inset-0 transition-opacity duration-1000 ease-out"
-                style={{ opacity: i === slide ? 1 : 0 }}
+                className="absolute inset-0 transition-opacity duration-700 ease-out"
+                style={{ opacity: slide === i + 1 ? 1 : 0 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={src} alt="" className="h-full w-full object-cover" />
@@ -207,7 +203,7 @@ export function WelcomeLanding() {
           </div>
 
           {/* Dark gradient wash for text legibility */}
-          <div className="absolute inset-0 bg-gradient-to-b from-ukm-navy/70 via-ukm-navy/40 to-ukm-navy/80" />
+          <div className="absolute inset-0 bg-gradient-to-b from-ukm-navy/60 via-ukm-navy/35 to-ukm-navy/75" />
 
           {/* Arrows */}
           <button
@@ -249,14 +245,14 @@ export function WelcomeLanding() {
             )}
           </div>
 
-          {/* Carousel dots */}
+          {/* Slide dots — first dot = video, rest = pictures */}
           <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
-            {SLIDES.map((_, i) => (
+            {Array.from({ length: SLIDE_COUNT }).map((_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setSlide(i)}
-                aria-label={`Slaid ${i + 1}`}
+                aria-label={i === 0 ? "Video" : `Gambar ${i}`}
                 className={
                   i === slide
                     ? "h-2.5 w-8 rounded-full bg-ukm-orange transition-all"

@@ -2,15 +2,18 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Eye, EyeOff, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { loginAction } from "./actions";
 import { SmartCollabLoader } from "@/components/common/SmartCollabLoader";
 import { IdleLogoutNotice } from "@/components/layout/IdleLogoutNotice";
 
+// Split-screen "I-KOM"-style login. Left = SmartCollab branding panel; right =
+// clean login card. Authentication is unchanged — it still logs in by matric
+// number via the existing loginAction (NextAuth Credentials).
 export function LoginForm() {
   const t = useTranslations("Login");
-  const tApp = useTranslations("App");
   const [matric, setMatric] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -30,16 +33,7 @@ export function LoginForm() {
       }
       setUserName(res.name);
       setLoggingIn(true);
-      // Delay the navigation so the user sees the
-      // "Connecting → Welcome <name>" narration before the page transitions.
-      // SmartCollabLoader sequence: 1.8s connect → 1.4s welcome → 1.2s fade.
-      //
-      // Use a full-document navigation (not router.replace) so the freshly-set
-      // session cookie from the signIn server action is guaranteed to be sent
-      // on the request for "/". A soft (client) navigation can race the cookie
-      // write, landing on "/" with no session — which bounced the user back to
-      // /login and forced a second login. A hard nav makes the cookie + the
-      // navigation atomic.
+      // Hard navigation so the freshly-set session cookie is sent on "/".
       setTimeout(() => {
         window.location.href = "/";
       }, 3400);
@@ -47,147 +41,199 @@ export function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-md animate-scale-in">
+    <div className="fixed inset-0 z-20 flex flex-col bg-white lg:flex-row">
       {loggingIn && (
-        <SmartCollabLoader
-          variant="fullscreen"
-          userName={userName ?? "kawan"}
-        />
+        <SmartCollabLoader variant="fullscreen" userName={userName ?? "kawan"} />
       )}
-      {/* Brand header */}
-      <div className="mb-7 flex flex-col items-center text-center">
-        <div className="group/logo relative mb-4">
-          <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-ukm-teal/40 to-ukm-cyan/30 opacity-60 blur-xl transition-all duration-500 group-hover/logo:opacity-100 group-hover/logo:blur-2xl" />
-          <div className="grid h-20 w-20 place-items-center rounded-2xl bg-white p-2.5 shadow-lift-lg transition-transform duration-500 ease-spring group-hover/logo:scale-105 group-hover/logo:-rotate-3">
+
+      {/* ── Left branding panel ─────────────────────────────────────────── */}
+      <aside className="relative hidden flex-col items-center justify-center overflow-hidden bg-slate-50 px-10 py-12 lg:flex lg:w-1/2">
+        {/* dotted texture */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.5]"
+          style={{
+            backgroundImage: "radial-gradient(#cbd5e1 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+          }}
+        />
+        <div className="relative z-10 flex max-w-md flex-col items-center text-center">
+          {/* Institutional logos */}
+          <div className="mb-8 flex items-center gap-5">
             <Image
-              src="/images/logo/SmartCollabLogo.png"
-              alt="SmartCollab"
-              width={72}
-              height={72}
+              src="/images/logo/UKMOfficialLogo.png"
+              alt="UKM"
+              width={64}
+              height={64}
               priority
-              className="h-full w-full object-contain"
+              className="h-14 w-auto object-contain"
+            />
+            <Image
+              src="/images/logo/ftsm_logo.png"
+              alt="FTSM"
+              width={64}
+              height={64}
+              priority
+              className="h-14 w-auto object-contain"
             />
           </div>
+
+          {/* SmartCollab logo + title */}
+          <Image
+            src="/images/logo/SmartCollab_LogoNew.png"
+            alt="SmartCollab"
+            width={220}
+            height={220}
+            priority
+            className="h-36 w-auto object-contain drop-shadow"
+          />
+          <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight text-ukm-navy">
+            Smart<span className="text-ukm-orange">Collab</span>
+          </h1>
+          <p className="mt-3 text-base font-medium leading-relaxed text-slate-600">
+            Sistem Kolaborasi Pintar
+            <br />
+            Peningkatan LMS UKMFolio
+          </p>
+
+          <p className="mt-12 text-xs font-bold uppercase tracking-[0.28em] text-slate-400">
+            Fakulti Teknologi &amp; Sains Maklumat
+          </p>
         </div>
-        <h1 className="font-display text-4xl font-extrabold tracking-tight text-white drop-shadow-sm">
-          <span className="text-white">Smart</span>
-          <span className="bg-gradient-to-r from-ukm-orange to-orange-400 bg-clip-text text-transparent">
-            Collab
-          </span>
-        </h1>
-        <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.32em] text-white/70">
-          <Sparkles size={11} className="text-ukm-cyan" />
-          UKMFolio Enhancement
-        </p>
-      </div>
+      </aside>
 
-      {/* Login card with hover lift + glow */}
-      <div className="group/card relative">
-        <div className="pointer-events-none absolute -inset-1 rounded-2xl bg-gradient-to-br from-ukm-teal/30 via-ukm-cyan/20 to-ukm-orange/20 opacity-0 blur-2xl transition-all duration-500 group-hover/card:opacity-100" />
-        <div className="relative rounded-2xl border border-white/20 bg-white/95 p-6 shadow-lift-lg backdrop-blur-xl transition-all duration-300 ease-spring group-hover/card:-translate-y-1 group-hover/card:shadow-glow group-hover/card:border-ukm-teal/30 sm:p-7">
-          <h2 className="text-xl font-bold text-ukm-navy">{t("title")}</h2>
-          <p className="mb-6 mt-1 text-sm text-slate-500">Sila log masuk untuk meneruskan.</p>
+      {/* ── Right login card ────────────────────────────────────────────── */}
+      <section className="flex flex-1 items-center justify-center bg-gradient-to-br from-white to-slate-100 px-5 py-10 lg:w-1/2">
+        <div className="w-full max-w-md">
+          {/* Mobile-only compact brand header (left panel is hidden on mobile) */}
+          <div className="mb-8 flex flex-col items-center lg:hidden">
+            <Image
+              src="/images/logo/SmartCollab_LogoNew.png"
+              alt="SmartCollab"
+              width={80}
+              height={80}
+              priority
+              className="h-16 w-auto object-contain"
+            />
+            <h1 className="mt-3 font-display text-2xl font-extrabold text-ukm-navy">
+              Smart<span className="text-ukm-orange">Collab</span>
+            </h1>
+          </div>
 
-          <IdleLogoutNotice />
+          <div className="rounded-2xl bg-white p-7 shadow-[0_10px_40px_rgba(15,39,68,0.12)] sm:p-9">
+            <h2 className="text-3xl font-extrabold text-ukm-navy">{t("title")}</h2>
+            <p className="mb-7 mt-1.5 text-sm text-slate-500">
+              Sila masukkan maklumat akaun anda
+            </p>
 
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit({ matric, password });
-            }}
-          >
-            <div>
-              <label
-                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ukm-navy"
-                htmlFor="matric"
-              >
-                {t("matric")}
-              </label>
-              <input
-                id="matric"
-                name="matric"
-                autoComplete="username"
-                required
-                autoFocus
-                placeholder={t("matricPlaceholder")}
-                value={matric}
-                onChange={(e) => setMatric(e.target.value.toUpperCase())}
-                className="input-base uppercase font-mono tracking-wider"
-              />
-            </div>
+            <IdleLogoutNotice />
 
-            <div>
-              <label
-                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ukm-navy"
-                htmlFor="password"
-              >
-                {t("password")}
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  placeholder={t("passwordPlaceholder")}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input-base pr-10"
-                />
-                <button
-                  type="button"
-                  aria-label={showPassword ? "Sembunyi kata laluan" : "Tunjuk kata laluan"}
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-2 grid place-items-center rounded-md px-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-ukm-navy"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <label className="inline-flex select-none items-center gap-2 text-slate-600">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-ukm-teal focus:ring-ukm-teal"
-                />
-                {t("remember")}
-              </label>
-              <a
-                href="/forgot-password"
-                className="font-medium text-ukm-teal transition-colors hover:text-sky-700 hover:underline"
-                tabIndex={-1}
-              >
-                {t("forgot")}
-              </a>
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="animate-fade-in rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-sm"
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isPending}
-              className="group/btn relative w-full overflow-hidden rounded-lg bg-gradient-to-r from-ukm-teal via-sky-500 to-sky-600 px-4 py-3 text-sm font-semibold text-white shadow-soft transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:shadow-glow active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+            <form
+              className="space-y-5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit({ matric, password });
+              }}
             >
-              <span className="relative z-10">{isPending ? t("submitting") : t("submit")}</span>
-              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
-            </button>
-          </form>
-        </div>
-      </div>
+              <div>
+                <label
+                  className="mb-1.5 block text-sm font-bold text-ukm-navy"
+                  htmlFor="matric"
+                >
+                  No. Matrik / E-mel
+                </label>
+                <div className="relative">
+                  <Mail
+                    size={18}
+                    className="pointer-events-none absolute inset-y-0 left-3 my-auto text-slate-400"
+                  />
+                  <input
+                    id="matric"
+                    name="matric"
+                    autoComplete="username"
+                    required
+                    autoFocus
+                    placeholder={t("matricPlaceholder")}
+                    value={matric}
+                    onChange={(e) => setMatric(e.target.value.toUpperCase())}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-3 font-mono uppercase tracking-wider text-ukm-navy transition focus:border-ukm-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-ukm-teal/30"
+                  />
+                </div>
+              </div>
 
-      <p className="mt-5 text-center text-[11px] text-white/60">
-        © Nufail Haziq · SmartCollab Enhancement of UKMFolio
-      </p>
+              <div>
+                <label
+                  className="mb-1.5 block text-sm font-bold text-ukm-navy"
+                  htmlFor="password"
+                >
+                  {t("password")}
+                </label>
+                <div className="relative">
+                  <Lock
+                    size={18}
+                    className="pointer-events-none absolute inset-y-0 left-3 my-auto text-slate-400"
+                  />
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    placeholder={t("passwordPlaceholder")}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-11 text-ukm-navy transition focus:border-ukm-teal focus:bg-white focus:outline-none focus:ring-2 focus:ring-ukm-teal/30"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Sembunyi kata laluan" : "Tunjuk kata laluan"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute inset-y-0 right-2 my-auto grid h-8 w-8 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-ukm-navy"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <label className="inline-flex select-none items-center gap-2 text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-ukm-teal focus:ring-ukm-teal"
+                  />
+                  {t("remember")}
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="font-semibold text-ukm-teal transition-colors hover:text-sky-700 hover:underline"
+                >
+                  {t("forgot")}
+                </Link>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="animate-fade-in rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-sm"
+                >
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isPending}
+                className="w-full rounded-xl bg-ukm-navy px-4 py-3.5 text-base font-bold text-white shadow-lg transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:bg-[#12304a] hover:shadow-xl active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? t("submitting") : t("submit")}
+              </button>
+            </form>
+          </div>
+
+          <p className="mt-6 text-center text-[11px] text-slate-400">
+            © Nufail Haziq · SmartCollab Enhancement of UKMFolio
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

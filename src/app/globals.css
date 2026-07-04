@@ -543,20 +543,11 @@
   animation: wl-spring-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
 }
 
-@keyframes wl-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(0.92); }
+/* Loading logo: gentle fade in/out (no rotation, no scale pulse). */
+@keyframes wl-fade {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
 }
-.wl-pulse {
-  animation: wl-pulse 1.4s ease-in-out infinite;
-}
-
-/* Sharp angled split-screen slice for the hero carousel images. */
-.wl-diagonal {
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
-}
-@media (min-width: 768px) {
-  .wl-diagonal {
-    clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
-  }
+.wl-fade {
+  animation: wl-fade 1.8s ease-in-out infinite;
 }
