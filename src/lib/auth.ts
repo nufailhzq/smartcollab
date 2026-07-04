@@ -35,14 +35,33 @@ function touchLastSeen(userId: number) {
 // The HTTP-only signed cookie is refresh-stable, so login survives F5 — same
 // guarantee the spec asks for. The Prisma adapter still backs OAuth providers
 // (and exposes Account/Session/VerificationToken if we add them later).
+// Behind the HTTPS reverse proxy (Caddy), the browser is on https:// but the
+// app may see http internally. If NEXTAUTH_URL is misconfigured to http://, v5
+// picks the NON-secure cookie name while the browser expects the `__Secure-`
+// one — so the first login's cookie isn't recognised on the redirect and the
+// user has to log in twice. Forcing secure cookies + a fixed cookie name in
+// production makes it deterministic regardless of NEXTAUTH_URL's scheme.
+const isProd = process.env.NODE_ENV === "production";
+
 export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   // Required in production behind a public IP / reverse proxy. Without it,
   // NextAuth v5 rejects every host except localhost with `UntrustedHost`.
-  // Auth.js automatically validates against NEXTAUTH_URL when set.
   trustHost: true,
+  useSecureCookies: isProd,
+  cookies: {
+    sessionToken: {
+      name: isProd ? "__Secure-authjs.session-token" : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: isProd,
+      },
+    },
+  },
   providers: [
     Credentials({
       credentials: {

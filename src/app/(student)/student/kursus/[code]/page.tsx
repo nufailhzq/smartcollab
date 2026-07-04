@@ -17,7 +17,7 @@ import {
   LineChart,
   Users,
 } from "lucide-react";
-import { formatDate, formatDateTime, initials } from "@/lib/utils";
+import { formatDate, formatDateTime, initials, mediaUrl } from "@/lib/utils";
 import { getCourseProgress } from "@/server/queries/progress";
 import { ProgressList } from "@/components/progress/ProgressList";
 
@@ -239,7 +239,7 @@ export default async function CourseDetailPage({
                 {n.filePath && (
                   <div className="flex gap-1">
                     <a
-                      href={n.filePath}
+                      href={mediaUrl(n.filePath) ?? n.filePath}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded-lg bg-ukm-teal px-3 py-1.5 text-xs font-semibold text-white shadow-soft hover:bg-sky-600"
@@ -247,7 +247,7 @@ export default async function CourseDetailPage({
                       Lihat
                     </a>
                     <a
-                      href={n.filePath}
+                      href={mediaUrl(n.filePath) ?? n.filePath}
                       download={n.fileName ?? undefined}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-ukm-teal hover:bg-sky-50"
                     >
