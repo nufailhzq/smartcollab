@@ -23,3 +23,6 @@ prisma/dev.db*
 *.sql
 *.sql.gz
 backups/
+
+# Large landing-page video (198MB) — exceeds GitHub limits; deploy to server separately
+public/images/backgrounds/Ukm_video.mp4

@@ -5,16 +5,16 @@ import { dashboardPathFor } from "@/lib/permissions";
 export default async function RootPage() {
   const session = await auth();
 
-  // 1. If no session, go to login
+  // 1. No session → show the public landing page (which links to /login).
   if (!session) {
-    redirect("/login");
+    redirect("/welcome");
   }
 
-  // 2. Safely get the role. If it's missing, don't crash, just go to login.
+  // 2. Safely get the role. If it's missing, fall back to the landing page.
   const userRole = session?.user?.role;
 
   if (!userRole) {
-    redirect("/login");
+    redirect("/welcome");
   }
 
   // 3. Success! Redirect to the dashboard
