@@ -8,6 +8,7 @@ import {
   useTransition,
   type FormEvent,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -27,6 +28,8 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
+  ShieldMinus,
   Sparkles,
   Trash2,
   UserPlus,
@@ -69,6 +72,7 @@ import {
   removeChatGroupMember,
   renameChatGroup,
   sendChatGroupMessage,
+  setChatGroupAdmin,
   type ChatGroupConversationPayload,
 } from "@/server/actions/chat-groups";
 import { useToast } from "@/components/common/Toast";
@@ -824,6 +828,28 @@ export function MessengerBubble({
         return;
       }
       toast.push({ kind: "success", message: "Ahli dikeluarkan." });
+      const reload = await loadChatGroupConversation(groupConversation.group.id);
+      if (reload.ok) setGroupConversation(reload.data);
+      router.refresh();
+    });
+  };
+
+  const onSetGroupAdmin = (userId: number, makeAdmin: boolean) => {
+    if (!groupConversation) return;
+    startTransition(async () => {
+      const res = await setChatGroupAdmin({
+        chatGroupId: groupConversation.group.id,
+        userId,
+        isAdmin: makeAdmin,
+      });
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({
+        kind: "success",
+        message: makeAdmin ? "Dilantik sebagai admin." : "Peranan admin ditarik.",
+      });
       const reload = await loadChatGroupConversation(groupConversation.group.id);
       if (reload.ok) setGroupConversation(reload.data);
       router.refresh();
@@ -1633,17 +1659,31 @@ export function MessengerBubble({
                     const mine = m.senderId === currentUserId;
                     const prev = groupConversation.messages[i - 1];
                     const showAuthor = !mine && (!prev || prev.senderId !== m.senderId);
+                    // Resolve the sender's matric from the members list so their
+                    // name links to their profile.
+                    const senderMatric = groupConversation.group.members.find(
+                      (mem) => mem.id === m.senderId,
+                    )?.matricNum;
                     return (
                       <div
                         key={m.id}
                         className={cn("flex", mine ? "justify-end" : "justify-start")}
                       >
                         <div className="max-w-[80%]">
-                          {showAuthor && (
-                            <p className="mb-0.5 ml-1 text-[10px] font-semibold text-ukm-navy">
-                              {m.senderName}
-                            </p>
-                          )}
+                          {showAuthor &&
+                            (senderMatric ? (
+                              <Link
+                                href={`/folio/u/${senderMatric}`}
+                                className="mb-0.5 ml-1 block text-[10px] font-semibold text-ukm-navy hover:text-ukm-teal hover:underline"
+                                title="Lihat profil"
+                              >
+                                {m.senderName}
+                              </Link>
+                            ) : (
+                              <p className="mb-0.5 ml-1 text-[10px] font-semibold text-ukm-navy">
+                                {m.senderName}
+                              </p>
+                            ))}
                           <div
                             className={cn(
                               "rounded-2xl px-3 py-2 text-sm shadow-sm",
@@ -1868,9 +1908,19 @@ export function MessengerBubble({
                         <Avatar name={m.name} role={m.role} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-ukm-navy">
-                              {m.name}
-                            </p>
+                            {m.matricNum ? (
+                              <Link
+                                href={`/folio/u/${m.matricNum}`}
+                                className="truncate text-sm font-semibold text-ukm-navy hover:text-ukm-teal hover:underline"
+                                title="Lihat profil"
+                              >
+                                {m.name}
+                              </Link>
+                            ) : (
+                              <p className="truncate text-sm font-semibold text-ukm-navy">
+                                {m.name}
+                              </p>
+                            )}
                             {isMe && (
                               <span className="rounded-full bg-ukm-orange px-2 py-0.5 text-[10px] font-semibold text-white">
                                 Anda
@@ -1887,15 +1937,26 @@ export function MessengerBubble({
                           </p>
                         </div>
                         {groupConversation.group.isAdmin && !isMe && (
-                          <button
-                            type="button"
-                            onClick={() => onRemoveMemberFromGroup(m.id)}
-                            disabled={pending}
-                            title="Keluarkan ahli"
-                            className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-ukm-red"
-                          >
-                            <X size={14} />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onSetGroupAdmin(m.id, !m.isAdmin)}
+                              disabled={pending}
+                              title={m.isAdmin ? "Tarik peranan admin" : "Jadikan admin"}
+                              className="rounded p-1 text-slate-400 hover:bg-amber-50 hover:text-amber-600"
+                            >
+                              {m.isAdmin ? <ShieldMinus size={14} /> : <ShieldCheck size={14} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onRemoveMemberFromGroup(m.id)}
+                              disabled={pending}
+                              title="Keluarkan ahli"
+                              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-ukm-red"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
                         )}
                       </li>
                     );

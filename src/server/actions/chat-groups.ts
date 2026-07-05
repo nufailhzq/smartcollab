@@ -105,6 +105,10 @@ export async function addChatGroupMember(raw: unknown): Promise<ActionResult> {
   if (!meMember) {
     return { ok: false, error: "Anda bukan ahli kumpulan chat ini." };
   }
+  // Course (system) group chats have a locked membership — nobody adds/removes.
+  if (await isCourseGroup(parsed.data.chatGroupId)) {
+    return { ok: false, error: "Ahli kumpulan kursus rasmi diuruskan oleh sistem." };
+  }
   // Only the owner or an admin may add members.
   const grp = await prisma.chatGroup.findUnique({
     where: { id: parsed.data.chatGroupId },
@@ -163,6 +167,10 @@ export async function removeChatGroupMember(raw: unknown): Promise<ActionResult>
   if (!meMember || !meMember.isAdmin) {
     return { ok: false, error: "Hanya admin kumpulan boleh mengeluarkan ahli." };
   }
+  // Course (system) group chats have a locked membership.
+  if (await isCourseGroup(parsed.data.chatGroupId)) {
+    return { ok: false, error: "Ahli kumpulan kursus rasmi diuruskan oleh sistem." };
+  }
   if (parsed.data.userId === me) {
     return { ok: false, error: "Gunakan 'Keluar Kumpulan' untuk diri sendiri." };
   }
@@ -187,6 +195,11 @@ export async function leaveChatGroup(raw: unknown): Promise<ActionResult> {
   const me = session.user.id;
   const meMember = await ensureMember(parsed.data.chatGroupId, me);
   if (!meMember) return { ok: false, error: "Anda bukan ahli kumpulan ini." };
+  // Course (system) group chats: you can't leave — membership follows the
+  // course group and is managed by the system.
+  if (await isCourseGroup(parsed.data.chatGroupId)) {
+    return { ok: false, error: "Anda tidak boleh keluar dari kumpulan kursus rasmi." };
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.chatGroupMember.delete({ where: { id: meMember.id } });
@@ -256,8 +269,9 @@ export async function renameChatGroup(raw: unknown): Promise<ActionResult> {
 }
 
 /**
- * setChatGroupAdmin — OWNER only. Grant/revoke the admin role for a member. The
- * owner is always implicitly an admin and cannot be demoted via this action.
+ * setChatGroupAdmin — the OWNER or any ADMIN can grant/revoke the admin role for
+ * another member. The owner is always implicitly an admin and can't be demoted.
+ * Not available on course (system) group chats.
  */
 export async function setChatGroupAdmin(raw: unknown): Promise<ActionResult> {
   const session = await auth();
@@ -272,8 +286,15 @@ export async function setChatGroupAdmin(raw: unknown): Promise<ActionResult> {
     select: { createdById: true },
   });
   if (!group) return { ok: false, error: "Kumpulan tidak wujud." };
-  if (group.createdById !== me) {
-    return { ok: false, error: "Hanya pemilik kumpulan boleh melantik admin." };
+  if (await isCourseGroup(parsed.data.chatGroupId)) {
+    return { ok: false, error: "Peranan admin kumpulan kursus rasmi diuruskan oleh sistem." };
+  }
+
+  // Owner OR an existing admin may promote/demote others.
+  const meMember = await ensureMember(parsed.data.chatGroupId, me);
+  const isOwner = group.createdById === me;
+  if (!isOwner && !meMember?.isAdmin) {
+    return { ok: false, error: "Hanya pemilik atau admin boleh melantik admin." };
   }
   if (parsed.data.userId === group.createdById) {
     return { ok: false, error: "Pemilik sentiasa admin." };
