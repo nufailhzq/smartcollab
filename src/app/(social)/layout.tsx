@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export default function SocialLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RoleGuard allowed={["STUDENT", "LECTURER"]}>
+    <RoleGuard allowed={["STUDENT", "LECTURER", "ADMIN"]}>
       <div className="relative min-h-screen overflow-hidden aurora-bg">
         <div className="pointer-events-none absolute left-1/3 -top-32 -z-10 h-[28rem] w-[28rem] animate-bg-drift rounded-full bg-purple-400/25 blur-3xl" />
         <div

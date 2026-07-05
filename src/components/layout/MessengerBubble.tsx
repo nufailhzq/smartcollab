@@ -950,19 +950,31 @@ export function MessengerBubble({
                 {view === "aiConversation" && (
                   <Sparkles size={14} className="text-ukm-orange" />
                 )}
-                {view === "conversation"
-                  ? conversation?.partner.name
-                  : view === "groupConversation"
-                    ? groupConversation?.group.name
-                    : view === "groupSettings"
-                      ? "Tetapan Kumpulan"
-                      : view === "search"
-                        ? "Cari Rakan"
-                        : view === "createGroup"
-                          ? "Kumpulan Chat Baharu"
-                          : view === "aiConversation"
-                            ? "FolioBot AI"
-                            : "Mesej"}
+                {view === "conversation" ? (
+                  conversation?.partner.matricNum ? (
+                    <Link
+                      href={`/folio/u/${conversation.partner.matricNum}`}
+                      className="hover:text-ukm-teal hover:underline"
+                      title="Lihat profil"
+                    >
+                      {conversation.partner.name}
+                    </Link>
+                  ) : (
+                    conversation?.partner.name
+                  )
+                ) : view === "groupConversation" ? (
+                  groupConversation?.group.name
+                ) : view === "groupSettings" ? (
+                  "Tetapan Kumpulan"
+                ) : view === "search" ? (
+                  "Cari Rakan"
+                ) : view === "createGroup" ? (
+                  "Kumpulan Chat Baharu"
+                ) : view === "aiConversation" ? (
+                  "FolioBot AI"
+                ) : (
+                  "Mesej"
+                )}
               </h3>
               {view === "groupConversation" && groupConversation && (
                 <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
