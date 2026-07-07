@@ -214,40 +214,43 @@ export async function Navbar() {
         </div>
       </header>
 
-      <MessengerBubble
-        currentUserId={userId}
-        initialUnreadTotal={totalUnread}
-        initialContacts={contacts.map((c) => ({
-          id: c.id,
-          name: c.name,
-          role: c.role,
-          matricNum: c.matricNum,
-          unread: c.unread,
-          isFriend: c.isFriend,
-          relationship: c.relationship,
-          lastMessageAt: c.lastMessageAt ? c.lastMessageAt.toISOString() : null,
-        }))}
-        initialFriendRequests={pendingRequests.map((fr) => ({
-          id: fr.id,
-          sender: {
-            id: fr.sender.id,
-            name: fr.sender.name,
-            role: fr.sender.role,
-            matricNum: fr.sender.matricNum,
-          },
-        }))}
-        initialChatGroups={chatGroups.map((g) => ({
-          id: g.id,
-          name: g.name,
-          memberCount: g.memberCount,
-          unread: g.unread,
-          lastMessageAt: g.lastMessageAt ? g.lastMessageAt.toISOString() : null,
-          lastMessagePreview: g.lastMessagePreview,
-          lastSenderName: g.lastSenderName,
-          isAdmin: g.isAdmin,
-          origin: g.origin,
-        }))}
-      />
+      {/* Admins don't use the chatbox — only students/lecturers get the messenger. */}
+      {userRole !== "ADMIN" && (
+        <MessengerBubble
+          currentUserId={userId}
+          initialUnreadTotal={totalUnread}
+          initialContacts={contacts.map((c) => ({
+            id: c.id,
+            name: c.name,
+            role: c.role,
+            matricNum: c.matricNum,
+            unread: c.unread,
+            isFriend: c.isFriend,
+            relationship: c.relationship,
+            lastMessageAt: c.lastMessageAt ? c.lastMessageAt.toISOString() : null,
+          }))}
+          initialFriendRequests={pendingRequests.map((fr) => ({
+            id: fr.id,
+            sender: {
+              id: fr.sender.id,
+              name: fr.sender.name,
+              role: fr.sender.role,
+              matricNum: fr.sender.matricNum,
+            },
+          }))}
+          initialChatGroups={chatGroups.map((g) => ({
+            id: g.id,
+            name: g.name,
+            memberCount: g.memberCount,
+            unread: g.unread,
+            lastMessageAt: g.lastMessageAt ? g.lastMessageAt.toISOString() : null,
+            lastMessagePreview: g.lastMessagePreview,
+            lastSenderName: g.lastSenderName,
+            isAdmin: g.isAdmin,
+            origin: g.origin,
+          }))}
+        />
+      )}
     </>
   );
 }
