@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Clock,
   Crown,
+  FileCheck,
   Grid,
   Lock,
   LogOut,
@@ -33,6 +35,8 @@ type Member = {
   matricNum: string | null;
   role: "LEADER" | "MEMBER";
   contributionPct: number;
+  submitted: number;
+  totalAssignments: number;
   lastActivityAt: string | null;
   avatarPath?: string | null;
 };
@@ -325,11 +329,25 @@ export function GroupBrowser({
                             <p className="font-mono text-xs text-slate-500">
                               {m.matricNum ?? "—"}
                             </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600">
                               <div className="inline-flex items-center gap-1.5">
                                 <span className={cn("h-2 w-2 rounded-full", activity.dot)} />
                                 <span>{activity.text}</span>
                               </div>
+                              {m.totalAssignments > 0 && (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <FileCheck size={13} className="text-slate-400" />
+                                  <span>
+                                    {m.submitted}/{m.totalAssignments} dihantar
+                                  </span>
+                                </div>
+                              )}
+                              {m.totalAssignments > 0 &&
+                                m.submitted < m.totalAssignments / 2 && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-ukm-red">
+                                    <AlertTriangle size={10} /> Berisiko
+                                  </span>
+                                )}
                             </div>
                           </div>
                         </div>

@@ -186,6 +186,8 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
       avatarPath: member.student.avatarPath ?? null,
       role: member.role,
       contributionPct,
+      submitted,
+      totalAssignments: totalAssignmentsCount,
       lastActivityAt: lastBySender.get(member.studentId) ?? null,
     };
   };
@@ -203,6 +205,8 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
       avatarPath: string | null;
       role: "LEADER" | "MEMBER";
       contributionPct: number;
+      submitted: number;
+      totalAssignments: number;
       lastActivityAt: Date | null;
     }[];
   } | null = null;

@@ -3,39 +3,15 @@ import { auth } from "@/lib/auth";
 import { getMonitoringData, getTaughtCourses } from "@/server/queries/lecturer";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BulkAlertButton } from "./bulk-alert-button";
+import { GroupFilter } from "./group-filter";
 import { FastAlertButton } from "./fast-alert-button";
 import { BarChart3, AlertTriangle } from "lucide-react";
 import { relativeTime } from "@/lib/utils";
 
-// Single timing status per student, derived from their submission-timing counts.
-// Worst-case priority so the badge surfaces the most urgent signal.
-type TimingStatus = "AWAL" | "TEPAT" | "LEWAT" | "TERLEPAS";
-
-const STATUS_META: Record<TimingStatus, { label: string; cls: string }> = {
-  AWAL: { label: "Awal", cls: "bg-emerald-100 text-emerald-700" },
-  TEPAT: { label: "Tepat Masa", cls: "bg-sky-100 text-sky-700" },
-  LEWAT: { label: "Lewat", cls: "bg-amber-100 text-amber-700" },
-  TERLEPAS: { label: "Terlepas", cls: "bg-red-100 text-red-700" },
-};
-
-function rowStatus(r: {
-  earlyCount: number;
-  onTimeCount: number;
-  late: number;
-  missing: number;
-}): TimingStatus {
-  if (r.missing > 0) return "TERLEPAS";
-  if (r.late > 0) return "LEWAT";
-  if (r.onTimeCount > 0) return "TEPAT";
-  if (r.earlyCount > 0) return "AWAL";
-  // No submissions at all and nothing missing (e.g. no assignments yet).
-  return "TEPAT";
-}
-
 export default async function LecturerMonitoringPage({
   searchParams,
 }: {
-  searchParams: { course?: string };
+  searchParams: { course?: string; group?: string };
 }) {
   const session = await auth();
   const lecturerId = session!.user.id;
@@ -45,7 +21,24 @@ export default async function LecturerMonitoringPage({
   const selectedCourse = selectedCode ? courses.find((c) => c.code === selectedCode) : null;
 
   const data = selectedCourse ? await getMonitoringData(lecturerId, selectedCourse.id) : null;
-  const flaggedCount = data?.rows.filter((r) => r.flagged).length ?? 0;
+
+  // Group filter: the distinct group names present in this course's rows, plus
+  // an "ungrouped" bucket. `selectedGroup` narrows the table to one group so a
+  // lecturer can spot inactive students within it.
+  const UNGROUPED = "__none__";
+  const groupNames = data
+    ? Array.from(new Set(data.rows.map((r) => r.groupName).filter((g): g is string => !!g))).sort()
+    : [];
+  const hasUngrouped = data ? data.rows.some((r) => !r.groupName) : false;
+  const selectedGroup = searchParams.group ?? null;
+  const visibleRows = data
+    ? data.rows.filter((r) => {
+        if (!selectedGroup) return true;
+        if (selectedGroup === UNGROUPED) return !r.groupName;
+        return r.groupName === selectedGroup;
+      })
+    : [];
+  const flaggedCount = visibleRows.filter((r) => r.flagged).length;
 
   return (
     <div className="space-y-6">
@@ -57,7 +50,7 @@ export default async function LecturerMonitoringPage({
           <BulkAlertButton
             courseId={data.course.id}
             courseCode={data.course.code}
-            rows={data.rows.map((r) => ({
+            rows={visibleRows.map((r) => ({
               studentId: r.studentId,
               studentName: r.studentName,
               matricNum: r.matricNum,
@@ -80,6 +73,7 @@ export default async function LecturerMonitoringPage({
                 <Link
                   key={c.code}
                   href={`/lecturer/pemantauan?course=${c.code}`}
+                  title={c.title}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
                     active
                       ? "border-ukm-orange bg-orange-50 text-ukm-orange"
@@ -94,6 +88,16 @@ export default async function LecturerMonitoringPage({
 
           {data && (
             <>
+              {/* Group filter — only when the course actually has groups. */}
+              {(groupNames.length > 0 || hasUngrouped) && (
+                <GroupFilter
+                  courseCode={data.course.code}
+                  groups={groupNames}
+                  hasUngrouped={hasUngrouped}
+                  selected={selectedGroup}
+                />
+              )}
+
               {/* Two summary stat cards only. */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="card flex items-center gap-4">
@@ -101,7 +105,7 @@ export default async function LecturerMonitoringPage({
                     <BarChart3 className="text-ukm-teal" size={22} />
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-ukm-navy">{data.rows.length}</p>
+                    <p className="text-3xl font-bold text-ukm-navy">{visibleRows.length}</p>
                     <p className="text-xs uppercase tracking-wider text-slate-500">
                       Jumlah Pelajar
                     </p>
@@ -123,22 +127,21 @@ export default async function LecturerMonitoringPage({
               {/* Single horizontal stacked timing bar with inline labels. */}
               <TimingSummaryBar totals={data.summary.timingTotals} />
 
-              {data.rows.length === 0 ? (
-                <EmptyState title="Tiada pelajar berdaftar" />
+              {visibleRows.length === 0 ? (
+                <EmptyState title="Tiada pelajar dalam pilihan ini" />
               ) : (
                 <div className="card overflow-x-auto p-0">
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th>Pelajar</th>
-                        <th>Status</th>
+                        <th>Kumpulan</th>
                         <th>Online Terakhir</th>
                         <th className="text-center">Tindakan</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.rows.map((r) => {
-                        const status = STATUS_META[rowStatus(r)];
+                      {visibleRows.map((r) => {
                         return (
                           <tr
                             key={r.studentId}
@@ -156,11 +159,13 @@ export default async function LecturerMonitoringPage({
                               </p>
                             </td>
                             <td>
-                              <span
-                                className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.cls}`}
-                              >
-                                {status.label}
-                              </span>
+                              {r.groupName ? (
+                                <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+                                  {r.groupName}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] italic text-slate-400">—</span>
+                              )}
                             </td>
                             <td className="text-xs">
                               {r.lastSeenAt ? (
