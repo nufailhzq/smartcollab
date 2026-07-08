@@ -88,15 +88,22 @@ export function OnboardingTour({ steps }: { steps: TourStep[] }) {
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     };
 
-    // Bring the target into view, then re-measure across the scroll animation.
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    // Only scroll if the target isn't already fully in view — scrolling an
+    // element that's already visible (e.g. the sticky-navbar logo) shifts the
+    // page and lands the spotlight off-target.
+    const r0 = el.getBoundingClientRect();
+    const fullyInView =
+      r0.top >= 0 && r0.bottom <= window.innerHeight && r0.left >= 0 && r0.right <= window.innerWidth;
+    if (!fullyInView) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
     measure();
 
     let raf = 0;
     const start = performance.now();
     const tick = (now: number) => {
       measure();
-      if (now - start < 500) raf = requestAnimationFrame(tick);
+      if (now - start < 600) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
 
@@ -163,10 +170,13 @@ export function OnboardingTour({ steps }: { steps: TourStep[] }) {
 
   return (
     <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Tutorial">
-      {/* Dark overlay with a transparent hole over the spotlight via box-shadow. */}
+      {/* Dark overlay with a transparent hole over the spotlight via box-shadow.
+          FIXED (not absolute) so it uses the same viewport-relative coordinate
+          space as getBoundingClientRect() — otherwise the highlight detaches
+          from the target. */}
       {spotlight ? (
         <div
-          className="pointer-events-none absolute rounded-xl ring-2 ring-ukm-orange transition-all duration-300"
+          className="pointer-events-none fixed rounded-xl ring-2 ring-ukm-orange transition-all duration-200"
           style={{
             top: spotlight.top,
             left: spotlight.left,
@@ -176,12 +186,12 @@ export function OnboardingTour({ steps }: { steps: TourStep[] }) {
           }}
         />
       ) : (
-        <div className="absolute inset-0 bg-slate-900/70" />
+        <div className="fixed inset-0 bg-slate-900/70" />
       )}
 
-      {/* Tooltip card */}
+      {/* Tooltip card — also fixed, anchored to the (viewport-relative) spotlight. */}
       <div
-        className="absolute w-[320px] max-w-[calc(100vw-24px)] rounded-xl border border-slate-200 bg-white p-4 shadow-2xl animate-fade-in"
+        className="fixed w-[320px] max-w-[calc(100vw-24px)] rounded-xl border border-slate-200 bg-white p-4 shadow-2xl animate-fade-in"
         style={tooltipStyle}
       >
         <div className="mb-1 flex items-center justify-between">
