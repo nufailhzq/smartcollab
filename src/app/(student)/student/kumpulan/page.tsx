@@ -35,16 +35,12 @@ export default async function StudentGroupsPage({
     : null;
 
   return (
-    <div className="space-y-6">
-      <div className="gradient-hero-navy relative overflow-hidden rounded-2xl px-6 py-6 text-white shadow-sm">
-        <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-white/10" />
-        <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-white">Kumpulan Saya</h1>
-          <p className="mt-1 text-sm text-white/80">
-            Lihat dan urus kumpulan anda mengikut kursus
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-ukm-navy">Kumpulan Saya</h1>
+        <p className="text-sm text-slate-500">
+          Lihat dan urus kumpulan anda mengikut kursus
+        </p>
       </div>
 
       {reqCtx?.myGroup && (

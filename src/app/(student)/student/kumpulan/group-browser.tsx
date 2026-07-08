@@ -9,7 +9,6 @@ import {
   BarChart3,
   Clock,
   Crown,
-  FileCheck,
   Grid,
   Lock,
   LogOut,
@@ -183,27 +182,26 @@ export function GroupBrowser({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="card">
-        <div className="flex flex-wrap items-center gap-2">
-          {courses.map((c) => {
-            const active = c.code === selectedCode;
-            return (
-              <Link
-                key={c.code}
-                href={`/student/kumpulan?course=${c.code}`}
-                className={cn(
-                  "rounded-lg px-4 py-2 text-sm font-medium transition-all",
-                  active
-                    ? "bg-ukm-orange text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
-                )}
-              >
-                {c.code} — {c.title}
-              </Link>
-            );
-          })}
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {courses.map((c) => {
+          const active = c.code === selectedCode;
+          return (
+            <Link
+              key={c.code}
+              href={`/student/kumpulan?course=${c.code}`}
+              title={c.title}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
+                active
+                  ? "bg-ukm-orange text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+              )}
+            >
+              {c.code}
+            </Link>
+          );
+        })}
       </div>
 
       {selectedCode && (
@@ -223,28 +221,28 @@ export function GroupBrowser({
           )}
 
           {currentGroup ? (
-            <article className="animate-slide-up overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-spring hover:shadow-lift">
-              <header className="gradient-group flex items-center justify-between px-6 py-5 text-white">
-                <div className="flex items-center gap-4">
-                  <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/20">
-                    <Users size={24} />
+            <article className="animate-slide-up overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <header className="gradient-group flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-9 w-9 place-items-center rounded-lg bg-white/20">
+                    <Users size={18} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">{currentGroup.name}</h3>
-                    <p className="text-sm text-white/80">
+                    <h3 className="text-base font-bold text-white">{currentGroup.name}</h3>
+                    <p className="text-xs text-white/80">
                       {currentGroup.memberCount} / {currentGroup.maxMembers} ahli
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => onOpenChat(currentGroup.id)}
                     disabled={pending}
-                    className="inline-flex items-center gap-2 rounded-lg bg-white/95 px-4 py-2 text-sm font-semibold text-ukm-navy shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-semibold text-ukm-navy shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <MessageCircle size={16} className="text-ukm-teal" />
-                    Buka Chat Kumpulan
+                    <MessageCircle size={14} className="text-ukm-teal" />
+                    Chat Kumpulan
                   </button>
                   {groupsLocked ? (
                     pendingLeave ? (
@@ -252,19 +250,19 @@ export function GroupBrowser({
                         type="button"
                         onClick={() => onCancelRequest(pendingLeave.id)}
                         disabled={pending}
-                        className="inline-flex items-center gap-2 rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:bg-amber-500 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
                         title="Klik untuk batalkan permohonan"
                       >
-                        <Clock size={16} /> Permohonan Keluar Dihantar
+                        <Clock size={14} /> Permohonan Dihantar
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => onRequestLeave(currentGroup.id)}
                         disabled={pending}
-                        className="inline-flex items-center gap-2 rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-all duration-200 ease-spring hover:-translate-y-0.5 hover:bg-amber-500 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <Send size={16} /> Mohon Keluar
+                        <Send size={14} /> Mohon Keluar
                       </button>
                     )
                   ) : (
@@ -272,85 +270,75 @@ export function GroupBrowser({
                       type="button"
                       onClick={() => onLeave(currentGroup.id)}
                       disabled={pending}
-                      className="inline-flex items-center gap-2 rounded-lg bg-red-500/85 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/85 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <LogOut size={16} /> Keluar Kumpulan
+                      <LogOut size={14} /> Keluar
                     </button>
                   )}
                 </div>
               </header>
 
-              <div className="p-6">
-                <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <div className="p-4">
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Ahli Kumpulan ({currentGroup.memberCount})
                 </h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {currentGroup.members.map((m, idx) => {
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {currentGroup.members.map((m) => {
                     const isMe = m.studentId === studentId;
                     const activity = activityLabel(m.lastActivityAt);
+                    const atRisk =
+                      m.totalAssignments > 0 && m.submitted < m.totalAssignments / 2;
 
                     return (
                       <div
                         key={m.studentId}
-                        style={{ animationDelay: `${idx * 60}ms` }}
                         className={cn(
-                          "animate-slide-up rounded-xl border-2 p-4 transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:shadow-soft",
+                          "flex items-center gap-2.5 rounded-lg border px-2.5 py-2",
                           isMe
-                            ? "border-ukm-orange bg-orange-50"
-                            : "border-slate-200 bg-slate-50 hover:border-ukm-teal/40",
+                            ? "border-ukm-orange/60 bg-orange-50"
+                            : "border-slate-200 bg-slate-50",
                         )}
                       >
-                        <div className="flex items-start gap-4">
-                          <Avatar
-                            name={m.name}
-                            avatarPath={m.avatarPath}
-                            size="lg"
-                            ring
-                            className={cn(
-                              "h-14 w-14 border-2",
-                              isMe ? "border-ukm-orange" : "border-slate-200",
+                        <Avatar
+                          name={m.name}
+                          avatarPath={m.avatarPath}
+                          size="sm"
+                          className="h-9 w-9 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <h5 className="truncate text-sm font-semibold text-ukm-navy">
+                              {m.name}
+                            </h5>
+                            {m.role === "LEADER" && (
+                              <Crown size={12} className="shrink-0 text-amber-500" />
                             )}
-                          />
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h5 className="font-semibold text-ukm-navy">{m.name}</h5>
-                              {m.role === "LEADER" && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                                  <Crown size={10} /> Ketua
-                                </span>
-                              )}
-                              {isMe && (
-                                <span className="rounded-full bg-ukm-orange px-2 py-0.5 text-[10px] font-semibold text-white">
-                                  Anda
-                                </span>
-                              )}
-                            </div>
-                            <p className="font-mono text-xs text-slate-500">
+                            {isMe && (
+                              <span className="shrink-0 rounded-full bg-ukm-orange px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                                Anda
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className={cn("h-1.5 w-1.5 rounded-full", activity.dot)} />
+                            {m.totalAssignments > 0 && (
+                              <span>
+                                {m.submitted}/{m.totalAssignments} dihantar
+                              </span>
+                            )}
+                            <span className="truncate font-mono text-[10px] text-slate-400">
                               {m.matricNum ?? "—"}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600">
-                              <div className="inline-flex items-center gap-1.5">
-                                <span className={cn("h-2 w-2 rounded-full", activity.dot)} />
-                                <span>{activity.text}</span>
-                              </div>
-                              {m.totalAssignments > 0 && (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <FileCheck size={13} className="text-slate-400" />
-                                  <span>
-                                    {m.submitted}/{m.totalAssignments} dihantar
-                                  </span>
-                                </div>
-                              )}
-                              {m.totalAssignments > 0 &&
-                                m.submitted < m.totalAssignments / 2 && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-ukm-red">
-                                    <AlertTriangle size={10} /> Berisiko
-                                  </span>
-                                )}
-                            </div>
+                            </span>
                           </div>
                         </div>
+                        {atRisk && (
+                          <span
+                            title="Berisiko"
+                            className="shrink-0 rounded-full bg-red-50 p-1 text-ukm-red"
+                          >
+                            <AlertTriangle size={12} />
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -389,15 +377,13 @@ export function GroupBrowser({
               </div>
             </article>
           ) : (
-            <div className="flex items-center gap-4 rounded-xl border-2 border-amber-200 bg-amber-50 p-6">
-              <div className="grid h-14 w-14 place-items-center rounded-full bg-amber-200">
-                <AlertCircle className="text-amber-700" size={28} />
-              </div>
+            <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <AlertCircle className="shrink-0 text-amber-600" size={22} />
               <div>
-                <h3 className="text-lg font-semibold text-amber-800">
+                <h3 className="text-sm font-semibold text-amber-800">
                   Anda belum mempunyai kumpulan untuk kursus ini
                 </h3>
-                <p className="text-sm text-amber-700">
+                <p className="text-xs text-amber-700">
                   Sila pilih salah satu kumpulan di bawah untuk bergabung.
                 </p>
               </div>
@@ -405,68 +391,64 @@ export function GroupBrowser({
           )}
 
           <section>
-            <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ukm-navy">
-              <Grid size={20} className="text-ukm-teal" />
+            <h3 className="mb-3 flex items-center gap-2 text-base font-semibold text-ukm-navy">
+              <Grid size={16} className="text-ukm-teal" />
               {currentGroup ? "Kumpulan Lain" : "Kumpulan Tersedia"}
             </h3>
             {otherGroups.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white py-10 text-center text-sm text-slate-500">
-                <Users size={36} className="mx-auto mb-2 text-slate-300" />
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white py-6 text-center text-sm text-slate-500">
+                <Users size={28} className="mx-auto mb-2 text-slate-300" />
                 Tiada kumpulan lain tersedia untuk kursus ini.
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {otherGroups.map((g, idx) => {
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {otherGroups.map((g) => {
                   const isFull = !g.hasCapacity;
                   const pct = (g.memberCount / g.maxMembers) * 100;
                   return (
                     <article
                       key={g.id}
-                      style={{ animationDelay: `${idx * 70}ms` }}
-                      className="animate-slide-up overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-spring hover:-translate-y-1 hover:border-ukm-teal/40 hover:shadow-lift"
+                      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-ukm-teal/40 hover:shadow-lift"
                     >
-                      <div className="bg-ukm-navy px-4 py-3 text-white">
+                      <div className="bg-ukm-navy px-3 py-2 text-white">
                         <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-white">{g.name}</h4>
+                          <h4 className="truncate text-sm font-semibold text-white">{g.name}</h4>
                           <span
                             className={cn(
-                              "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                              "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
                               isFull ? "bg-red-500/30" : "bg-white/20",
                             )}
                           >
                             {g.memberCount}/{g.maxMembers}
                           </span>
                         </div>
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20">
+                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/20">
                           <div
                             className={cn(
-                              "h-2 rounded-full transition-all",
+                              "h-1.5 rounded-full transition-all",
                               isFull ? "bg-red-400" : "bg-white",
                             )}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
                       </div>
-                      <div className="p-4">
-                        <ul className="mb-4 min-h-[60px] space-y-1.5 text-sm">
+                      <div className="p-3">
+                        <ul className="mb-3 space-y-1 text-sm">
                           {g.memberPreviews.length === 0 ? (
-                            <li className="italic text-slate-400">Tiada ahli lagi.</li>
+                            <li className="text-xs italic text-slate-400">Tiada ahli lagi.</li>
                           ) : (
-                            g.memberPreviews.map((p) => (
+                            g.memberPreviews.slice(0, 3).map((p) => (
                               <li key={p.id} className="flex items-center gap-2">
-                                <div className="grid h-6 w-6 place-items-center rounded-full bg-sky-100 text-[10px] font-bold text-sky-700">
+                                <div className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-100 text-[9px] font-bold text-sky-700">
                                   {initials(p.name)}
                                 </div>
-                                <span className="text-slate-700">{p.name}</span>
-                                <span className="ml-auto font-mono text-[10px] text-slate-400">
-                                  {p.matricNum}
-                                </span>
+                                <span className="truncate text-xs text-slate-700">{p.name}</span>
                               </li>
                             ))
                           )}
-                          {g.memberCount > g.memberPreviews.length && (
-                            <li className="text-xs text-slate-500">
-                              +{g.memberCount - g.memberPreviews.length} lagi
+                          {g.memberCount > Math.min(3, g.memberPreviews.length) && (
+                            <li className="text-[11px] text-slate-500">
+                              +{g.memberCount - Math.min(3, g.memberPreviews.length)} lagi
                             </li>
                           )}
                         </ul>
@@ -479,11 +461,9 @@ export function GroupBrowser({
                                 onClick={() => onCancelRequest(pendingJoin.id)}
                                 disabled={pending}
                                 title="Klik untuk batalkan permohonan"
-                                className="w-full rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-soft transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:bg-amber-500 hover:shadow-lift disabled:opacity-50"
+                                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-amber-500 disabled:opacity-50"
                               >
-                                <span className="inline-flex items-center justify-center gap-2">
-                                  <Clock size={14} /> Permohonan Dihantar
-                                </span>
+                                <Clock size={13} /> Permohonan Dihantar
                               </button>
                             );
                           }
@@ -494,16 +474,14 @@ export function GroupBrowser({
                                 onClick={() => onRequestJoin(g.id)}
                                 disabled={pending || isFull}
                                 className={cn(
-                                  "w-full rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ease-spring",
+                                  "inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition",
                                   isFull
                                     ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-soft hover:-translate-y-0.5 hover:shadow-lift",
+                                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-soft hover:-translate-y-0.5",
                                 )}
                               >
-                                <span className="inline-flex items-center justify-center gap-2">
-                                  <Send size={14} />
-                                  {isFull ? "Kumpulan Penuh" : "Mohon Sertai"}
-                                </span>
+                                <Send size={13} />
+                                {isFull ? "Kumpulan Penuh" : "Mohon Sertai"}
                               </button>
                             );
                           }
@@ -513,16 +491,14 @@ export function GroupBrowser({
                               onClick={() => onJoin(g.id)}
                               disabled={pending || isFull}
                               className={cn(
-                                "w-full rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ease-spring",
+                                "inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition",
                                 isFull
                                   ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                                  : "bg-ukm-orange text-white shadow-soft hover:-translate-y-0.5 hover:bg-orange-600 hover:shadow-lift",
+                                  : "bg-ukm-orange text-white shadow-soft hover:-translate-y-0.5 hover:bg-orange-600",
                               )}
                             >
-                              <span className="inline-flex items-center justify-center gap-2">
-                                <UserPlus size={14} />
-                                {isFull ? "Kumpulan Penuh" : "Sertai Kumpulan"}
-                              </span>
+                              <UserPlus size={13} />
+                              {isFull ? "Kumpulan Penuh" : "Sertai Kumpulan"}
                             </button>
                           );
                         })()}
