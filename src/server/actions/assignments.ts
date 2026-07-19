@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyMany, notifyUser } from "@/lib/notifications";
 import { saveSubmissionFile } from "@/lib/submission-uploads";
+import { logContributionForAssignment } from "@/server/actions/contribution";
 import { idSchema } from "@/schemas/common";
 import type { ActionResult } from "@/schemas/common";
 
@@ -105,6 +106,12 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
       }),
     ),
   );
+
+  // Free-rider signal: record the submit as a STATUS_CHANGE contribution for
+  // the submitter. Fire-and-forget — never blocks the submission.
+  if (assignment.type === "GROUP") {
+    void logContributionForAssignment(submitterId, assignmentId, "STATUS_CHANGE");
+  }
 
   // Confirmation to the submitter.
   await notifyUser(submitterId, {

@@ -100,6 +100,16 @@ enum PostVisibility {
   FRIENDS
 }
 
+/// Kinds of student action recorded in ContributionLog for the free-rider
+/// activity signal. COMMENT / STATUS_CHANGE are meaningful work signals;
+/// PAGE_VIEW / LOGIN are lighter presence signals.
+enum ContributionActionType {
+  COMMENT
+  STATUS_CHANGE
+  PAGE_VIEW
+  LOGIN
+}
+
 model User {
   id                 Int       @id @default(autoincrement()) @map("fld_user_id")
   name               String    @map("fld_name")
@@ -167,6 +177,12 @@ model User {
   timetable               TimetableEntry[]
   sentGroupInvites        GroupInvite[]        @relation("InviteInviter")
   receivedGroupInvites    GroupInvite[]        @relation("InviteInvitee")
+
+  // Free-rider / contribution tracking
+  peerAssessmentsGiven    PeerAssessment[]          @relation("PeerRater")
+  peerAssessmentsReceived PeerAssessment[]          @relation("PeerRatee")
+  contributionLogs        ContributionLog[]
+  selfDeclarations        SelfDeclaredContribution[]
 
   // NextAuth (database session strategy) tables
   accounts Account[]
@@ -244,6 +260,9 @@ model Assignment {
   attachments AssignmentAttachment[]
   adHocGroups ProjectGroup[]         @relation("AdHocGroups")
   groupInvites GroupInvite[]
+  peerAssessments PeerAssessment[]
+  contributionLogs ContributionLog[]
+  selfDeclarations SelfDeclaredContribution[]
 
   @@index([courseId])
   @@map("assignments")
@@ -311,10 +330,13 @@ model ProjectGroup {
   chatGroupId  Int?        @unique @map("fld_chat_group_id")
   createdAt    DateTime    @default(now())
 
-  members        GroupMember[]
-  events         CalendarEvent[]
-  accessRequests GroupAccessRequest[]
-  invites        GroupInvite[]
+  members          GroupMember[]
+  events           CalendarEvent[]
+  accessRequests   GroupAccessRequest[]
+  invites          GroupInvite[]
+  peerAssessments  PeerAssessment[]
+  contributionLogs ContributionLog[]
+  selfDeclarations SelfDeclaredContribution[]
 
   @@index([courseId])
   @@index([assignmentId])
@@ -646,6 +668,68 @@ model MonitoringNote {
   @@unique([courseId, lecturerId, studentId], map: "uniq_monitoring_note")
   @@index([courseId, lecturerId])
   @@map("monitoring_notes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Free-rider detection — peer assessment, activity log, self-declaration.
+// These give per-member contribution signal for GROUP assignments, which submit
+// as one propagated row per member and so carry no individual signal on their own.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One student rating one teammate's contribution for a specific assignment.
+model PeerAssessment {
+  id                Int          @id @default(autoincrement()) @map("fld_peer_id")
+  assignment        Assignment   @relation(fields: [tugasanId], references: [id], onDelete: Cascade)
+  tugasanId         Int          @map("fld_assignment_id")
+  group             ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId           Int          @map("fld_group_id")
+  rater             User         @relation("PeerRater", fields: [raterId], references: [id], onDelete: Cascade)
+  raterId           Int          @map("fld_rater_id")
+  ratee             User         @relation("PeerRatee", fields: [rateeId], references: [id], onDelete: Cascade)
+  rateeId           Int          @map("fld_ratee_id")
+  contributionScore Int          @map("fld_contribution_score")
+  comment           String?      @map("fld_comment") @db.Text
+  createdAt         DateTime     @default(now()) @map("fld_created_at")
+
+  @@unique([tugasanId, raterId, rateeId], map: "uniq_peer_assessment")
+  @@index([tugasanId, rateeId])
+  @@index([groupId])
+  @@map("peer_assessments")
+}
+
+/// Lightweight per-student action log, the raw material for the activity signal.
+model ContributionLog {
+  id         Int                    @id @default(autoincrement()) @map("fld_log_id")
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     Int                    @map("fld_user_id")
+  group      ProjectGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId    Int                    @map("fld_group_id")
+  assignment Assignment?            @relation(fields: [tugasanId], references: [id], onDelete: Cascade)
+  tugasanId  Int?                   @map("fld_assignment_id")
+  actionType ContributionActionType @map("fld_action_type")
+  createdAt  DateTime               @default(now()) @map("fld_created_at")
+
+  @@index([groupId, tugasanId])
+  @@index([userId, createdAt])
+  @@map("contribution_logs")
+}
+
+/// A student's own description of what they contributed to an assignment.
+model SelfDeclaredContribution {
+  id          Int          @id @default(autoincrement()) @map("fld_self_id")
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int          @map("fld_user_id")
+  group       ProjectGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId     Int          @map("fld_group_id")
+  assignment  Assignment   @relation(fields: [tugasanId], references: [id], onDelete: Cascade)
+  tugasanId   Int          @map("fld_assignment_id")
+  description String       @map("fld_description") @db.Text
+  createdAt   DateTime     @default(now()) @map("fld_created_at")
+  updatedAt   DateTime     @updatedAt @map("fld_updated_at")
+
+  @@unique([userId, tugasanId], map: "uniq_self_declaration")
+  @@index([groupId, tugasanId])
+  @@map("self_declared_contributions")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

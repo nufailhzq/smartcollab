@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getMonitoringData, getTaughtCourses } from "@/server/queries/lecturer";
+import { getCourseContributionScores } from "@/server/actions/contribution";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BulkAlertButton } from "./bulk-alert-button";
 import { GroupFilter } from "./group-filter";
-import { FastAlertButton } from "./fast-alert-button";
+import { MonitoringTable } from "./monitoring-table";
 import { BarChart3, AlertTriangle } from "lucide-react";
-import { relativeTime } from "@/lib/utils";
 
 export default async function LecturerMonitoringPage({
   searchParams,
@@ -20,7 +20,12 @@ export default async function LecturerMonitoringPage({
   const selectedCode = (searchParams.course ?? courses[0]?.code ?? null)?.toUpperCase() ?? null;
   const selectedCourse = selectedCode ? courses.find((c) => c.code === selectedCode) : null;
 
-  const data = selectedCourse ? await getMonitoringData(lecturerId, selectedCourse.id) : null;
+  const [data, contribScores] = selectedCourse
+    ? await Promise.all([
+        getMonitoringData(lecturerId, selectedCourse.id),
+        getCourseContributionScores(selectedCourse.id),
+      ])
+    : [null, new Map<number, { score: number | null; riskFlag: boolean }>()];
 
   // Group filter: the distinct group names present in this course's rows, plus
   // an "ungrouped" bucket. `selectedGroup` narrows the table to one group so a
@@ -31,20 +36,32 @@ export default async function LecturerMonitoringPage({
     : [];
   const hasUngrouped = data ? data.rows.some((r) => !r.groupName) : false;
   const selectedGroup = searchParams.group ?? null;
-  const visibleRows = data
-    ? data.rows.filter((r) => {
-        if (!selectedGroup) return true;
-        if (selectedGroup === UNGROUPED) return !r.groupName;
-        return r.groupName === selectedGroup;
-      })
-    : [];
-  const flaggedCount = visibleRows.filter((r) => r.flagged).length;
+  const visibleRows = (
+    data
+      ? data.rows.filter((r) => {
+          if (!selectedGroup) return true;
+          if (selectedGroup === UNGROUPED) return !r.groupName;
+          return r.groupName === selectedGroup;
+        })
+      : []
+  ).map((r) => {
+    const c = contribScores.get(r.studentId);
+    return {
+      ...r,
+      contributionScore: c?.score ?? null,
+      contributionRisk: c?.riskFlag ?? false,
+    };
+  });
+
+  // "Pelajar Berisiko" now counts the existing academic flag OR a free-rider
+  // contribution risk flag (Phase 3.4).
+  const flaggedCount = visibleRows.filter((r) => r.flagged || r.contributionRisk).length;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-ukm-navy">
-          <BarChart3 size={24} className="text-ukm-teal" /> Progress Monitoring
+          <BarChart3 size={24} className="text-ukm-teal" /> Pemantauan Kemajuan
         </h1>
         {data && (
           <BulkAlertButton
@@ -130,78 +147,20 @@ export default async function LecturerMonitoringPage({
               {visibleRows.length === 0 ? (
                 <EmptyState title="Tiada pelajar dalam pilihan ini" />
               ) : (
-                <div className="card overflow-x-auto p-0">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Pelajar</th>
-                        <th>Kumpulan</th>
-                        <th>Online Terakhir</th>
-                        <th className="text-center">Tindakan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleRows.map((r) => {
-                        return (
-                          <tr
-                            key={r.studentId}
-                            // At-risk rows get a subtle red left accent — no per-row icons.
-                            className={
-                              r.flagged
-                                ? "border-l-4 border-ukm-red bg-red-50/30"
-                                : "border-l-4 border-transparent"
-                            }
-                          >
-                            <td>
-                              <p className="font-semibold text-ukm-navy">{r.studentName}</p>
-                              <p className="font-mono text-[11px] text-slate-500">
-                                {r.matricNum ?? "—"}
-                              </p>
-                            </td>
-                            <td>
-                              {r.groupName ? (
-                                <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
-                                  {r.groupName}
-                                </span>
-                              ) : (
-                                <span className="text-[11px] italic text-slate-400">—</span>
-                              )}
-                            </td>
-                            <td className="text-xs">
-                              {r.lastSeenAt ? (
-                                <span
-                                  className={
-                                    Date.now() - r.lastSeenAt.getTime() < 10 * 60 * 1000
-                                      ? "inline-flex items-center gap-1 font-semibold text-emerald-600"
-                                      : Date.now() - r.lastSeenAt.getTime() < 24 * 60 * 60 * 1000
-                                        ? "text-slate-600"
-                                        : "text-slate-400"
-                                  }
-                                  title={r.lastSeenAt.toLocaleString("ms-MY")}
-                                >
-                                  {Date.now() - r.lastSeenAt.getTime() < 10 * 60 * 1000 && (
-                                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                  )}
-                                  {relativeTime(r.lastSeenAt)}
-                                </span>
-                              ) : (
-                                <span className="italic text-slate-400">belum dilihat</span>
-                              )}
-                            </td>
-                            <td className="text-center">
-                              <FastAlertButton
-                                courseId={data.course.id}
-                                studentId={r.studentId}
-                                studentName={r.studentName}
-                                flagReason={r.flagReason}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <MonitoringTable
+                  courseId={data.course.id}
+                  rows={visibleRows.map((r) => ({
+                    studentId: r.studentId,
+                    studentName: r.studentName,
+                    matricNum: r.matricNum,
+                    groupName: r.groupName,
+                    lastSeenAt: r.lastSeenAt ? r.lastSeenAt.toISOString() : null,
+                    flagged: r.flagged,
+                    flagReason: r.flagReason,
+                    contributionScore: r.contributionScore,
+                    contributionRisk: r.contributionRisk,
+                  }))}
+                />
               )}
             </>
           )}

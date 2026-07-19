@@ -36,7 +36,7 @@ const STUDENT_TABS: Tab[] = [
 const LECTURER_TABS: Tab[] = [
   { href: "/lecturer/penghantaran", label: "Penghantaran Pelajar", Icon: FileCheck },
   { href: "/lecturer/pengurusan-kumpulan", label: "Urus Kumpulan", Icon: Users },
-  { href: "/lecturer/pemantauan", label: "Progress Monitoring", Icon: BarChart3 },
+  { href: "/lecturer/pemantauan", label: "Pemantauan Kemajuan", Icon: BarChart3 },
 ];
 
 const ADMIN_TABS: Tab[] = [

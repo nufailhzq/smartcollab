@@ -211,7 +211,7 @@ export default async function LecturerDashboard() {
               <ShortcutLink href="/lecturer/kursus" label="Senarai Kursus Saya" />
               <ShortcutLink href="/lecturer/pengurusan-kumpulan" label="Urus Kumpulan Pelajar" />
               <ShortcutLink href="/lecturer/penghantaran" label="Penghantaran & Markah" />
-              <ShortcutLink href="/lecturer/pemantauan" label="Progress Monitoring" />
+              <ShortcutLink href="/lecturer/pemantauan" label="Pemantauan Kemajuan" />
               <ShortcutLink href="/lecturer/kalendar" label="Kalendar" />
             </ul>
           </section>

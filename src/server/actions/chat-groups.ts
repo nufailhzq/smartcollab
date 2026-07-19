@@ -412,6 +412,25 @@ export async function sendChatGroupMessage(
     data: { lastReadAt: new Date() },
   });
 
+  // Free-rider signal: a message in a project-group chat counts as a COMMENT
+  // contribution. Fire-and-forget — only when this chat group is paired with a
+  // ProjectGroup (course/ad-hoc), and never blocks the send.
+  void (async () => {
+    try {
+      const pg = await prisma.projectGroup.findFirst({
+        where: { chatGroupId: parsed.data.chatGroupId },
+        select: { id: true },
+      });
+      if (pg) {
+        await prisma.contributionLog.create({
+          data: { userId: me, groupId: pg.id, actionType: "COMMENT" },
+        });
+      }
+    } catch (err) {
+      console.error("contribution log (group comment) failed:", err);
+    }
+  })();
+
   revalidatePath("/student");
   revalidatePath("/lecturer");
   revalidatePath("/admin");

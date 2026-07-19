@@ -75,7 +75,7 @@ const STEPS_BY_ROLE: Record<Role, TourStep[]> = {
     },
     {
       target: "nav-pemantauan",
-      title: "Progress Monitoring",
+      title: "Pemantauan Kemajuan",
       body: "Pantau kemajuan dan kenal pasti pelajar berisiko.",
     },
     ...COMMON_TAIL,

@@ -176,7 +176,10 @@ export const MS_TO_EN: Record<string, string> = {
   "Sila pilih fail imej.": "Please choose an image file.",
 
   // ─── Monitoring ────────────────────────────────────────────────────────
-  "Progress Monitoring": "Progress Monitoring",
+  "Pemantauan Kemajuan": "Progress Monitoring",
+  "Skor Sumbangan": "Contribution Score",
+  "Penilaian Rakan Sekumpulan": "Peer Assessment",
+  "Sumbangan Sendiri": "Self Declaration",
   "Signal sebenar daripada data penghantaran — bukan data tiruan. Pelajar berisiko ditanda di bahagian atas.":
     "Real signal from submission data — not mock data. At-risk students are flagged at the top.",
   "Tiada kursus diajar": "No courses taught",

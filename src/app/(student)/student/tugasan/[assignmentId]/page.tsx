@@ -8,7 +8,12 @@ import { formatDateTime } from "@/lib/utils";
 import { SubmissionForm } from "./submission-form";
 import { AdHocBoardView } from "./adhoc-board";
 import { GroupSubmissionsView } from "./group-submissions";
+import { PeerContributionPanel } from "./peer-contribution-panel";
 import { TrackAccess } from "@/components/dashboard/TrackAccess";
+import {
+  logContributionForAssignment,
+  getMyContributionInputs,
+} from "@/server/actions/contribution";
 
 export default async function AssignmentDetailPage({
   params,
@@ -29,12 +34,15 @@ export default async function AssignmentDetailPage({
     assignment.groupingMode === "CUSTOM" ||
     assignment.groupingMode === "OPEN" ||
     assignment.groupingMode === "RANDOM";
-  const [board, groupSubmissions] = await Promise.all([
+  const [board, groupSubmissions, contributionInputs] = await Promise.all([
     isAdHoc
       ? getAdHocBoard(assignment.id, session!.user.id, session!.user.role)
       : Promise.resolve(null),
     assignment.type === "GROUP"
       ? getGroupSubmissions(session!.user.id, assignment.id)
+      : Promise.resolve(null),
+    assignment.type === "GROUP"
+      ? getMyContributionInputs(assignment.id)
       : Promise.resolve(null),
   ]);
 
@@ -43,6 +51,12 @@ export default async function AssignmentDetailPage({
   const isPast = due ? due < new Date() : false;
 
   const currentUserId = session!.user.id;
+
+  // Free-rider signal: record a PAGE_VIEW for group assignments (fire-and-forget,
+  // resolves the student's group internally; a no-op for individual work).
+  if (assignment.type === "GROUP") {
+    void logContributionForAssignment(currentUserId, assignment.id, "PAGE_VIEW");
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -112,6 +126,20 @@ export default async function AssignmentDetailPage({
 
       {groupSubmissions && (
         <GroupSubmissionsView data={groupSubmissions} viewerId={currentUserId} />
+      )}
+
+      {/* Free-rider detection: peer assessment + self-declaration, only for a
+          GROUP assignment where the viewer is actually in a group. */}
+      {groupSubmissions && contributionInputs && (
+        <PeerContributionPanel
+          tugasanId={assignment.id}
+          teammates={groupSubmissions.entries
+            .filter((e) => e.memberId !== currentUserId)
+            .map((e) => ({ id: e.memberId, name: e.memberName, matricNum: e.memberMatric }))}
+          initialRatings={contributionInputs.ratings}
+          initialSelfDescription={contributionInputs.selfDescription}
+          submitted={groupSubmissions.entries.some((e) => e.filePath !== null)}
+        />
       )}
     </div>
   );
