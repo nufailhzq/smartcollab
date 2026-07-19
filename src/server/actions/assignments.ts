@@ -47,6 +47,13 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
     return { ok: false, error: "Anda tidak berdaftar dalam kursus ini." };
   }
 
+  // Hard cutoff (separate from the soft dueDate). Past dueDate alone is fine —
+  // it's just marked LATE. But if the lecturer has closed submissions and that
+  // moment has passed, block the upload.
+  if (assignment.submissionCloseAt && new Date() > assignment.submissionCloseAt) {
+    return { ok: false, error: "Penghantaran untuk tugasan ini telah ditutup." };
+  }
+
   // Save the uploaded file only after we've confirmed the student may submit.
   const saved = await saveSubmissionFile(file);
   if (!saved.ok) return { ok: false, error: saved.error };

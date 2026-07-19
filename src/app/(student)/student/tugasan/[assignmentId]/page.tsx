@@ -50,6 +50,14 @@ export default async function AssignmentDetailPage({
   const due = assignment.dueDate ? new Date(assignment.dueDate) : null;
   const isPast = due ? due < new Date() : false;
 
+  // Hard submission cutoff (separate from the soft due date).
+  const submissionClosed = assignment.submissionCloseAt
+    ? new Date() > assignment.submissionCloseAt
+    : false;
+  const closeAtIso = assignment.submissionCloseAt
+    ? assignment.submissionCloseAt.toISOString()
+    : null;
+
   const currentUserId = session!.user.id;
 
   // Free-rider signal: record a PAGE_VIEW for group assignments (fire-and-forget,
@@ -98,6 +106,9 @@ export default async function AssignmentDetailPage({
         assignmentId={assignment.id}
         isGroupAssignment={assignment.type === "GROUP"}
         currentUserId={currentUserId}
+        closed={submissionClosed}
+        closeAt={closeAtIso}
+        pastDue={isPast}
         existing={
           sub
             ? {

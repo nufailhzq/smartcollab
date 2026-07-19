@@ -19,6 +19,7 @@ import { ProgressGrid } from "@/components/progress/ProgressGrid";
 import { getAdHocBoard, type AdHocBoard } from "@/server/queries/ad-hoc-groups";
 import { LecturerGroupControls } from "./lecturer-group-controls";
 import { DeleteItemButton } from "./delete-item-button";
+import { EditContentButton, EditAssignmentButton } from "./edit-item-buttons";
 
 type Tab = "general" | "notes" | "tugasan" | "kumpulan" | "progress";
 
@@ -147,6 +148,11 @@ export default async function LecturerCourseDetailPage({
                     <span>{c.type}</span>
                   )}
                   <span className="ml-auto">{formatDateTime(c.postedAt)}</span>
+                  <EditContentButton
+                    id={c.id}
+                    initialTitle={c.title}
+                    initialContent={c.content}
+                  />
                   <DeleteItemButton kind="content" id={c.id} label={c.title} />
                 </div>
                 <h3 className="text-base font-semibold text-ukm-navy">{c.title}</h3>
@@ -175,6 +181,11 @@ export default async function LecturerCourseDetailPage({
                     {n.fileName ?? "—"} · {formatDateTime(n.postedAt)}
                   </p>
                 </div>
+                <EditContentButton
+                  id={n.id}
+                  initialTitle={n.title}
+                  initialContent={n.content}
+                />
                 <DeleteItemButton kind="content" id={n.id} label={n.title} />
               </article>
             ))
@@ -206,7 +217,22 @@ export default async function LecturerCourseDetailPage({
                         >
                           {a.type === "GROUP" ? "Kumpulan" : "Individu"}
                         </span>
+                        <EditAssignmentButton
+                          id={a.id}
+                          initialTitle={a.title}
+                          initialDescription={a.description}
+                          initialDueDate={a.dueDate ? a.dueDate.toISOString() : null}
+                          initialMaxGrade={a.maxGrade}
+                          initialSubmissionCloseAt={
+                            a.submissionCloseAt ? a.submissionCloseAt.toISOString() : null
+                          }
+                        />
                         <DeleteItemButton kind="assignment" id={a.id} label={a.title} />
+                        {a.submissionCloseAt && new Date() > a.submissionCloseAt && (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-ukm-red">
+                            Penghantaran Ditutup
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
                         Tarikh akhir:{" "}

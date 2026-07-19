@@ -242,6 +242,11 @@ model Assignment {
   groupingMode GroupingMode   @default(INHERIT) @map("fld_grouping_mode")
   dueDate      DateTime?      @map("fld_due_date")
   maxGrade     Int?           @map("fld_max_grade")
+  /// Hard submission cutoff, separate from the (soft) dueDate. Null = submissions
+  /// stay open (late ones are just marked LATE). When set, students cannot submit
+  /// once this moment has passed. The lecturer's "Tutup Penghantaran" toggle sets
+  /// this to a chosen datetime (or now, to close immediately) and clears it to reopen.
+  submissionCloseAt DateTime? @map("fld_submission_close_at")
   /// OPEN mode only: after this moment, students can no longer join/be invited
   /// into the assignment's open groups (existing memberships are untouched).
   /// Null = no auto-lock.

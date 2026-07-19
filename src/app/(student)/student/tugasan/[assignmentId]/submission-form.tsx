@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileCheck, MessageSquare, UserCheck } from "lucide-react";
+import { Upload, FileCheck, MessageSquare, UserCheck, Lock, AlertTriangle } from "lucide-react";
 import { submitAssignment } from "@/server/actions/assignments";
 import { useToast } from "@/components/common/Toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -26,6 +26,12 @@ type Props = {
   existing: Existing | null;
   isGroupAssignment: boolean;
   currentUserId: number;
+  /** True when the lecturer has closed submissions and that moment has passed. */
+  closed: boolean;
+  /** The close cutoff (ISO), for display when closed. */
+  closeAt: string | null;
+  /** True when the (soft) due date has passed — submissions still allowed but LATE. */
+  pastDue: boolean;
 };
 
 /** Recover the original filename from a stored submission path for display. */
@@ -35,7 +41,15 @@ function displayName(p: string): string {
   return idx >= 0 ? tail.slice(idx + 2) : tail;
 }
 
-export function SubmissionForm({ assignmentId, existing, isGroupAssignment, currentUserId }: Props) {
+export function SubmissionForm({
+  assignmentId,
+  existing,
+  isGroupAssignment,
+  currentUserId,
+  closed,
+  closeAt,
+  pastDue,
+}: Props) {
   const router = useRouter();
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -77,7 +91,7 @@ export function SubmissionForm({ assignmentId, existing, isGroupAssignment, curr
               {existing.status === "GRADED"
                 ? "Dimarkah"
                 : existing.status === "LATE"
-                  ? "Lewat"
+                  ? "Penghantaran Lewat"
                   : "Dihantar"}
             </h2>
             {existing.status === "GRADED" && existing.grade !== null && (
@@ -144,33 +158,53 @@ export function SubmissionForm({ assignmentId, existing, isGroupAssignment, curr
         </article>
       ) : null}
 
-      <form onSubmit={onSubmit} className="card space-y-3">
-        <h2 className="text-base font-semibold">
-          {existing ? "Hantar semula" : "Hantar tugasan"}
-        </h2>
-        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 transition hover:border-ukm-teal hover:bg-slate-50">
-          <Upload className="text-ukm-teal" size={20} />
-          <div className="flex-1">
-            <p className="text-sm font-medium">
-              {file ? file.name : "Klik untuk pilih fail"}
+      {closed ? (
+        <div className="card flex items-start gap-3 border-red-300/50 bg-red-50">
+          <Lock className="mt-0.5 shrink-0 text-red-500" size={20} />
+          <div className="text-sm text-red-700">
+            <p className="font-semibold">Penghantaran telah ditutup</p>
+            <p className="text-xs text-red-600">
+              Pensyarah telah menutup penghantaran untuk tugasan ini
+              {closeAt ? ` pada ${formatDateTime(closeAt)}` : ""}. Anda tidak lagi boleh
+              menghantar.
             </p>
-            <p className="text-xs text-slate-500">PDF, DOCX, ZIP — sehingga 10 MB</p>
           </div>
-          <input
-            type="file"
-            className="sr-only"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={isPending || !file}
-          className="btn-primary inline-flex items-center gap-2"
-        >
-          {isPending && <LoadingSpinner />}
-          {existing ? "Hantar Semula" : "Hantar"}
-        </button>
-      </form>
+        </div>
+      ) : (
+        <form onSubmit={onSubmit} className="card space-y-3">
+          <h2 className="text-base font-semibold">
+            {existing ? "Hantar semula" : "Hantar tugasan"}
+          </h2>
+          {pastDue && (
+            <p className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
+              <AlertTriangle size={12} /> Tarikh akhir telah berlalu — penghantaran anda akan
+              ditanda sebagai &ldquo;Penghantaran Lewat&rdquo;.
+            </p>
+          )}
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 transition hover:border-ukm-teal hover:bg-slate-50">
+            <Upload className="text-ukm-teal" size={20} />
+            <div className="flex-1">
+              <p className="text-sm font-medium">
+                {file ? file.name : "Klik untuk pilih fail"}
+              </p>
+              <p className="text-xs text-slate-500">PDF, DOCX, ZIP — sehingga 10 MB</p>
+            </div>
+            <input
+              type="file"
+              className="sr-only"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={isPending || !file}
+            className="btn-primary inline-flex items-center gap-2"
+          >
+            {isPending && <LoadingSpinner />}
+            {existing ? "Hantar Semula" : "Hantar"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

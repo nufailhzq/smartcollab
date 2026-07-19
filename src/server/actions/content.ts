@@ -14,6 +14,8 @@ import {
   createCourseContentSchema,
   deleteAssignmentSchema,
   deleteCourseContentSchema,
+  updateAssignmentSchema,
+  updateCourseContentSchema,
 } from "@/schemas/content";
 import type { ActionResult } from "@/schemas/common";
 
@@ -178,6 +180,39 @@ export async function deleteCourseContent(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
+/**
+ * Edit an existing note / announcement / general content — title + body text.
+ * The attached file (if any) is left untouched. Lecturer-of-course only.
+ */
+export async function updateCourseContent(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
+
+  const parsed = updateCourseContentSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const content = await prisma.courseContent.findUnique({
+    where: { id: parsed.data.contentId },
+    include: { course: { select: { code: true, lecturerId: true } } },
+  });
+  if (!content) return { ok: false, error: "Kandungan tidak wujud." };
+  if (content.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+
+  await prisma.courseContent.update({
+    where: { id: content.id },
+    data: { title: parsed.data.title, content: parsed.data.content || null },
+  });
+
+  revalidatePath(`/student/kursus/${content.course.code}`);
+  revalidatePath(`/lecturer/kursus/${content.course.code}`);
+  return { ok: true };
+}
+
 export async function createAssignment(raw: unknown): Promise<ActionResult> {
   const session = await auth();
   if (!session) return { ok: false, error: "Sesi tidak sah." };
@@ -305,6 +340,52 @@ export async function deleteAssignment(raw: unknown): Promise<ActionResult> {
 
   await prisma.assignment.delete({ where: { id: a.id } });
   revalidatePath(`/student/kursus/${a.course.code}`);
+  revalidatePath(`/lecturer/kursus/${a.course.code}`);
+  revalidatePath(`/lecturer/penghantaran`);
+  return { ok: true };
+}
+
+/**
+ * Edit an existing assignment: title, description, due date, max grade, and the
+ * submission-close cutoff. Grouping mode / type are NOT editable (changing them
+ * would break existing groups and submissions). Existing submissions are kept
+ * as-is. Lecturer-of-course only.
+ */
+export async function updateAssignment(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER") return { ok: false, error: "Tidak dibenarkan." };
+
+  const parsed = updateAssignmentSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const a = await prisma.assignment.findUnique({
+    where: { id: parsed.data.assignmentId },
+    include: { course: { select: { code: true, lecturerId: true } } },
+  });
+  if (!a) return { ok: false, error: "Tugasan tidak wujud." };
+  if (a.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+
+  await prisma.assignment.update({
+    where: { id: a.id },
+    data: {
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      dueDate: new Date(parsed.data.dueDate),
+      maxGrade: parsed.data.maxGrade,
+      // "" clears the cutoff (reopen); a datetime sets it (close at/after).
+      submissionCloseAt: parsed.data.submissionCloseAt
+        ? new Date(parsed.data.submissionCloseAt)
+        : null,
+    },
+  });
+
+  revalidatePath(`/student/kursus/${a.course.code}`);
+  revalidatePath(`/student/tugasan/${a.id}`);
   revalidatePath(`/lecturer/kursus/${a.course.code}`);
   revalidatePath(`/lecturer/penghantaran`);
   return { ok: true };
