@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyUser } from "@/lib/notifications";
 import {
   submitPeerAssessmentSchema,
   submitSelfDeclarationSchema,
@@ -489,18 +490,40 @@ export async function getGroupContributionDetail(
  * flattens to a per-student map: a combined 0–100 "Skor Sumbangan" (peer-weighted,
  * activity as a modifier) and the riskFlag. A student appears once; if they're in
  * multiple groups their worst (lowest) group score is kept.
+ *
+ * `tugasanId` optional: when given, the signal is scoped to that one tugasan —
+ * peer + activity are counted only for that assignment, and only the groups that
+ * apply to it (its ad-hoc group, or the course's standing groups for INHERIT
+ * assignments) are considered. When omitted, everything is summed across the
+ * course's whole history ("Semua").
  */
 export async function getCourseContributionScores(
   courseId: number,
+  tugasanId?: number,
 ): Promise<Map<number, { score: number | null; riskFlag: boolean }>> {
+  // Which groups to score. For a specific tugasan we only want the groups that
+  // actually apply to it: INHERIT → the course's standing groups (assignmentId
+  // null); otherwise → the tugasan's own ad-hoc group (assignmentId = tugasanId).
+  let groupWhere: { courseId: number; assignmentId?: number | null } = { courseId };
+  if (tugasanId) {
+    const tugasan = await prisma.assignment.findUnique({
+      where: { id: tugasanId },
+      select: { groupingMode: true },
+    });
+    groupWhere =
+      tugasan?.groupingMode === "INHERIT"
+        ? { courseId, assignmentId: null }
+        : { courseId, assignmentId: tugasanId };
+  }
+
   const groups = await prisma.projectGroup.findMany({
-    where: { courseId },
+    where: groupWhere,
     select: { id: true },
   });
 
   const out = new Map<number, { score: number | null; riskFlag: boolean }>();
   for (const g of groups) {
-    const rows = await getContributionScore(g.id);
+    const rows = await getContributionScore(g.id, tugasanId);
     for (const r of rows) {
       // Combined score: peer score is the spine; nudge by activity (0.85–1.15x)
       // so a very inactive member is pulled down and a very active one nudged up.
@@ -521,4 +544,205 @@ export async function getCourseContributionScores(
     }
   }
   return out;
+}
+
+/**
+ * getAssignmentContributionDetail — lecturer view for ONE group tugasan. Returns,
+ * per student across every group that applies to the tugasan: their contribution
+ * % (combined peer + activity, scoped to this tugasan), riskFlag, their own
+ * "Sumbangan Sendiri" comment, and the peer ratings + comments they received.
+ * Lecturer/Admin-authorized: the caller must own the tugasan's course.
+ *
+ * This powers the per-tugasan contribution panel on the lecturer course page.
+ */
+export async function getAssignmentContributionDetail(tugasanId: number): Promise<
+  | {
+      ok: true;
+      members: {
+        userId: number;
+        name: string;
+        matricNum: string | null;
+        groupName: string;
+        contributionScore: number | null;
+        riskFlag: boolean;
+        selfDeclaration: string | null;
+        received: { raterName: string; score: number; comment: string | null }[];
+      }[];
+    }
+  | { ok: false; error: string }
+> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER" && session.user.role !== "ADMIN") {
+    return { ok: false, error: "Tidak dibenarkan." };
+  }
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: tugasanId },
+    select: { id: true, courseId: true, groupingMode: true, course: { select: { lecturerId: true } } },
+  });
+  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
+  if (session.user.role === "LECTURER" && assignment.course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+
+  // The groups that apply to this tugasan: INHERIT → course standing groups;
+  // otherwise → the tugasan's own ad-hoc group.
+  const groupWhere =
+    assignment.groupingMode === "INHERIT"
+      ? { courseId: assignment.courseId, assignmentId: null }
+      : { courseId: assignment.courseId, assignmentId: tugasanId };
+  const groups = await prisma.projectGroup.findMany({
+    where: groupWhere,
+    select: { id: true, name: true },
+  });
+
+  const members: {
+    userId: number;
+    name: string;
+    matricNum: string | null;
+    groupName: string;
+    contributionScore: number | null;
+    riskFlag: boolean;
+    selfDeclaration: string | null;
+    received: { raterName: string; score: number; comment: string | null }[];
+  }[] = [];
+
+  for (const g of groups) {
+    const [scores, peerRows, selfRows] = await Promise.all([
+      getContributionScore(g.id, tugasanId),
+      prisma.peerAssessment.findMany({
+        where: { groupId: g.id, tugasanId },
+        select: {
+          rateeId: true,
+          contributionScore: true,
+          comment: true,
+          rater: { select: { name: true } },
+        },
+      }),
+      prisma.selfDeclaredContribution.findMany({
+        where: { groupId: g.id, tugasanId },
+        select: { userId: true, description: true },
+      }),
+    ]);
+
+    const receivedByRatee = new Map<
+      number,
+      { raterName: string; score: number; comment: string | null }[]
+    >();
+    for (const p of peerRows) {
+      const arr = receivedByRatee.get(p.rateeId) ?? [];
+      arr.push({ raterName: p.rater.name, score: p.contributionScore, comment: p.comment });
+      receivedByRatee.set(p.rateeId, arr);
+    }
+    const selfByUser = new Map(selfRows.map((s) => [s.userId, s.description]));
+
+    for (const s of scores) {
+      // Same combined score the monitoring table uses: peer score nudged by
+      // activity (0.85–1.15x).
+      let combined: number | null = null;
+      if (s.peerScore !== null) {
+        const activityMod = Math.max(0.85, Math.min(1.15, s.activityScore || 1));
+        combined = Math.round(Math.max(0, Math.min(100, s.peerScore * activityMod)));
+      }
+      members.push({
+        userId: s.userId,
+        name: s.name,
+        matricNum: s.matricNum,
+        groupName: g.name,
+        contributionScore: combined,
+        riskFlag: s.riskFlag,
+        selfDeclaration: selfByUser.get(s.userId) ?? null,
+        received: receivedByRatee.get(s.userId) ?? [],
+      });
+    }
+  }
+
+  members.sort(
+    (a, b) => a.groupName.localeCompare(b.groupName) || a.name.localeCompare(b.name),
+  );
+  return { ok: true, members };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Peer-assessment reminders — on-access, throttled to ~24h per user (no cron).
+// Mirrors dispatchDueEventReminders: fired on page load; a student who owes a
+// peer assessment / self-declaration for a submitted GROUP tugasan gets one
+// reminder notification at most once a day.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const lastPeerReminderAt = new Map<number, number>();
+const PEER_REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+export async function dispatchPeerAssessmentReminders(
+  userId: number,
+): Promise<{ fired: number }> {
+  const now = Date.now();
+  const prev = lastPeerReminderAt.get(userId);
+  if (prev && now - prev < PEER_REMINDER_INTERVAL_MS) return { fired: 0 };
+  lastPeerReminderAt.set(userId, now);
+
+  try {
+    // The user's ad-hoc + standing groups, with the members + the assignment.
+    const groups = await prisma.projectGroup.findMany({
+      where: { members: { some: { studentId: userId } } },
+      select: {
+        id: true,
+        assignmentId: true,
+        courseId: true,
+        members: { select: { studentId: true } },
+      },
+    });
+    if (groups.length === 0) return { fired: 0 };
+
+    let fired = 0;
+    for (const g of groups) {
+      // The tugasan this group is for. Standing groups (assignmentId null) apply
+      // to every GROUP assignment in the course under INHERIT mode; to keep this
+      // simple and correct we only remind for ad-hoc groups (assignmentId set),
+      // which is where per-assignment peer assessment is meaningful.
+      if (!g.assignmentId) continue;
+      const tugasanId = g.assignmentId;
+
+      // Only remind once the group has actually submitted this tugasan.
+      const submitted = await prisma.submission.findFirst({
+        where: { assignmentId: tugasanId, filePath: { not: null } },
+        select: { id: true },
+      });
+      if (!submitted) continue;
+
+      const teammateIds = g.members.map((m) => m.studentId).filter((id) => id !== userId);
+
+      const [selfDone, ratedCount] = await Promise.all([
+        prisma.selfDeclaredContribution.findUnique({
+          where: { userId_tugasanId: { userId, tugasanId } },
+          select: { id: true },
+        }),
+        teammateIds.length === 0
+          ? Promise.resolve(0)
+          : prisma.peerAssessment.count({
+              where: { tugasanId, raterId: userId, rateeId: { in: teammateIds } },
+            }),
+      ]);
+
+      const owesSelf = !selfDone;
+      const owesPeer = teammateIds.length > 0 && ratedCount < teammateIds.length;
+      if (owesSelf || owesPeer) {
+        const assignment = await prisma.assignment.findUnique({
+          where: { id: tugasanId },
+          select: { title: true },
+        });
+        await notifyUser(userId, {
+          title: "Peringatan Penilaian Rakan Sekumpulan",
+          message: `Sila lengkapkan Sumbangan Sendiri dan Penilaian Rakan Sekumpulan untuk "${assignment?.title ?? "tugasan kumpulan"}".`,
+          link: `student/tugasan/${tugasanId}`,
+        });
+        fired++;
+      }
+    }
+    return { fired };
+  } catch (err) {
+    console.error("dispatchPeerAssessmentReminders failed:", err);
+    return { fired: 0 };
+  }
 }

@@ -2,16 +2,18 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getMonitoringData, getTaughtCourses } from "@/server/queries/lecturer";
 import { getCourseContributionScores } from "@/server/actions/contribution";
+import { prisma } from "@/lib/prisma";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BulkAlertButton } from "./bulk-alert-button";
 import { GroupFilter } from "./group-filter";
+import { TugasanFilter } from "./tugasan-filter";
 import { MonitoringTable } from "./monitoring-table";
 import { BarChart3, AlertTriangle } from "lucide-react";
 
 export default async function LecturerMonitoringPage({
   searchParams,
 }: {
-  searchParams: { course?: string; group?: string };
+  searchParams: { course?: string; group?: string; tugasan?: string };
 }) {
   const session = await auth();
   const lecturerId = session!.user.id;
@@ -20,10 +22,26 @@ export default async function LecturerMonitoringPage({
   const selectedCode = (searchParams.course ?? courses[0]?.code ?? null)?.toUpperCase() ?? null;
   const selectedCourse = selectedCode ? courses.find((c) => c.code === selectedCode) : null;
 
+  // Optional per-tugasan scope for the contribution signal. Only GROUP
+  // assignments carry peer/self-declaration data, so the filter lists those.
+  const groupAssignments = selectedCourse
+    ? await prisma.assignment.findMany({
+        where: { courseId: selectedCourse.id, type: "GROUP" },
+        select: { id: true, title: true },
+        orderBy: { dueDate: "asc" },
+      })
+    : [];
+  const parsedTugasan = Number(searchParams.tugasan);
+  const selectedTugasanId =
+    Number.isInteger(parsedTugasan) &&
+    groupAssignments.some((a) => a.id === parsedTugasan)
+      ? parsedTugasan
+      : null;
+
   const [data, contribScores] = selectedCourse
     ? await Promise.all([
         getMonitoringData(lecturerId, selectedCourse.id),
-        getCourseContributionScores(selectedCourse.id),
+        getCourseContributionScores(selectedCourse.id, selectedTugasanId ?? undefined),
       ])
     : [null, new Map<number, { score: number | null; riskFlag: boolean }>()];
 
@@ -105,14 +123,29 @@ export default async function LecturerMonitoringPage({
 
           {data && (
             <>
-              {/* Group filter — only when the course actually has groups. */}
-              {(groupNames.length > 0 || hasUngrouped) && (
-                <GroupFilter
-                  courseCode={data.course.code}
-                  groups={groupNames}
-                  hasUngrouped={hasUngrouped}
-                  selected={selectedGroup}
-                />
+              {/* Group + tugasan filters — only when the course has groups. The
+                  tugasan filter scopes the "Skor Sumbangan" signal to one group
+                  assignment; "Semua" sums it across every tugasan. */}
+              {(groupNames.length > 0 || hasUngrouped || groupAssignments.length > 0) && (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                  {(groupNames.length > 0 || hasUngrouped) && (
+                    <GroupFilter
+                      courseCode={data.course.code}
+                      groups={groupNames}
+                      hasUngrouped={hasUngrouped}
+                      selected={selectedGroup}
+                      selectedTugasan={selectedTugasanId}
+                    />
+                  )}
+                  {groupAssignments.length > 0 && (
+                    <TugasanFilter
+                      courseCode={data.course.code}
+                      selectedGroup={selectedGroup}
+                      tugasan={groupAssignments}
+                      selected={selectedTugasanId}
+                    />
+                  )}
+                </div>
               )}
 
               {/* Two summary stat cards only. */}

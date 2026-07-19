@@ -10,11 +10,14 @@ export function GroupFilter({
   groups,
   hasUngrouped,
   selected,
+  selectedTugasan,
 }: {
   courseCode: string;
   groups: string[];
   hasUngrouped: boolean;
   selected: string | null;
+  /** Preserved across a group change so the tugasan scope survives. */
+  selectedTugasan?: number | null;
 }) {
   const router = useRouter();
 
@@ -22,6 +25,7 @@ export function GroupFilter({
     const params = new URLSearchParams();
     params.set("course", courseCode);
     if (value) params.set("group", value);
+    if (selectedTugasan) params.set("tugasan", String(selectedTugasan));
     router.push(`/lecturer/pemantauan?${params.toString()}`);
   }
 

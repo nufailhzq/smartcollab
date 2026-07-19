@@ -54,15 +54,6 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
     return { ok: false, error: "Penghantaran untuk tugasan ini telah ditutup." };
   }
 
-  // Save the uploaded file only after we've confirmed the student may submit.
-  const saved = await saveSubmissionFile(file);
-  if (!saved.ok) return { ok: false, error: saved.error };
-  const filePath = saved.data.path;
-
-  const isLate = assignment.dueDate ? new Date() > assignment.dueDate : false;
-  const status = isLate ? "LATE" : "SUBMITTED";
-  const submittedAt = new Date();
-
   // For GROUP assignments, propagate the same submission to every group member.
   // For INDIVIDUAL, only the submitter gets a row.
   let recipientIds: number[] = [submitterId];
@@ -95,7 +86,49 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
     recipientIds = group.members.map((m) => m.studentId);
     // Ensure submitter is in the list even if a transient race removed them.
     if (!recipientIds.includes(submitterId)) recipientIds.push(submitterId);
+
+    // Contribution gate (submitter only): the person submitting on behalf of the
+    // group must have filled their Sumbangan Sendiri AND rated every teammate in
+    // Penilaian Rakan Sekumpulan before the group work can be sent.
+    const teammateIds = recipientIds.filter((id) => id !== submitterId);
+    const [selfDone, ratedCount] = await Promise.all([
+      prisma.selfDeclaredContribution.findUnique({
+        where: { userId_tugasanId: { userId: submitterId, tugasanId: assignmentId } },
+        select: { id: true },
+      }),
+      teammateIds.length === 0
+        ? Promise.resolve(0)
+        : prisma.peerAssessment.count({
+            where: {
+              tugasanId: assignmentId,
+              raterId: submitterId,
+              rateeId: { in: teammateIds },
+            },
+          }),
+    ]);
+    if (!selfDone) {
+      return {
+        ok: false,
+        error: "Sila isi Sumbangan Sendiri anda sebelum menghantar tugasan kumpulan.",
+      };
+    }
+    if (teammateIds.length > 0 && ratedCount < teammateIds.length) {
+      return {
+        ok: false,
+        error: "Sila lengkapkan Penilaian Rakan Sekumpulan bagi semua ahli sebelum menghantar.",
+      };
+    }
   }
+
+  // Save the uploaded file only after every gate above has passed (so a rejected
+  // submission never leaves an orphaned file).
+  const saved = await saveSubmissionFile(file);
+  if (!saved.ok) return { ok: false, error: saved.error };
+  const filePath = saved.data.path;
+
+  const isLate = assignment.dueDate ? new Date() > assignment.dueDate : false;
+  const status = isLate ? "LATE" : "SUBMITTED";
+  const submittedAt = new Date();
 
   await prisma.$transaction(
     recipientIds.map((studentId) =>
@@ -130,13 +163,14 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
     link: "submissions",
   });
 
-  // Notify other group members so they know the submission was made on their behalf.
+  // Notify other group members that the work was submitted AND that they now
+  // need to give their own peer assessment + self-declaration for this tugasan.
   if (assignment.type === "GROUP" && recipientIds.length > 1) {
     const otherMembers = recipientIds.filter((id) => id !== submitterId);
     await notifyMany(otherMembers, {
-      title: "Tugasan Kumpulan Dihantar",
-      message: `${session.user.name} telah menghantar "${assignment.title}" bagi pihak ${groupName ?? "kumpulan"}.`,
-      link: "submissions",
+      title: "Beri Penilaian Rakan Sekumpulan",
+      message: `${session.user.name} telah menghantar "${assignment.title}" bagi pihak ${groupName ?? "kumpulan"}. Sila lengkapkan Sumbangan Sendiri dan Penilaian Rakan Sekumpulan anda.`,
+      link: `student/tugasan/${assignmentId}`,
     });
   }
 

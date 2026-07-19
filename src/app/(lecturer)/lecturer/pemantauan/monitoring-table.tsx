@@ -97,6 +97,12 @@ export function MonitoringTable({
           {sorted.map((r) => {
             const atRisk = r.flagged || r.contributionRisk;
             const lastSeen = r.lastSeenAt ? new Date(r.lastSeenAt) : null;
+            // "Inactive" = never seen, or not seen in over 24h. The Amaran button
+            // is only offered for a student who is inactive or at-risk — there's
+            // no reason to warn an active, on-track student.
+            const inactive =
+              !lastSeen || Date.now() - lastSeen.getTime() >= 24 * 60 * 60 * 1000;
+            const showAlert = atRisk || inactive;
             return (
               <tr
                 key={r.studentId}
@@ -164,12 +170,16 @@ export function MonitoringTable({
                   )}
                 </td>
                 <td className="text-center">
-                  <FastAlertButton
-                    courseId={courseId}
-                    studentId={r.studentId}
-                    studentName={r.studentName}
-                    flagReason={r.flagReason}
-                  />
+                  {showAlert ? (
+                    <FastAlertButton
+                      courseId={courseId}
+                      studentId={r.studentId}
+                      studentName={r.studentName}
+                      flagReason={r.flagReason}
+                    />
+                  ) : (
+                    <span className="text-[11px] italic text-slate-300">—</span>
+                  )}
                 </td>
               </tr>
             );

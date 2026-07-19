@@ -2,6 +2,7 @@
 import { auth } from "@/lib/auth";
 import { getEnrolledCourses } from "@/server/queries/courses";
 import { getStudentAssignments } from "@/server/queries/submissions";
+import { dispatchPeerAssessmentReminders } from "@/server/actions/contribution";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ClipboardList } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
@@ -16,6 +17,10 @@ export default async function StudentSubmissionsPage({
 }) {
   const session = await auth();
   const studentId = session!.user.id;
+
+  // On-access, ~24h-throttled reminder: nudge students who owe a peer
+  // assessment / self-declaration for a submitted group tugasan. Fire-and-forget.
+  void dispatchPeerAssessmentReminders(studentId);
 
   const courses = await getEnrolledCourses(studentId);
   const selectedCode = searchParams.course?.toUpperCase() ?? "ALL";

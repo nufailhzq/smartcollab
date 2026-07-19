@@ -20,6 +20,7 @@ import { getAdHocBoard, type AdHocBoard } from "@/server/queries/ad-hoc-groups";
 import { LecturerGroupControls } from "./lecturer-group-controls";
 import { DeleteItemButton } from "./delete-item-button";
 import { EditContentButton, EditAssignmentButton } from "./edit-item-buttons";
+import { TugasanContributionPanel } from "./tugasan-contribution-panel";
 
 type Tab = "general" | "notes" | "tugasan" | "kumpulan" | "progress";
 
@@ -257,6 +258,8 @@ export default async function LecturerCourseDetailPage({
                   {groupBoards.has(a.id) && (
                     <LecturerGroupControls board={groupBoards.get(a.id)!} />
                   )}
+                  {/* Per-tugasan student self-declaration comments + contribution %. */}
+                  {a.type === "GROUP" && <TugasanContributionPanel tugasanId={a.id} />}
                 </article>
               );
             })
