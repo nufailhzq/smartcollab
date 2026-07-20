@@ -3,6 +3,7 @@
 import { useState, useTransition, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarClock,
   Check,
   Clock,
   Loader2,
@@ -10,6 +11,7 @@ import {
   LogIn,
   LogOut,
   Plus,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Unlock,
@@ -32,6 +34,7 @@ import {
   approveAccessRequest,
   rejectAccessRequest,
   toggleCourseGroupsLocked,
+  setGroupFormationSettings,
 } from "@/server/actions/group-access";
 
 type Member = {
@@ -65,14 +68,33 @@ type Props = {
   courseId: number;
   courseCode: string;
   groupsLocked: boolean;
+  /** Self-service group formation policy for this course. */
+  selfServiceGroups: boolean;
+  groupMaxMembers: number | null;
+  /** ISO string or null. */
+  groupFormCloseAt: string | null;
   groups: Group[];
   ungroupedStudents: UngroupedStudent[];
   pendingRequests: PendingRequest[];
 };
 
+// Convert an ISO instant to the value a <input type="datetime-local"> expects
+// (local wall-clock, minute precision, no timezone).
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
 export function GroupManager({
   courseId,
   groupsLocked,
+  selfServiceGroups,
+  groupMaxMembers,
+  groupFormCloseAt,
   groups,
   ungroupedStudents,
   pendingRequests,
@@ -84,6 +106,14 @@ export function GroupManager({
   const [name, setName] = useState("");
   const [maxMembers, setMaxMembers] = useState(5);
   const [dropTargetId, setDropTargetId] = useState<number | "ungrouped" | null>(null);
+
+  // Self-service formation controls. maxMembers/closeAt are only revealed when
+  // self-service is on.
+  const [selfSvc, setSelfSvc] = useState(selfServiceGroups);
+  const [formMax, setFormMax] = useState<string>(
+    groupMaxMembers != null ? String(groupMaxMembers) : "",
+  );
+  const [formClose, setFormClose] = useState<string>(toLocalInput(groupFormCloseAt));
 
   // Drag-and-drop helpers — payload encodes `{studentId, fromGroupId}`.
   const onDragStart = (e: DragEvent<HTMLLIElement>, studentId: number, fromGroupId: number | null) => {
@@ -229,6 +259,34 @@ export function GroupManager({
     });
   };
 
+  // Persist the self-service policy. `next` overrides the toggle so the
+  // instant on/off flip saves the new value without waiting for state.
+  const persistFormation = (next?: boolean) => {
+    const selfService = next ?? selfSvc;
+    const parsedMax = formMax.trim() === "" ? null : Number(formMax);
+    if (parsedMax !== null && (!Number.isInteger(parsedMax) || parsedMax < 1)) {
+      return toast.push({ kind: "error", message: "Had ahli mesti nombor 1 atau lebih." });
+    }
+    const closeIso = formClose ? new Date(formClose).toISOString() : "";
+    startTransition(async () => {
+      const res = await setGroupFormationSettings({
+        courseId,
+        selfService,
+        maxMembers: parsedMax,
+        closeAt: closeIso,
+      });
+      if (!res.ok) return toast.push({ kind: "error", message: res.error });
+      toast.push({ kind: "success", message: "Tetapan pembentukan kumpulan disimpan." });
+      router.refresh();
+    });
+  };
+
+  const onToggleSelfService = () => {
+    const next = !selfSvc;
+    setSelfSvc(next);
+    persistFormation(next);
+  };
+
   const onApproveRequest = (requestId: number) => {
     startTransition(async () => {
       const res = await approveAccessRequest({ requestId });
@@ -265,60 +323,164 @@ export function GroupManager({
 
   return (
     <div className="space-y-4">
-      {/* Lock toggle — locked = students must request, unlocked = free join/leave */}
-      <div
-        className={`card-elevated flex flex-wrap items-center justify-between gap-3 border-l-4 transition-colors duration-300 ${
-          groupsLocked ? "border-amber-400 bg-amber-50/40" : "border-emerald-400 bg-emerald-50/30"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className={`grid h-10 w-10 place-items-center rounded-xl transition-all duration-300 ease-spring ${
-              groupsLocked
-                ? "rotate-0 bg-amber-100 text-amber-700"
-                : "rotate-0 bg-emerald-100 text-emerald-700"
-            }`}
-          >
-            {groupsLocked ? <Lock size={18} /> : <Unlock size={18} />}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ukm-navy">
-              {groupsLocked ? "Kumpulan Dikunci" : "Kumpulan Terbuka"}
-            </p>
-            <p className="text-[11px] text-slate-500">
-              {groupsLocked
-                ? "Pelajar perlu memohon kelulusan untuk sertai atau keluar."
-                : "Pelajar boleh sertai dan keluar kumpulan secara terus."}
-            </p>
-          </div>
-        </div>
-        {/* Animated switch */}
-        <button
-          type="button"
-          onClick={onToggleLock}
-          disabled={pending}
-          role="switch"
-          aria-checked={groupsLocked}
-          aria-label={groupsLocked ? "Buka kumpulan" : "Kunci kumpulan"}
-          className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-spring focus:outline-none focus:ring-2 focus:ring-ukm-teal focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-            groupsLocked ? "bg-amber-500" : "bg-emerald-500"
+      {/* Two policy toggles side by side: join/leave lock, and self-service formation. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Lock toggle — locked = students must request, unlocked = free join/leave */}
+        <div
+          className={`card-elevated flex flex-wrap items-center justify-between gap-3 border-l-4 transition-colors duration-300 ${
+            groupsLocked ? "border-amber-400 bg-amber-50/40" : "border-emerald-400 bg-emerald-50/30"
           }`}
         >
-          <span
-            className={`flex h-6 w-6 transform items-center justify-center rounded-full bg-white shadow-soft transition-transform duration-300 ease-spring ${
-              groupsLocked ? "translate-x-9" : "translate-x-1"
+          <div className="flex items-center gap-3">
+            <div
+              className={`grid h-10 w-10 place-items-center rounded-xl transition-all duration-300 ease-spring ${
+                groupsLocked
+                  ? "rotate-0 bg-amber-100 text-amber-700"
+                  : "rotate-0 bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {groupsLocked ? <Lock size={18} /> : <Unlock size={18} />}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ukm-navy">
+                {groupsLocked ? "Kumpulan Dikunci" : "Kumpulan Terbuka"}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {groupsLocked
+                  ? "Pelajar perlu memohon kelulusan untuk sertai atau keluar."
+                  : "Pelajar boleh sertai dan keluar kumpulan secara terus."}
+              </p>
+            </div>
+          </div>
+          {/* Animated switch */}
+          <button
+            type="button"
+            onClick={onToggleLock}
+            disabled={pending}
+            role="switch"
+            aria-checked={groupsLocked}
+            aria-label={groupsLocked ? "Buka kumpulan" : "Kunci kumpulan"}
+            className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-spring focus:outline-none focus:ring-2 focus:ring-ukm-teal focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+              groupsLocked ? "bg-amber-500" : "bg-emerald-500"
             }`}
           >
-            {pending ? (
-              <Loader2 size={12} className="animate-spin text-slate-500" />
-            ) : groupsLocked ? (
-              <Lock size={12} className="text-amber-600" />
-            ) : (
-              <Unlock size={12} className="text-emerald-600" />
-            )}
-          </span>
-        </button>
+            <span
+              className={`flex h-6 w-6 transform items-center justify-center rounded-full bg-white shadow-soft transition-transform duration-300 ease-spring ${
+                groupsLocked ? "translate-x-9" : "translate-x-1"
+              }`}
+            >
+              {pending ? (
+                <Loader2 size={12} className="animate-spin text-slate-500" />
+              ) : groupsLocked ? (
+                <Lock size={12} className="text-amber-600" />
+              ) : (
+                <Unlock size={12} className="text-emerald-600" />
+              )}
+            </span>
+          </button>
+        </div>
+
+        {/* Self-service formation toggle */}
+        <div
+          className={`card-elevated flex flex-wrap items-center justify-between gap-3 border-l-4 transition-colors duration-300 ${
+            selfSvc ? "border-ukm-teal bg-sky-50/30" : "border-slate-300"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`grid h-10 w-10 place-items-center rounded-xl transition-all duration-300 ${
+                selfSvc ? "bg-ukm-teal/10 text-ukm-teal" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {selfSvc ? <Sparkles size={18} /> : <ShieldCheck size={18} />}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ukm-navy">
+                {selfSvc ? "Pelajar Buat Kumpulan Sendiri" : "Perlu Kelulusan Pensyarah"}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {selfSvc
+                  ? "Kumpulan yang dibentuk pelajar terus diluluskan."
+                  : "Setiap permohonan kumpulan menunggu kelulusan anda."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleSelfService}
+            disabled={pending}
+            role="switch"
+            aria-checked={selfSvc}
+            aria-label="Togol pembentukan kumpulan layan diri"
+            className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-spring focus:outline-none focus:ring-2 focus:ring-ukm-teal focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+              selfSvc ? "bg-ukm-teal" : "bg-slate-300"
+            }`}
+          >
+            <span
+              className={`flex h-6 w-6 transform items-center justify-center rounded-full bg-white shadow-soft transition-transform duration-300 ease-spring ${
+                selfSvc ? "translate-x-9" : "translate-x-1"
+              }`}
+            >
+              {pending ? (
+                <Loader2 size={12} className="animate-spin text-slate-500" />
+              ) : selfSvc ? (
+                <Sparkles size={12} className="text-ukm-teal" />
+              ) : (
+                <ShieldCheck size={12} className="text-slate-500" />
+              )}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* Formation limits — only when self-service is on. */}
+      {selfSvc && (
+        <div className="card-elevated space-y-3 border-l-4 border-ukm-teal">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <Users size={12} /> Had ahli setiap kumpulan
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={formMax}
+                onChange={(e) => setFormMax(e.target.value)}
+                placeholder="Lalai (5)"
+                className="input-base"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <CalendarClock size={12} /> Tarikh &amp; masa tutup pembentukan
+              </span>
+              <input
+                type="datetime-local"
+                value={formClose}
+                onChange={(e) => setFormClose(e.target.value)}
+                className="input-base"
+              />
+            </label>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] text-slate-400">
+              {formClose
+                ? "Selepas tarikh tutup, pelajar tidak boleh membentuk kumpulan baharu."
+                : "Tiada tarikh tutup — pelajar boleh membentuk kumpulan bila-bila masa."}
+            </p>
+            <button
+              type="button"
+              onClick={() => persistFormation()}
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded-lg bg-ukm-orange px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {pending && <Loader2 size={14} className="animate-spin" />}
+              Simpan Had &amp; Tarikh
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pending access requests — only shown when there are any */}
       {pendingRequests.length > 0 && (
