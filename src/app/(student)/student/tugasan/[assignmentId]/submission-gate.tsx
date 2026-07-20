@@ -11,6 +11,7 @@ import {
   Lock,
   MessageSquare,
   Send,
+  Trash2,
   Upload,
   UserCheck,
   Users,
@@ -18,7 +19,7 @@ import {
 import { useToast } from "@/components/common/Toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { formatDateTime } from "@/lib/utils";
-import { submitAssignment } from "@/server/actions/assignments";
+import { submitAssignment, withdrawSubmission } from "@/server/actions/assignments";
 import {
   submitPeerAssessment,
   submitSelfDeclaration,
@@ -194,6 +195,26 @@ export function SubmissionGate({
     });
   }
 
+  function onWithdraw() {
+    if (
+      !confirm(
+        "Tarik balik penghantaran kumpulan ini? Fail akan dibuang untuk semua ahli.",
+      )
+    )
+      return;
+    const formData = new FormData();
+    formData.set("assignmentId", String(assignmentId));
+    startTransition(async () => {
+      const res = await withdrawSubmission(formData);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({ kind: "success", message: "Penghantaran ditarik balik." });
+      router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-4">
       {/* Existing submission status (kept from the standard submission flow). */}
@@ -269,6 +290,20 @@ export function SubmissionGate({
                   </p>
                 </blockquote>
               ))}
+            </div>
+          )}
+          {/* Withdraw — remove the group's shared submission (unless graded/closed). */}
+          {existing.status !== "GRADED" && !closed && (
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <button
+                type="button"
+                onClick={onWithdraw}
+                disabled={isPending}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-ukm-red transition hover:bg-red-50 disabled:opacity-50"
+              >
+                {isPending ? <LoadingSpinner /> : <Trash2 size={13} />}
+                Tarik balik penghantaran
+              </button>
             </div>
           )}
         </article>

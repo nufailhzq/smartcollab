@@ -193,3 +193,130 @@ export async function submitAssignment(formData: FormData): Promise<ActionResult
   revalidatePath("/lecturer/penghantaran");
   return { ok: true };
 }
+
+/**
+ * withdrawSubmission — a student removes their submitted work, returning the
+ * tugasan to the un-submitted state. For GROUP assignments the submission is a
+ * single shared file propagated to every member, so a withdrawal removes the
+ * whole group's rows (any member may withdraw, mirroring "any member may
+ * submit"). For INDIVIDUAL, only the caller's row is removed. Blocked once the
+ * work is GRADED or after the lecturer's submission cutoff has passed.
+ */
+export async function withdrawSubmission(formData: FormData): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "STUDENT") {
+    return { ok: false, error: "Hanya pelajar boleh menarik balik tugasan." };
+  }
+
+  const assignmentIdParsed = idSchema.safeParse(Number(formData.get("assignmentId")));
+  if (!assignmentIdParsed.success) {
+    return { ok: false, error: "Tugasan tidak sah." };
+  }
+  const assignmentId = assignmentIdParsed.data;
+  const studentId = session.user.id;
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      course: {
+        select: {
+          id: true,
+          code: true,
+          lecturerId: true,
+          enrollments: { where: { studentId }, select: { id: true } },
+        },
+      },
+    },
+  });
+  if (!assignment) return { ok: false, error: "Tugasan tidak wujud." };
+  if (assignment.course.enrollments.length === 0) {
+    return { ok: false, error: "Anda tidak berdaftar dalam kursus ini." };
+  }
+
+  // Respect the same hard cutoff as submitting: if the lecturer has closed
+  // submissions, work can no longer be withdrawn either.
+  if (assignment.submissionCloseAt && new Date() > assignment.submissionCloseAt) {
+    return { ok: false, error: "Penghantaran untuk tugasan ini telah ditutup." };
+  }
+
+  // The caller's own row is the anchor — it must exist to withdraw.
+  const own = await prisma.submission.findUnique({
+    where: { assignmentId_studentId: { assignmentId, studentId } },
+    select: { id: true, status: true },
+  });
+  if (!own) {
+    return { ok: false, error: "Tiada penghantaran untuk ditarik balik." };
+  }
+  if (own.status === "GRADED") {
+    return { ok: false, error: "Tugasan telah dimarkah dan tidak boleh ditarik balik." };
+  }
+
+  // Resolve which rows to remove. GROUP → the whole group's shared submission;
+  // INDIVIDUAL → just the caller's.
+  let recipientIds: number[] = [studentId];
+  let groupName: string | null = null;
+
+  if (assignment.type === "GROUP") {
+    const groupContext =
+      assignment.groupingMode === "INHERIT"
+        ? { courseId: assignment.course.id, assignmentId: null }
+        : { assignmentId: assignment.id };
+    const group = await prisma.projectGroup.findFirst({
+      where: { ...groupContext, members: { some: { studentId } } },
+      include: { members: { select: { studentId: true } } },
+    });
+    if (group) {
+      groupName = group.name;
+      recipientIds = group.members.map((m) => m.studentId);
+      if (!recipientIds.includes(studentId)) recipientIds.push(studentId);
+    }
+  }
+
+  // Never remove a teammate's already-graded row along with the withdrawal.
+  await prisma.submission.deleteMany({
+    where: {
+      assignmentId,
+      studentId: { in: recipientIds },
+      status: { not: "GRADED" },
+    },
+  });
+
+  // Notify the caller, the group members, and the lecturer.
+  await notifyUser(studentId, {
+    title: "Penghantaran Ditarik Balik",
+    message:
+      assignment.type === "GROUP" && groupName
+        ? `Penghantaran "${assignment.title}" untuk ${groupName} telah ditarik balik.`
+        : `Penghantaran "${assignment.title}" (${assignment.course.code}) telah ditarik balik.`,
+    link: `student/tugasan/${assignmentId}`,
+  });
+
+  if (assignment.type === "GROUP" && recipientIds.length > 1) {
+    const otherMembers = recipientIds.filter((id) => id !== studentId);
+    await notifyMany(otherMembers, {
+      title: "Penghantaran Kumpulan Ditarik Balik",
+      message: `${session.user.name} menarik balik penghantaran "${assignment.title}" bagi pihak ${groupName ?? "kumpulan"}. Sila hantar semula apabila sedia.`,
+      link: `student/tugasan/${assignmentId}`,
+    });
+  }
+
+  if (assignment.course.lecturerId) {
+    await notifyUser(assignment.course.lecturerId, {
+      title: "Penghantaran Ditarik Balik",
+      message:
+        assignment.type === "GROUP" && groupName
+          ? `${session.user.name} (untuk ${groupName}) menarik balik penghantaran "${assignment.title}".`
+          : `${session.user.name} menarik balik penghantaran "${assignment.title}".`,
+      link: "submissions",
+    });
+  }
+
+  revalidatePath("/student");
+  revalidatePath("/student/tugasan");
+  revalidatePath(`/student/tugasan/${assignmentId}`);
+  revalidatePath(`/student/kursus/${assignment.course.code}`);
+  revalidatePath("/lecturer");
+  revalidatePath("/lecturer/penghantaran");
+  return { ok: true };
+}

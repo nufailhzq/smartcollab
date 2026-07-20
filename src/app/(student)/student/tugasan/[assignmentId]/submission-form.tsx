@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileCheck, MessageSquare, UserCheck, Lock, AlertTriangle } from "lucide-react";
-import { submitAssignment } from "@/server/actions/assignments";
+import { Upload, FileCheck, MessageSquare, UserCheck, Lock, AlertTriangle, Trash2 } from "lucide-react";
+import { submitAssignment, withdrawSubmission } from "@/server/actions/assignments";
 import { useToast } from "@/components/common/Toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { formatDateTime } from "@/lib/utils";
@@ -76,6 +76,28 @@ export function SubmissionForm({
       }
       toast.push({ kind: "success", message: "Tugasan berjaya dihantar." });
       setFile(null);
+      router.refresh();
+    });
+  }
+
+  function onWithdraw() {
+    if (
+      !confirm(
+        isGroupAssignment
+          ? "Tarik balik penghantaran kumpulan ini? Fail akan dibuang untuk semua ahli."
+          : "Tarik balik penghantaran ini? Fail akan dibuang.",
+      )
+    )
+      return;
+    const formData = new FormData();
+    formData.set("assignmentId", String(assignmentId));
+    startTransition(async () => {
+      const res = await withdrawSubmission(formData);
+      if (!res.ok) {
+        toast.push({ kind: "error", message: res.error });
+        return;
+      }
+      toast.push({ kind: "success", message: "Penghantaran ditarik balik." });
       router.refresh();
     });
   }
@@ -153,6 +175,20 @@ export function SubmissionForm({
                   </p>
                 </blockquote>
               ))}
+            </div>
+          )}
+          {/* Withdraw — remove the submission entirely (unless graded/closed). */}
+          {existing.status !== "GRADED" && !closed && (
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <button
+                type="button"
+                onClick={onWithdraw}
+                disabled={isPending}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-ukm-red transition hover:bg-red-50 disabled:opacity-50"
+              >
+                {isPending ? <LoadingSpinner /> : <Trash2 size={13} />}
+                Tarik balik penghantaran
+              </button>
             </div>
           )}
         </article>
