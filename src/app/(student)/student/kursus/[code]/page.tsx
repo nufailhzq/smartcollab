@@ -270,8 +270,14 @@ export default async function CourseDetailPage({
               const sub = a.submissions[0];
               const due = a.dueDate ? new Date(a.dueDate) : null;
               const isPast = due ? due < new Date() : false;
+              // The whole row links to the tugasan detail page, where the student
+              // can submit, resend, or withdraw — even after it shows "Dihantar".
               return (
-                <article key={a.id} className="card">
+                <Link
+                  key={a.id}
+                  href={`/student/tugasan/${a.id}`}
+                  className="card block transition hover:border-ukm-teal hover:shadow-lift"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="text-base font-semibold">{a.title}</h3>
@@ -286,36 +292,38 @@ export default async function CourseDetailPage({
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       {sub ? (
-                        <span
-                          className={`rounded-md px-2 py-1 text-xs ${
-                            sub.status === "GRADED"
-                              ? "bg-emerald-500/15 text-emerald-300"
+                        <>
+                          <span
+                            className={`rounded-md px-2 py-1 text-xs ${
+                              sub.status === "GRADED"
+                                ? "bg-emerald-500/15 text-emerald-300"
+                                : sub.status === "LATE"
+                                  ? "bg-amber-500/15 text-amber-300"
+                                  : "bg-ukm-cyan/15 text-ukm-teal"
+                            }`}
+                          >
+                            {sub.status === "GRADED"
+                              ? `Markah: ${sub.grade ?? "—"}`
                               : sub.status === "LATE"
-                                ? "bg-amber-500/15 text-amber-300"
-                                : "bg-ukm-cyan/15 text-ukm-teal"
-                          }`}
-                        >
-                          {sub.status === "GRADED"
-                            ? `Markah: ${sub.grade ?? "—"}`
-                            : sub.status === "LATE"
-                              ? "Lewat"
-                              : "Dihantar"}
-                        </span>
+                                ? "Lewat"
+                                : "Dihantar"}
+                          </span>
+                          {sub.status !== "GRADED" && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-ukm-teal">
+                              Urus penghantaran <ArrowRight size={12} />
+                            </span>
+                          )}
+                        </>
                       ) : isPast ? (
                         <span className="rounded-md bg-red-500/15 px-2 py-1 text-xs text-red-300">
                           Terlepas tarikh
                         </span>
                       ) : (
-                        <Link
-                          href={`/student/tugasan/${a.id}`}
-                          className="btn-primary text-sm"
-                        >
-                          Hantar
-                        </Link>
+                        <span className="btn-primary text-sm">Hantar</span>
                       )}
                     </div>
                   </div>
-                </article>
+                </Link>
               );
             })
           )}
