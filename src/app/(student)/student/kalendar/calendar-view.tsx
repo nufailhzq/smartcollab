@@ -18,7 +18,6 @@ import {
   X,
 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
-import { SideDrawer } from "@/components/common/SideDrawer";
 import { useToast } from "@/components/common/Toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import {
@@ -47,6 +46,15 @@ const MONTH_NAMES = [
 ];
 const DAY_HEADERS = ["Ahd", "Isn", "Sel", "Rab", "Kha", "Jum", "Sab"];
 const DAY_LABELS = ["Ahad", "Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu"];
+
+// Local YYYY-MM-DD key. Grid cells are built at LOCAL midnight, so we must key
+// them by local wall-clock — using toISOString() here converts to UTC and, in
+// UTC+ timezones (e.g. UTC+8), shifts every cell back a day, which broke both
+// the "today" highlight and the date a click resolved to.
+function localDateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 const NOTIFY_PRESETS: { label: string; minutes: number }[] = [
   { label: "Tiada peringatan", minutes: 0 },
@@ -346,8 +354,8 @@ export function CalendarView({
               const today = new Date();
               const k =
                 today.getFullYear() === year && today.getMonth() === monthIndex
-                  ? today.toISOString().slice(0, 10)
-                  : new Date(year, monthIndex, 1).toISOString().slice(0, 10);
+                  ? localDateKey(today)
+                  : localDateKey(new Date(year, monthIndex, 1));
               setCreateDateISO(k);
               setOpenCreate(true);
             }}
@@ -368,11 +376,11 @@ export function CalendarView({
         </div>
         <div className="grid grid-cols-7">
           {monthGrid.map((cell, i) => {
-            const key = cell.date.toISOString().slice(0, 10);
+            const key = localDateKey(cell.date);
             const dayEvents = eventsByDay.get(key) ?? [];
             const dayDeadlines = deadlinesByDay.get(key) ?? [];
             const dayTimetable = timetableByDay.get(cell.date.getDay()) ?? [];
-            const isToday = key === new Date().toISOString().slice(0, 10);
+            const isToday = key === localDateKey(new Date());
             const isCurrentMonth = cell.date.getMonth() === monthIndex;
             const totalCount =
               dayEvents.length + dayDeadlines.length + dayTimetable.length;
