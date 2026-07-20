@@ -6,9 +6,9 @@ import { getAdHocBoard } from "@/server/queries/ad-hoc-groups";
 import { ArrowLeft } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { SubmissionForm } from "./submission-form";
+import { SubmissionGate } from "./submission-gate";
 import { AdHocBoardView } from "./adhoc-board";
 import { GroupSubmissionsView } from "./group-submissions";
-import { PeerContributionPanel } from "./peer-contribution-panel";
 import { TrackAccess } from "@/components/dashboard/TrackAccess";
 import {
   logContributionForAssignment,
@@ -102,55 +102,83 @@ export default async function AssignmentDetailPage({
 
       {board && <AdHocBoardView board={board} viewerId={currentUserId} />}
 
-      <SubmissionForm
-        assignmentId={assignment.id}
-        isGroupAssignment={assignment.type === "GROUP"}
-        currentUserId={currentUserId}
-        closed={submissionClosed}
-        closeAt={closeAtIso}
-        pastDue={isPast}
-        existing={
-          sub
-            ? {
-                id: sub.id,
-                filePath: sub.filePath,
-                grade: sub.grade,
-                status: sub.status,
-                submittedAt: sub.submittedAt,
-                submittedBy: sub.submittedBy
-                  ? {
-                      id: sub.submittedBy.id,
-                      name: sub.submittedBy.name,
-                      matricNum: sub.submittedBy.matricNum,
-                    }
-                  : null,
-                feedback: sub.feedback.map((f) => ({
-                  id: f.id,
-                  comment: f.comment,
-                  lecturerName: f.lecturer.name,
-                  createdAt: f.createdAt,
-                })),
-              }
-            : null
-        }
-      />
-
-      {groupSubmissions && (
-        <GroupSubmissionsView data={groupSubmissions} viewerId={currentUserId} />
-      )}
-
-      {/* Free-rider detection: peer assessment + self-declaration, only for a
-          GROUP assignment where the viewer is actually in a group. */}
-      {groupSubmissions && contributionInputs && (
-        <PeerContributionPanel
-          tugasanId={assignment.id}
+      {/* GROUP assignment where the viewer is in a group → the merged
+          submission gate (Sumbangan Sendiri + Penilaian Rakan Sekumpulan +
+          gated file submit). Otherwise → the plain submission form. */}
+      {groupSubmissions && contributionInputs ? (
+        <SubmissionGate
+          assignmentId={assignment.id}
+          currentUserId={currentUserId}
           teammates={groupSubmissions.entries
             .filter((e) => e.memberId !== currentUserId)
             .map((e) => ({ id: e.memberId, name: e.memberName, matricNum: e.memberMatric }))}
           initialRatings={contributionInputs.ratings}
           initialSelfDescription={contributionInputs.selfDescription}
-          submitted={groupSubmissions.entries.some((e) => e.filePath !== null)}
+          closed={submissionClosed}
+          closeAt={closeAtIso}
+          pastDue={isPast}
+          existing={
+            sub
+              ? {
+                  id: sub.id,
+                  filePath: sub.filePath,
+                  grade: sub.grade,
+                  status: sub.status,
+                  submittedAt: sub.submittedAt,
+                  submittedBy: sub.submittedBy
+                    ? {
+                        id: sub.submittedBy.id,
+                        name: sub.submittedBy.name,
+                        matricNum: sub.submittedBy.matricNum,
+                      }
+                    : null,
+                  feedback: sub.feedback.map((f) => ({
+                    id: f.id,
+                    comment: f.comment,
+                    lecturerName: f.lecturer.name,
+                    createdAt: f.createdAt,
+                  })),
+                }
+              : null
+          }
         />
+      ) : (
+        <SubmissionForm
+          assignmentId={assignment.id}
+          isGroupAssignment={assignment.type === "GROUP"}
+          currentUserId={currentUserId}
+          closed={submissionClosed}
+          closeAt={closeAtIso}
+          pastDue={isPast}
+          existing={
+            sub
+              ? {
+                  id: sub.id,
+                  filePath: sub.filePath,
+                  grade: sub.grade,
+                  status: sub.status,
+                  submittedAt: sub.submittedAt,
+                  submittedBy: sub.submittedBy
+                    ? {
+                        id: sub.submittedBy.id,
+                        name: sub.submittedBy.name,
+                        matricNum: sub.submittedBy.matricNum,
+                      }
+                    : null,
+                  feedback: sub.feedback.map((f) => ({
+                    id: f.id,
+                    comment: f.comment,
+                    lecturerName: f.lecturer.name,
+                    createdAt: f.createdAt,
+                  })),
+                }
+              : null
+          }
+        />
+      )}
+
+      {groupSubmissions && (
+        <GroupSubmissionsView data={groupSubmissions} viewerId={currentUserId} />
       )}
     </div>
   );
