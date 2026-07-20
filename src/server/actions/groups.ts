@@ -142,14 +142,30 @@ export async function requestGroup(raw: unknown): Promise<ActionResult> {
 
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    select: { code: true, lecturerId: true },
+    select: {
+      code: true,
+      lecturerId: true,
+      selfServiceGroups: true,
+      groupMaxMembers: true,
+      groupFormCloseAt: true,
+    },
   });
   if (!course) return { ok: false, error: "Kursus tidak wujud." };
 
+  // Lecturer-set cutoff: past it, no new standing groups may be formed.
+  if (course.groupFormCloseAt && new Date() > course.groupFormCloseAt) {
+    return { ok: false, error: "Tempoh membentuk kumpulan bagi kursus ini telah tamat." };
+  }
+
+  // Self-service courses APPROVE the group instantly; otherwise it's PENDING and
+  // the lecturer decides. Max members is the lecturer's cap (or the default).
+  const selfService = course.selfServiceGroups;
+  const maxMembers = course.groupMaxMembers ?? DEFAULT_MAX_MEMBERS;
+
   try {
     await prisma.$transaction(async (tx) => {
-      if (memberIds.length > DEFAULT_MAX_MEMBERS) {
-        throw new Error(`Kumpulan melebihi had ${DEFAULT_MAX_MEMBERS} ahli.`);
+      if (memberIds.length > maxMembers) {
+        throw new Error(`Kumpulan melebihi had ${maxMembers} ahli.`);
       }
 
       const enrolledCount = await tx.classEnrollment.count({
@@ -177,7 +193,8 @@ export async function requestGroup(raw: unknown): Promise<ActionResult> {
         data: {
           courseId,
           name,
-          status: "PENDING",
+          status: selfService ? "APPROVED" : "PENDING",
+          maxMembers,
           createdById: leaderId,
           assignmentId: null,
           members: {
@@ -193,21 +210,30 @@ export async function requestGroup(raw: unknown): Promise<ActionResult> {
     return { ok: false, error: err instanceof Error ? err.message : "Gagal memohon." };
   }
 
-  if (course.lecturerId) {
-    await notifyUser(course.lecturerId, {
-      title: "Permohonan Kumpulan Baharu",
-      message: `${session.user.name} memohon kumpulan "${name}" (${course.code}).`,
+  if (selfService) {
+    // No lecturer approval needed — tell every member they're in the group now.
+    await notifyMany(memberIds, {
+      title: "Kumpulan Dibentuk",
+      message: `Kumpulan "${name}" (${course.code}) telah dibentuk. Anda kini ahli kumpulan.`,
       link: "groups",
     });
+  } else {
+    if (course.lecturerId) {
+      await notifyUser(course.lecturerId, {
+        title: "Permohonan Kumpulan Baharu",
+        message: `${session.user.name} memohon kumpulan "${name}" (${course.code}).`,
+        link: "groups",
+      });
+    }
+    await notifyMany(
+      memberIds.filter((id) => id !== leaderId),
+      {
+        title: "Anda Dimasukkan ke Permohonan Kumpulan",
+        message: `${session.user.name} memasukkan anda ke kumpulan "${name}" (${course.code}). Menunggu kelulusan pensyarah.`,
+        link: "groups",
+      },
+    );
   }
-  await notifyMany(
-    memberIds.filter((id) => id !== leaderId),
-    {
-      title: "Anda Dimasukkan ke Permohonan Kumpulan",
-      message: `${session.user.name} memasukkan anda ke kumpulan "${name}" (${course.code}). Menunggu kelulusan pensyarah.`,
-      link: "groups",
-    },
-  );
 
   revalidatePath("/student");
   revalidatePath("/student/kumpulan");

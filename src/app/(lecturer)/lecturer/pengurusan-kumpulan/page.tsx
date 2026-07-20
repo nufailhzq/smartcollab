@@ -5,6 +5,7 @@ import { getPendingGroupRequests } from "@/server/queries/groups";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Users } from "lucide-react";
 import { GroupManager } from "./group-manager";
+import { GroupFormationSettings } from "./group-formation-settings";
 import { PendingGroupRequests } from "./pending-group-requests";
 
 export default async function LecturerGroupsPage({
@@ -64,6 +65,19 @@ export default async function LecturerGroupsPage({
               );
             })}
           </nav>
+
+          {data && (
+            <GroupFormationSettings
+              courseId={data.course.id}
+              selfService={data.course.selfServiceGroups}
+              maxMembers={data.course.groupMaxMembers}
+              closeAt={
+                data.course.groupFormCloseAt
+                  ? data.course.groupFormCloseAt.toISOString()
+                  : null
+              }
+            />
+          )}
 
           {selectedCourse && <PendingGroupRequests groups={pendingGroups} />}
 

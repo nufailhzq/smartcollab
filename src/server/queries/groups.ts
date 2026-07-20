@@ -6,7 +6,15 @@ import { prisma } from "@/lib/prisma";
  * standing-group status (so the UI can show a Pending/Approved/Rejected badge).
  */
 export async function getRequestGroupContext(studentId: number, courseId: number) {
-  const [enrollments, takenMembers, myGroup] = await Promise.all([
+  const [course, enrollments, takenMembers, myGroup] = await Promise.all([
+    prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        selfServiceGroups: true,
+        groupMaxMembers: true,
+        groupFormCloseAt: true,
+      },
+    }),
     prisma.classEnrollment.findMany({
       where: { courseId },
       select: { student: { select: { id: true, name: true, matricNum: true } } },
@@ -36,6 +44,14 @@ export async function getRequestGroupContext(studentId: number, courseId: number
 
   return {
     eligibleClassmates,
+    policy: {
+      selfService: course?.selfServiceGroups ?? false,
+      maxMembers: course?.groupMaxMembers ?? 5,
+      closeAt: course?.groupFormCloseAt ?? null,
+      formationClosed: course?.groupFormCloseAt
+        ? new Date() > course.groupFormCloseAt
+        : false,
+    },
     myGroup: myGroup
       ? { id: myGroup.id, name: myGroup.name, status: myGroup.status }
       : null,
@@ -102,8 +118,10 @@ export async function getCurrentGroupForStudent(studentId: number, courseId: num
     where: {
       courseId,
       // Standing group only (assignmentId = null). Ad-hoc per-assignment groups
-      // must never surface as the student's "current" course group.
+      // must never surface as the student's "current" course group. Only an
+      // APPROVED group is a real membership — a PENDING request isn't yet.
       assignmentId: null,
+      status: "APPROVED",
       members: { some: { studentId } },
     },
     include: {
@@ -131,8 +149,11 @@ export async function getKumpulanContext(studentId: number, courseId: number) {
       }),
       prisma.projectGroup.findMany({
         // Standing groups only — the "my group / other groups" browser is the
-        // course's long-lived grouping, not per-assignment ad-hoc rows.
-        where: { courseId, assignmentId: null },
+        // course's long-lived grouping, not per-assignment ad-hoc rows. Only
+        // APPROVED groups are real memberships: a PENDING request is not "being
+        // in a group" (surfaced separately as a pending banner), and REJECTED
+        // groups don't exist for the student.
+        where: { courseId, assignmentId: null, status: "APPROVED" },
         include: {
           members: {
             include: { student: { select: { id: true, name: true, matricNum: true, avatarPath: true } } },

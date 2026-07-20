@@ -101,7 +101,15 @@ export async function getCourseGroups(lecturerId: number, courseId: number) {
   // Verify ownership
   const course = await prisma.course.findFirst({
     where: { id: courseId, lecturerId },
-    select: { id: true, code: true, title: true, groupsLocked: true },
+    select: {
+      id: true,
+      code: true,
+      title: true,
+      groupsLocked: true,
+      selfServiceGroups: true,
+      groupMaxMembers: true,
+      groupFormCloseAt: true,
+    },
   });
   if (!course) return null;
 

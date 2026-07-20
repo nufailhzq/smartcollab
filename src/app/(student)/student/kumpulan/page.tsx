@@ -61,12 +61,26 @@ export default async function StudentGroupsPage({
 
       {selectedCourse &&
         reqCtx &&
-        (!reqCtx.myGroup || reqCtx.myGroup.status === "REJECTED") && (
+        (!reqCtx.myGroup || reqCtx.myGroup.status === "REJECTED") &&
+        (reqCtx.policy.formationClosed ? (
+          <div className="card border-l-4 border-slate-300 bg-slate-50">
+            <p className="text-sm font-semibold text-ukm-navy">
+              Pembentukan kumpulan telah ditutup
+            </p>
+            <p className="text-xs text-slate-500">
+              Tempoh untuk membentuk kumpulan bagi kursus ini telah tamat. Sila hubungi
+              pensyarah anda.
+            </p>
+          </div>
+        ) : (
           <RequestGroupForm
             courseId={selectedCourse.id}
             classmates={reqCtx.eligibleClassmates}
+            selfService={reqCtx.policy.selfService}
+            maxMembers={reqCtx.policy.maxMembers}
+            closeAt={reqCtx.policy.closeAt ? reqCtx.policy.closeAt.toISOString() : null}
           />
-        )}
+        ))}
 
       {courses.length === 0 ? (
         <EmptyState

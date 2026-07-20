@@ -204,6 +204,16 @@ model Course {
   creditHours  Int?     @map("fld_credit_hour")
   /// When true, students must request lecturer approval to join or leave a group.
   groupsLocked Boolean  @default(false) @map("fld_groups_locked")
+  /// Self-service group formation. When true, a student forming a standing group
+  /// is APPROVED instantly (no lecturer acceptance). When false, the request is
+  /// created PENDING and the lecturer approves/rejects it.
+  selfServiceGroups Boolean  @default(false) @map("fld_self_service_groups")
+  /// Cap on members for a student-formed standing group. Null = fall back to the
+  /// system default (5). Applies to both self-service and request flows.
+  groupMaxMembers   Int?     @map("fld_group_max_members")
+  /// After this moment students can no longer form standing groups in this course
+  /// (existing groups untouched). Null = no cutoff.
+  groupFormCloseAt  DateTime? @map("fld_group_form_close_at")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

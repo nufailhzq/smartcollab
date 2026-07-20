@@ -10,6 +10,7 @@ import {
   requestLeaveGroupSchema,
   respondAccessRequestSchema,
   toggleCourseGroupsLockedSchema,
+  setGroupFormationSettingsSchema,
 } from "@/schemas/group-access";
 import type { ActionResult } from "@/schemas/common";
 
@@ -43,6 +44,44 @@ export async function toggleCourseGroupsLocked(raw: unknown): Promise<ActionResu
   await prisma.course.update({
     where: { id: course.id },
     data: { groupsLocked: parsed.data.locked },
+  });
+
+  revalidateGroupSurfaces(course.code);
+  return { ok: true };
+}
+
+/**
+ * Lecturer sets the self-service group-formation policy for a course: whether
+ * students form groups without approval, the member cap, and the cutoff after
+ * which no new groups may be formed.
+ */
+export async function setGroupFormationSettings(raw: unknown): Promise<ActionResult> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Sesi tidak sah." };
+  if (session.user.role !== "LECTURER") {
+    return { ok: false, error: "Hanya pensyarah boleh menukar tetapan ini." };
+  }
+
+  const parsed = setGroupFormationSettingsSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Input tidak sah." };
+  }
+
+  const course = await prisma.course.findUnique({
+    where: { id: parsed.data.courseId },
+    select: { id: true, code: true, lecturerId: true },
+  });
+  if (!course || course.lecturerId !== session.user.id) {
+    return { ok: false, error: "Anda bukan pensyarah kursus ini." };
+  }
+
+  await prisma.course.update({
+    where: { id: course.id },
+    data: {
+      selfServiceGroups: parsed.data.selfService,
+      groupMaxMembers: parsed.data.maxMembers,
+      groupFormCloseAt: parsed.data.closeAt ? new Date(parsed.data.closeAt) : null,
+    },
   });
 
   revalidateGroupSurfaces(course.code);
