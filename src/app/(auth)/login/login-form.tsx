@@ -8,6 +8,7 @@ import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { loginAction } from "./actions";
 import { SmartCollabLoader } from "@/components/common/SmartCollabLoader";
 import { IdleLogoutNotice } from "@/components/layout/IdleLogoutNotice";
+import { LEFT_AT_KEY } from "@/components/layout/IdleLogout";
 
 // Split-screen "I-KOM"-style login. Left = SmartCollab branding panel; right =
 // clean login card. Authentication is unchanged — it still logs in by matric
@@ -33,6 +34,15 @@ export function LoginForm() {
       }
       setUserName(res.name);
       setLoggingIn(true);
+      // A fresh login is never a "reopened after tab close". Clear any stale
+      // close-stamp a previous session left in localStorage, otherwise IdleLogout
+      // mounts on "/" (navigationType "navigate", not "reload"), sees the stamp,
+      // and immediately logs the user back out — the classic login-twice bug.
+      try {
+        localStorage.removeItem(LEFT_AT_KEY);
+      } catch {
+        /* storage may be unavailable (private mode, etc.) */
+      }
       // Hard navigation so the freshly-set session cookie is sent on "/".
       setTimeout(() => {
         window.location.href = "/";

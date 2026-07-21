@@ -24,9 +24,13 @@ const WARN_BEFORE_MS = 60_000; // show countdown 60s before logout
  *   - On `pagehide` we stamp `left-at = now` (we do NOT log out yet).
  *   - A refresh re-runs this effect within milliseconds; the new load reports
  *     navigation type "reload", so we just clear the stamp and stay signed in.
- *   - A real close never reloads, so the stamp persists. The next time the app
- *     is opened with a still-valid session, we see the stamp and immediately
- *     sign out, forcing a fresh login.
+ *   - Any other same-continuous-navigation case (e.g. a login redirect via
+ *     window.location, whose pagehide fires ms earlier) reports type "navigate",
+ *     NOT "reload" — so we also require the stamp to be older than a short gap
+ *     before treating it as a close, or a just-logged-in user gets bounced out.
+ *   - A real close never reloads and leaves a stamp with a real time gap, so it
+ *     persists. The next time the app is opened with a still-valid session, we
+ *     see the (stale) stamp and immediately sign out, forcing a fresh login.
  *
  * The 10-minute idle JWT bounds how long a session can survive between a real
  * close and the next visit.
@@ -108,7 +112,18 @@ export function IdleLogout() {
       /* storage may be unavailable (private mode, etc.) */
     }
 
-    if (leftAt && !arrivedByReload) {
+    // A stamp younger than this is not a real close-and-reopen: it's the same
+    // continuous navigation (a login redirect via window.location, or a full-page
+    // internal nav) whose pagehide fired milliseconds ago. Only a stamp with a
+    // real gap means the tab was actually closed and later reopened. Without this
+    // window, performance navigationType "navigate" (anything but "reload") gets
+    // misread as a close and logs a just-logged-in user straight back out.
+    const CLOSE_REOPEN_MIN_GAP_MS = 2500;
+    const leftAtMs = leftAt ? Number(leftAt) : NaN;
+    const stampIsStale =
+      Number.isFinite(leftAtMs) && Date.now() - leftAtMs >= CLOSE_REOPEN_MIN_GAP_MS;
+
+    if (leftAt && !arrivedByReload && stampIsStale) {
       // Reopened after a real close → force re-login.
       submitLogout("closed");
       return;
