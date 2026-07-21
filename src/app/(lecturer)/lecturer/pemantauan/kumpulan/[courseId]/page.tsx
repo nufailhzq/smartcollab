@@ -67,7 +67,7 @@ export default async function GroupContributionPage({
                         <MessageSquareQuote size={14} className="text-ukm-teal" />
                         Skor Rakan:{" "}
                         <strong className="tabular-nums text-ukm-navy">
-                          {m.peerScore ?? "—"}
+                          {m.peerScore === null ? "—" : `${m.peerScore}%`}
                         </strong>
                       </span>
                       <span className="inline-flex items-center gap-1.5 text-slate-600">
@@ -109,7 +109,7 @@ export default async function GroupContributionPage({
                             className="flex items-start gap-2 rounded-md bg-white px-2.5 py-1.5 text-sm shadow-soft"
                           >
                             <span className="shrink-0 rounded bg-ukm-teal/10 px-1.5 py-0.5 text-xs font-bold tabular-nums text-ukm-teal">
-                              {r.score}
+                              {r.score}/5
                             </span>
                             <span className="min-w-0">
                               <span className="text-slate-500">{r.raterName}</span>

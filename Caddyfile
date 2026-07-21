@@ -25,6 +25,9 @@ smartcollab.me, www.smartcollab.me {
     reverse_proxy @sse app:3000 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        # Explicit forwarded-host so Auth.js v5 resolves the public origin from
+        # the proxy headers (with trustHost: true) even if a code path prefers it.
+        header_up X-Forwarded-Host {host}
         flush_interval -1
         transport http {
             response_header_timeout 0s
@@ -36,6 +39,7 @@ smartcollab.me, www.smartcollab.me {
     reverse_proxy app:3000 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
     }
 
     # Bigger upload limit than Caddy's default for chat/folio attachments.

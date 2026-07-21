@@ -24,6 +24,11 @@ import {
   submitPeerAssessment,
   submitSelfDeclaration,
 } from "@/server/actions/contribution";
+import {
+  PEER_SCORE_LABELS,
+  PEER_SCORE_MAX,
+  PEER_SCORE_MIN,
+} from "@/schemas/contribution";
 import type { SubmissionStatus } from "@prisma/client";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,10 +98,10 @@ export function SubmissionGate({
   const [selfText, setSelfText] = useState(initialSelfDescription ?? "");
   const [file, setFile] = useState<File | null>(null);
 
-  // Rating state keyed by rateeId. Sliders start "untouched": a teammate is only
-  // considered rated once the student explicitly moves the slider (or a rating
-  // was already saved before). Untouched sliders render at 50 for a sane handle
-  // position but display "Belum dinilai" instead of a number.
+  // Rating state keyed by rateeId, on the 1–5 activity scale. A teammate is only
+  // considered rated once the student picks a button (or a rating was already
+  // saved before). Untouched teammates have no score entry and display
+  // "Belum dinilai" instead of a number.
   const initiallyTouched = useMemo(
     () => new Set(initialRatings.map((r) => r.rateeId)),
     [initialRatings],
@@ -104,7 +109,8 @@ export function SubmissionGate({
   const [scores, setScores] = useState<Record<number, number>>(() => {
     const init: Record<number, number> = {};
     for (const t of teammates) {
-      init[t.id] = initialRatings.find((r) => r.rateeId === t.id)?.score ?? 50;
+      const existing = initialRatings.find((r) => r.rateeId === t.id)?.score;
+      if (existing !== undefined) init[t.id] = existing;
     }
     return init;
   });
@@ -169,7 +175,7 @@ export function SubmissionGate({
       if (teammates.length > 0) {
         const ratings = teammates.map((t) => ({
           rateeId: t.id,
-          score: scores[t.id] ?? 50,
+          score: scores[t.id] ?? PEER_SCORE_MIN,
           comment: comments[t.id]?.trim() || undefined,
         }));
         const peerRes = await submitPeerAssessment({ tugasanId: assignmentId, ratings });
@@ -373,13 +379,14 @@ export function SubmissionGate({
                 </h3>
               </header>
               <p className="mb-2 text-xs text-slate-500">
-                Nilai sumbangan setiap ahli (0–100). Penilaian ini hanya dilihat oleh
-                pensyarah.
+                Nilai tahap keaktifan setiap ahli (1 = tidak aktif langsung, 5 = sangat
+                aktif). Penilaian ini hanya dilihat oleh pensyarah.
               </p>
 
               <ul className="space-y-3">
                 {teammates.map((t) => {
                   const isTouched = touched.has(t.id);
+                  const current = scores[t.id];
                   return (
                     <li
                       key={t.id}
@@ -396,9 +403,9 @@ export function SubmissionGate({
                             </p>
                           )}
                         </div>
-                        {isTouched ? (
-                          <span className="shrink-0 rounded-md bg-white px-2 py-1 text-sm font-bold tabular-nums text-ukm-teal shadow-soft">
-                            {scores[t.id] ?? 50}
+                        {isTouched && current !== undefined ? (
+                          <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-semibold text-ukm-teal shadow-soft">
+                            {current} — {PEER_SCORE_LABELS[current - PEER_SCORE_MIN]}
                           </span>
                         ) : (
                           <span className="shrink-0 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700">
@@ -406,18 +413,41 @@ export function SubmissionGate({
                           </span>
                         )}
                       </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={scores[t.id] ?? 50}
-                        onChange={(e) => rate(t.id, Number(e.target.value))}
-                        disabled={isPending}
-                        className={`mt-2 w-full accent-ukm-teal ${
-                          isTouched ? "" : "opacity-60"
-                        }`}
-                      />
+                      <div
+                        role="radiogroup"
+                        aria-label={`Penilaian keaktifan untuk ${t.name}`}
+                        className="mt-2 flex gap-1.5"
+                      >
+                        {Array.from(
+                          { length: PEER_SCORE_MAX - PEER_SCORE_MIN + 1 },
+                          (_, i) => PEER_SCORE_MIN + i,
+                        ).map((value) => {
+                          const selected = current === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              role="radio"
+                              aria-checked={selected}
+                              aria-label={`${value} — ${PEER_SCORE_LABELS[value - PEER_SCORE_MIN]}`}
+                              title={PEER_SCORE_LABELS[value - PEER_SCORE_MIN]}
+                              onClick={() => rate(t.id, value)}
+                              disabled={isPending}
+                              className={`flex-1 rounded-md border py-1.5 text-sm font-semibold tabular-nums transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                selected
+                                  ? "border-ukm-teal bg-ukm-teal text-white shadow-soft"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-ukm-teal hover:text-ukm-teal"
+                              }`}
+                            >
+                              {value}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-1 flex justify-between px-0.5 text-[10px] text-slate-400">
+                        <span>{PEER_SCORE_LABELS[0]}</span>
+                        <span>{PEER_SCORE_LABELS[PEER_SCORE_LABELS.length - 1]}</span>
+                      </div>
                       <input
                         type="text"
                         value={comments[t.id] ?? ""}

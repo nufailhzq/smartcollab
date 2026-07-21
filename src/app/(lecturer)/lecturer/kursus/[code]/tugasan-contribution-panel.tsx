@@ -132,7 +132,7 @@ export function TugasanContributionPanel({ tugasanId }: { tugasanId: number }) {
                             className="flex items-start gap-2 rounded-md bg-white px-2 py-1 text-xs shadow-soft"
                           >
                             <span className="shrink-0 rounded bg-ukm-teal/10 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-ukm-teal">
-                              {r.score}
+                              {r.score}/5
                             </span>
                             <span className="min-w-0">
                               <span className="text-slate-500">{r.raterName}</span>

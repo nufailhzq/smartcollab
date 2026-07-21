@@ -8,6 +8,7 @@ import {
   submitPeerAssessmentSchema,
   submitSelfDeclarationSchema,
   logContributionSchema,
+  peerScoreToPercent,
   type ContributionScore,
   type PeerAssessmentStatus,
   type ContributionActionTypeInput,
@@ -379,11 +380,13 @@ export async function getContributionScore(
       groupActivityAvg > 0 && activityCount < 0.6 * groupActivityAvg;
     const riskFlag = peerBelow && activityBelow;
 
+    // peerScore + the risk check run on the raw 1–5 domain (both ratio-based).
+    // Only the returned value is normalised to 0–100% for the lecturer views.
     return {
       userId: id,
       name: m.student.name,
       matricNum: m.student.matricNum,
-      peerScore: peerScore === null ? null : Math.round(peerScore),
+      peerScore: peerScore === null ? null : Math.round(peerScoreToPercent(peerScore)),
       activityScore: Math.round(activityScore * 100) / 100,
       activityCount,
       riskFlag,

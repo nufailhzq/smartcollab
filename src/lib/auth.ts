@@ -39,8 +39,12 @@ function touchLastSeen(userId: number) {
 // app may see http internally. If NEXTAUTH_URL is misconfigured to http://, v5
 // picks the NON-secure cookie name while the browser expects the `__Secure-`
 // one — so the first login's cookie isn't recognised on the redirect and the
-// user has to log in twice. Forcing secure cookies + a fixed cookie name in
-// production makes it deterministic regardless of NEXTAUTH_URL's scheme.
+// user has to log in twice. Two things guard against this, and BOTH must hold:
+//   1. NEXTAUTH_URL/AUTH_URL point at the public https:// origin (.env.docker).
+//   2. We force secure cookies + a fixed __Secure- cookie name in production
+//      here, so the cookie the browser gets is deterministic.
+// Historically only (2) was in place while the env still said http://localhost,
+// which is exactly what caused the login → instant logout → works-on-retry bug.
 const isProd = process.env.NODE_ENV === "production";
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
